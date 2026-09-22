@@ -1,0 +1,520 @@
+[
+  {
+    "family": "qa",
+    "coding": false,
+    "titles": [
+      "QA Engineer",
+      "Quality Assurance Analyst",
+      "Software Tester",
+      "Manual Tester",
+      "Test Engineer"
+    ],
+    "aliases": [
+      "qa",
+      "quality assurance",
+      "software testing"
+    ],
+    "signals": [
+      "testing",
+      "selenium",
+      "playwright",
+      "test cases",
+      "bug tracking",
+      "pytest"
+    ]
+  },
+  {
+    "family": "analytics",
+    "coding": false,
+    "titles": [
+      "Data Analyst",
+      "Business Intelligence Analyst",
+      "Reporting Analyst"
+    ],
+    "aliases": [
+      "data analytics",
+      "analytics",
+      "business intelligence"
+    ],
+    "signals": [
+      "excel",
+      "sql",
+      "power bi",
+      "tableau",
+      "dashboard",
+      "statistics",
+      "data analysis"
+    ]
+  },
+  {
+    "family": "business",
+    "coding": false,
+    "titles": [
+      "Business Analyst",
+      "Product Analyst",
+      "Business Operations Analyst"
+    ],
+    "aliases": [
+      "business analysis"
+    ],
+    "signals": [
+      "requirements",
+      "stakeholder",
+      "process mapping",
+      "excel",
+      "business analysis",
+      "documentation"
+    ]
+  },
+  {
+    "family": "software",
+    "coding": true,
+    "titles": [
+      "Software Engineer",
+      "Backend Developer",
+      "Frontend Developer",
+      "Full Stack Developer",
+      "Python Developer",
+      "Java Developer"
+    ],
+    "aliases": [
+      "software development",
+      "software",
+      "developer"
+    ],
+    "signals": [
+      "python",
+      "java",
+      "javascript",
+      "typescript",
+      "react",
+      "django",
+      "fastapi",
+      "c++",
+      "git"
+    ]
+  },
+  {
+    "family": "ai",
+    "coding": true,
+    "titles": [
+      "Machine Learning Engineer",
+      "AI Engineer",
+      "Data Scientist",
+      "AI Research Assistant"
+    ],
+    "aliases": [
+      "machine learning",
+      "artificial intelligence",
+      "ai",
+      "ml"
+    ],
+    "signals": [
+      "machine learning",
+      "pytorch",
+      "tensorflow",
+      "scikit-learn",
+      "nlp",
+      "deep learning",
+      "llm"
+    ]
+  },
+  {
+    "family": "design",
+    "coding": false,
+    "titles": [
+      "UX Designer",
+      "UI Designer",
+      "Product Designer",
+      "Graphic Designer"
+    ],
+    "aliases": [
+      "ux",
+      "ui",
+      "design"
+    ],
+    "signals": [
+      "figma",
+      "user research",
+      "wireframe",
+      "adobe",
+      "photoshop",
+      "illustrator",
+      "prototyping"
+    ]
+  },
+  {
+    "family": "operations",
+    "coding": false,
+    "titles": [
+      "Operations Analyst",
+      "Operations Associate",
+      "Logistics Coordinator",
+      "Supply Chain Analyst"
+    ],
+    "aliases": [
+      "operations",
+      "logistics",
+      "supply chain"
+    ],
+    "signals": [
+      "logistics",
+      "inventory",
+      "supply chain",
+      "operations",
+      "excel",
+      "coordination"
+    ]
+  },
+  {
+    "family": "sales",
+    "coding": false,
+    "titles": [
+      "Sales Associate",
+      "Business Development Associate",
+      "Sales Development Representative",
+      "Account Executive"
+    ],
+    "aliases": [
+      "sales",
+      "business development"
+    ],
+    "signals": [
+      "salesforce",
+      "sales",
+      "crm",
+      "negotiation",
+      "lead generation"
+    ]
+  },
+  {
+    "family": "finance",
+    "coding": false,
+    "titles": [
+      "Financial Analyst",
+      "Accounts Associate",
+      "Accountant",
+      "Bookkeeper"
+    ],
+    "aliases": [
+      "finance",
+      "accounting"
+    ],
+    "signals": [
+      "bookkeeping",
+      "accounting",
+      "financial modeling",
+      "tally",
+      "reconciliation",
+      "excel",
+      "audit"
+    ]
+  },
+  {
+    "family": "hr",
+    "coding": false,
+    "titles": [
+      "HR Associate",
+      "Recruiter",
+      "Talent Acquisition Associate"
+    ],
+    "aliases": [
+      "hr",
+      "human resources",
+      "recruitment"
+    ],
+    "signals": [
+      "recruitment",
+      "payroll",
+      "onboarding",
+      "human resources",
+      "interviewing"
+    ]
+  },
+  {
+    "family": "support",
+    "coding": false,
+    "titles": [
+      "Customer Support Associate",
+      "Customer Success Associate",
+      "Technical Support Specialist"
+    ],
+    "aliases": [
+      "customer support",
+      "customer success",
+      "support"
+    ],
+    "signals": [
+      "customer service",
+      "troubleshooting",
+      "zendesk",
+      "communication",
+      "customer support"
+    ]
+  },
+  {
+    "family": "marketing",
+    "coding": false,
+    "titles": [
+      "Digital Marketing Associate",
+      "Marketing Analyst",
+      "SEO Specialist",
+      "Content Marketer"
+    ],
+    "aliases": [
+      "marketing",
+      "digital marketing"
+    ],
+    "signals": [
+      "seo",
+      "google analytics",
+      "copywriting",
+      "campaign",
+      "social media",
+      "content writing"
+    ]
+  },
+  {
+    "family": "engineering",
+    "coding": false,
+    "titles": [
+      "Mechanical Engineer",
+      "Civil Engineer",
+      "Electrical Engineer",
+      "CAD Technician"
+    ],
+    "aliases": [
+      "mechanical engineering",
+      "civil engineering",
+      "electrical engineering",
+      "engineering"
+    ],
+    "signals": [
+      "autocad",
+      "solidworks",
+      "cad",
+      "circuit",
+      "mechanical",
+      "civil",
+      "electrical"
+    ]
+  },
+  {
+    "family": "data_engineering",
+    "coding": true,
+    "titles": [
+      "Data Engineer",
+      "ETL Developer",
+      "Analytics Engineer"
+    ],
+    "aliases": [
+      "data engineering",
+      "etl"
+    ],
+    "signals": [
+      "etl",
+      "spark",
+      "airflow",
+      "dbt",
+      "data pipeline",
+      "sql"
+    ]
+  },
+  {
+    "family": "devops",
+    "coding": true,
+    "titles": [
+      "DevOps Engineer",
+      "Cloud Engineer",
+      "Site Reliability Engineer"
+    ],
+    "aliases": [
+      "devops",
+      "cloud engineering"
+    ],
+    "signals": [
+      "docker",
+      "kubernetes",
+      "terraform",
+      "aws",
+      "azure",
+      "linux",
+      "ci/cd"
+    ]
+  },
+  {
+    "family": "security",
+    "coding": true,
+    "titles": [
+      "Security Analyst",
+      "Cybersecurity Analyst",
+      "SOC Analyst"
+    ],
+    "aliases": [
+      "cybersecurity",
+      "information security"
+    ],
+    "signals": [
+      "siem",
+      "security",
+      "penetration testing",
+      "wireshark",
+      "incident response"
+    ]
+  },
+  {
+    "family": "product",
+    "coding": false,
+    "titles": [
+      "Product Associate",
+      "Associate Product Manager",
+      "Product Operations Associate"
+    ],
+    "aliases": [
+      "product management"
+    ],
+    "signals": [
+      "product management",
+      "roadmap",
+      "user research",
+      "prioritization",
+      "stakeholder"
+    ]
+  },
+  {
+    "family": "project_management",
+    "coding": false,
+    "titles": [
+      "Project Coordinator",
+      "Project Manager",
+      "Program Associate"
+    ],
+    "aliases": [
+      "project management",
+      "program management"
+    ],
+    "signals": [
+      "project planning",
+      "agile",
+      "scrum",
+      "coordination",
+      "jira"
+    ]
+  },
+  {
+    "family": "writing",
+    "coding": false,
+    "titles": [
+      "Technical Writer",
+      "Content Writer",
+      "Editor"
+    ],
+    "aliases": [
+      "technical writing",
+      "writing",
+      "editing"
+    ],
+    "signals": [
+      "technical writing",
+      "documentation",
+      "writing",
+      "editing",
+      "copywriting"
+    ]
+  },
+  {
+    "family": "education",
+    "coding": false,
+    "titles": [
+      "Teaching Assistant",
+      "Tutor",
+      "Instructional Designer"
+    ],
+    "aliases": [
+      "education",
+      "teaching"
+    ],
+    "signals": [
+      "teaching",
+      "tutoring",
+      "curriculum",
+      "instructional design"
+    ]
+  },
+  {
+    "family": "research",
+    "coding": false,
+    "titles": [
+      "Research Assistant",
+      "Research Analyst",
+      "Market Research Analyst"
+    ],
+    "aliases": [
+      "research"
+    ],
+    "signals": [
+      "research",
+      "literature review",
+      "survey",
+      "statistics",
+      "publication"
+    ]
+  },
+  {
+    "family": "healthcare",
+    "coding": false,
+    "titles": [
+      "Healthcare Administrator",
+      "Clinical Research Coordinator",
+      "Medical Records Associate"
+    ],
+    "aliases": [
+      "healthcare",
+      "clinical research"
+    ],
+    "signals": [
+      "clinical research",
+      "medical records",
+      "healthcare",
+      "patient coordination"
+    ]
+  },
+  {
+    "family": "legal",
+    "coding": false,
+    "titles": [
+      "Legal Assistant",
+      "Paralegal",
+      "Compliance Analyst"
+    ],
+    "aliases": [
+      "legal",
+      "compliance"
+    ],
+    "signals": [
+      "legal research",
+      "compliance",
+      "contract review",
+      "law"
+    ]
+  },
+  {
+    "family": "hospitality",
+    "coding": false,
+    "titles": [
+      "Hospitality Associate",
+      "Guest Relations Associate",
+      "Event Coordinator"
+    ],
+    "aliases": [
+      "hospitality",
+      "event management"
+    ],
+    "signals": [
+      "hospitality",
+      "event planning",
+      "guest relations",
+      "customer service"
+    ]
+  }
+]

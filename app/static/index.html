@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Job Agent</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <button id="sidebarBackdrop" class="drawer-backdrop hidden" type="button" tabindex="-1" aria-label="Close navigation"></button>
+  <div id="appShell" class="shell">
+    <aside id="sidebar" class="sidebar" aria-label="Career Agent navigation">
+      <div class="sidebar-main">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">CA</div>
+          <div class="brand-copy"><strong>Career Agent</strong><span>Career workspace</span></div>
+          <button id="sidebarToggle" class="icon-btn sidebar-toggle" type="button" aria-label="Collapse sidebar" aria-expanded="true">‹</button>
+        </div>
+        <button id="newSearchBtn" class="new-conversation-btn" type="button"><span aria-hidden="true">+</span><span>New conversation</span></button>
+        <section class="recent-section" aria-labelledby="recentHeading">
+          <h2 id="recentHeading">Recent</h2>
+          <button id="recentConversation" class="recent-conversation active" type="button" data-view="search">New conversation</button>
+        </section>
+      </div>
+      <nav class="sidebar-nav" aria-label="Career tools">
+        <button class="nav" data-view="profile"><span>Profile / CV</span></button>
+        <button class="nav" data-view="tracker"><span>Applications</span></button>
+        <button class="nav" data-view="email"><span>Outreach</span></button>
+        <button class="nav" data-view="settings"><span>Connections</span></button>
+        <button class="nav" data-view="preferences"><span>Settings</span></button>
+      </nav>
+      <div class="sidebar-foot">
+        <span id="gmailPill" class="pill">Gmail: checking…</span>
+        <span id="providerPill" class="pill">Search API: checking…</span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button id="mobileMenuBtn" class="icon-btn mobile-menu" type="button" aria-label="Open navigation" aria-expanded="false">☰</button>
+        <div><h1 id="pageTitle">Career Agent</h1><p id="pageSubtitle">Conversation, recommendations and career actions.</p></div>
+        <button id="refreshBtn" class="secondary">Refresh</button>
+      </header>
+
+      <section id="searchView" class="view active conversation-screen">
+        <div id="careerWorkspace" class="conversation-layout">
+          <section id="conversationPane" class="conversation-pane active" aria-labelledby="conversationHeading">
+            <div id="welcomeState" class="welcome-state">
+              <div class="welcome-mark" aria-hidden="true">CA</div>
+              <h2 id="conversationHeading">Career Agent</h2>
+              <p>Search jobs, analyze roles, track applications, or ask about your career.</p>
+            </div>
+            <div id="chatReplayStatus" class="inline-notice hidden" role="status">This turn was already processed.</div>
+            <div id="searchStatus" class="status hidden" role="status" aria-live="polite"></div>
+            <div id="conversation" class="conversation" role="log" aria-live="polite" aria-relevant="additions text"></div>
+
+            <form id="searchForm" class="prompt-box">
+              <label class="sr-only" for="searchQuery">Message Career Agent</label>
+              <textarea id="searchQuery" rows="3" maxlength="4000" required placeholder="Ask Career Agent anything..."></textarea>
+              <div class="composer-footer">
+                <div class="composer-options">
+                  <label class="checkbox"><input id="includeSeen" type="checkbox" />Include seen</label>
+                  <label class="checkbox"><input id="strictSearch" type="checkbox" />Verified only</label>
+                </div>
+                <button id="searchSubmit" class="primary composer-submit" type="submit">Send</button>
+              </div>
+            </form>
+
+            <div id="suggestionChips" class="suggestion-chips" aria-label="Suggested prompts">
+              <button class="suggestion-chip" type="button" data-suggestion="Find jobs suitable for my CV">Find jobs for my CV</button>
+              <button class="suggestion-chip" type="button" data-suggestion="Search AI/ML roles">Search AI/ML roles</button>
+              <button class="suggestion-chip" type="button" data-suggestion="Analyze a job description">Analyze a job description</button>
+              <button class="suggestion-chip" type="button" data-suggestion="Show my saved jobs">Show saved jobs</button>
+            </div>
+
+            <section id="recommendationsPane" class="inline-results hidden" aria-labelledby="recommendationsHeading">
+              <div class="inline-results-head sr-only"><h3 id="recommendationsHeading">Recommended jobs</h3><span id="workspaceResultCount" class="count-label">0 jobs</span></div>
+              <div id="workspaceJobResults" class="workspace-job-list hidden"></div>
+              <details id="searchReport" class="search-details hidden">
+                <summary>Search details</summary>
+                <section><h4>Search understanding</h4><div id="searchUnderstanding"></div><div id="roleSuggestions"></div></section>
+                <section><h4>Generated queries</h4><div id="searchQueries"></div></section>
+                <section><h4>Execution</h4><p id="executionSummary"></p><div id="searchDiagnostics" class="diagnostics"></div></section>
+              </details>
+            </section>
+          </section>
+        </div>
+      </section>
+      <section id="resultsView" class="view">
+        <div class="panel"><h2>Opportunities for you</h2><p>Compare match evidence and application status. Opening a listing does not mark it applied.</p></div>
+        <div id="resultActionStatus" class="status hidden" role="status" aria-live="polite"></div>
+        <div id="resultsSummary" class="results-summary hidden"></div>
+        <div id="jobResults" class="job-grid section-gap"><div class="panel"><p>Start a search in Career Agent to see recommendations.</p></div></div>
+      </section>
+
+      <section id="profileView" class="view">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Your CV profile</h2>
+              <p>Upload a newer PDF any time. It becomes the profile used for ranking.</p>
+            </div>
+            <label class="upload-btn">
+              Upload CV PDF
+              <input id="cvInput" type="file" accept=".pdf,application/pdf" hidden />
+            </label>
+          </div>
+
+          <div id="cvStatus" class="status hidden"></div>
+          <div id="profileCard" class="profile-card"></div>
+          <form id="profileForm" class="section-gap">
+            <h3>Review and edit your profile</h3>
+            <div class="form-grid">
+              <label>Name<input id="profileName" maxlength="150" /></label>
+              <label>Degree<input id="profileDegree" maxlength="200" /></label>
+              <label>Graduation year<input id="profileYear" type="number" min="1950" max="2100" placeholder="Unknown" /></label>
+              <label>Professional experience (years)<input id="profileExperience" type="number" min="0" max="70" step="0.5" placeholder="Unknown" /></label>
+              <label>Skills (comma separated)<textarea id="profileSkills" rows="3"></textarea></label>
+              <label>Preferred roles (comma separated)<textarea id="profileRoles" rows="3"></textarea></label>
+              <label>Locations (comma separated)<input id="profileLocations" /></label>
+              <label>Relocation<select id="profileRelocation"><option value="">Not specified</option><option value="true">Open to relocation</option><option value="false">Not open to relocation</option></select></label>
+            </div>
+            <details class="section-gap"><summary>Advanced profile: projects, education, evidence and other fields</summary><label for="profileAdvanced">Additional profile fields (JSON)</label><textarea id="profileAdvanced" rows="12" spellcheck="false"></textarea><p class="muted">Basic fields above take precedence. Keep only facts you can support.</p></details>
+            <button id="saveProfileBtn" class="primary section-gap" type="submit">Save profile</button>
+            <div id="profileEditStatus" class="status hidden" role="status"></div>
+          </form>
+        </div>
+      </section>
+
+      <section id="trackerView" class="view">
+        <div class="panel"><div class="panel-head"><div><h2>Application tracker</h2><p>Save opportunities, keep notes and record your own progress.</p></div><button id="reloadTracker" class="secondary">Refresh tracker</button></div><div id="trackerStatus" class="status hidden" role="status"></div><div id="trackerList" class="draft-list"></div></div>
+      </section>
+
+      <section id="preferencesView" class="view">
+        <div class="panel"><h2>Search preferences</h2><p>These defaults guide new searches. You can refine a search in conversation.</p>
+          <form id="preferencesForm" class="section-gap">
+            <fieldset><legend>Work arrangements</legend><div class="row-actions"><label class="checkbox"><input id="preferenceRemote" type="checkbox" />Remote</label><label class="checkbox"><input id="preferenceHybrid" type="checkbox" />Hybrid</label><label class="checkbox"><input id="preferenceOnsite" type="checkbox" />On-site</label></div></fieldset>
+            <div class="form-grid section-gap">
+              <label>Preferred locations (comma separated)<input id="preferenceLocations" /></label>
+              <label>Role families (comma separated)<input id="preferenceRoles" /></label>
+              <label>Maximum required experience (years)<input id="preferenceExperience" type="number" min="0" max="70" step="0.5" required /></label>
+              <label>Minimum match score (0–100)<input id="preferenceScore" type="number" min="0" max="100" required /></label>
+              <label>Required graduation year<input id="preferenceYear" type="number" min="1950" max="2100" placeholder="Any year" /></label>
+              <label>Queries per search (4–10)<input id="preferenceQueries" type="number" min="4" max="10" required /></label>
+            </div>
+            <div class="section-gap option-list"><label class="checkbox"><input id="preferenceStrict" type="checkbox" />Only include verified active applications</label><label class="checkbox"><input id="preferenceFresher" type="checkbox" />Require fresher or recent-graduate language</label><label class="checkbox"><input id="preferenceOfficial" type="checkbox" />Prefer official application pages</label></div>
+            <details class="section-gap"><summary>Advanced preferences</summary><label for="preferenceAdvanced">Additional settings (JSON)</label><textarea id="preferenceAdvanced" rows="10" spellcheck="false"></textarea></details>
+            <button id="savePreferencesBtn" class="primary section-gap" type="submit">Save preferences</button><div id="preferencesStatus" class="status hidden" role="status"></div>
+          </form>
+        </div>
+      </section>
+
+      <section id="emailView" class="view">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Email approval queue</h2>
+              <p>No draft can be sent until you explicitly approve it.</p>
+            </div>
+            <button id="reloadDrafts" class="secondary">Reload</button>
+          </div>
+          <div id="draftList" class="draft-list"></div>
+        </div>
+      </section>
+
+      <section id="settingsView" class="view">
+        <div id="linkedinFeedback" class="status hidden" role="status" aria-live="polite"></div>
+        <div class="settings-grid">
+          <div class="panel">
+            <h2>LinkedIn</h2>
+            <p>Connect your LinkedIn profile and email.</p>
+            <div id="linkedinStatusBox" class="connection-box" aria-live="polite">Checking connection...</div>
+            <div class="row-actions">
+              <a id="connectLinkedIn" class="primary link-button" href="/auth/linkedin/login">Connect LinkedIn</a>
+              <button id="disconnectLinkedIn" class="secondary hidden">Disconnect LinkedIn</button>
+            </div>
+          </div>
+          <div class="panel">
+            <h2>Gmail</h2>
+            <p>Uses OAuth 2.0 with Gmail send-only permission.</p>
+            <div id="gmailStatusBox" class="connection-box"></div>
+            <div class="row-actions">
+              <a id="connectGmail" class="primary link-button" href="/auth/google/login">Connect Gmail</a>
+              <button id="disconnectGmail" class="secondary">Disconnect</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2>Job Search API</h2>
+            <p>Real search currently uses the JSearch provider through RapidAPI.</p>
+            <div id="searchApiStatusBox" class="connection-box"></div>
+          </div>
+
+          <div class="panel wide">
+            <h2>Safety rules</h2>
+            <ul class="safe-list">
+              <li>Recommendations show whether an application page was verified. Enable strict mode to require verification.</li>
+              <li>Eligibility follows your profile and saved preferences. Missing details are shown as uncertainty.</li>
+              <li>Email drafts require a separate Approve action before Send.</li>
+              <li>External job-page content is treated as data, not instructions.</li>
+              <li>OAuth tokens are encrypted locally when an encryption key is configured.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <button id="jobDrawerBackdrop" class="drawer-backdrop hidden" type="button" tabindex="-1" aria-label="Close job details"></button>
+  <aside id="jobDetailDrawer" class="job-detail-drawer hidden" role="dialog" aria-modal="false" aria-labelledby="selectedJobHeading" aria-hidden="true">
+    <div id="contextPane" class="drawer-content">
+      <div class="drawer-head">
+        <div><span class="section-label">Job details</span><h2 id="selectedJobHeading" tabindex="-1">Selected job</h2></div>
+        <button id="closeJobDrawer" class="icon-btn" type="button" aria-label="Close job details">×</button>
+      </div>
+      <div id="selectedJobContext" class="selected-job-context">
+        <div class="empty-state"><strong>No job selected</strong><span>Select a stored recommendation to inspect it.</span></div>
+      </div>
+      <div id="contextOutreachPanel" class="context-outreach hidden">
+        <label for="contextRecipient">Verified recipient email</label>
+        <input id="contextRecipient" type="email" maxlength="320" placeholder="recruiter@company.com" />
+        <button id="prepareContextOutreachBtn" class="primary" type="button">Prepare outreach</button>
+        <p class="muted">Use an address you have verified. The app does not discover or guess recipients.</p>
+      </div>
+      <div id="contextActionStatus" class="status hidden" role="status" aria-live="polite"></div>
+      <div id="sendConfirmationPanel" class="confirmation-panel hidden" aria-labelledby="sendConfirmationHeading">
+        <span class="section-label">Final confirmation</span>
+        <h3 id="sendConfirmationHeading" tabindex="-1">Review and send once</h3>
+        <p class="muted">Confirming approves this final editable draft and invokes the protected atomic send boundary.</p>
+        <label>Subject<input id="confirmationSubject" maxlength="998" /></label>
+        <label>Message<textarea id="confirmationBody" rows="10" maxlength="100000"></textarea></label>
+        <div class="confirmation-actions">
+          <button id="cancelSendBtn" class="secondary" type="button">Cancel</button>
+          <button id="confirmSendBtn" class="danger-action" type="button">Confirm and send</button>
+        </div>
+      </div>
+    </div>
+  </aside>
+  <dialog id="emailDialog">
+    <form method="dialog" id="emailDialogForm">
+      <div class="dialog-head">
+        <div>
+          <span class="eyebrow">Prepare outreach</span>
+          <h2 id="emailJobTitle">Job</h2>
+          <p id="emailCompany"></p>
+        </div>
+        <button class="icon-btn" value="cancel" aria-label="Close">×</button>
+      </div>
+
+      <label>
+        Recruiter / hiring email
+        <input id="recipientEmail" type="email" placeholder="recruiter@company.com" required />
+      </label>
+
+      <p class="muted">No reliable recruiter contact is known for this listing. Enter an address you have verified; the app does not guess email addresses.</p>
+
+      <label>
+        Optional note
+        <textarea id="customNote" rows="3" placeholder="Example: I can join immediately and am open to relocating to Bengaluru."></textarea>
+      </label>
+
+      <p id="resumeAttachmentNote" class="muted"></p>
+      <div id="emailComposeStatus" class="status hidden" role="status"></div>
+
+      <div class="dialog-actions">
+        <button class="secondary" value="cancel">Cancel</button>
+        <button id="createDraftBtn" type="button" class="primary">Create draft for approval</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="draftDialog">
+    <div class="dialog-head">
+      <div>
+        <span class="eyebrow">Review before approval</span>
+        <h2>Email draft</h2>
+      </div>
+      <button class="icon-btn" id="closeDraftDialog">×</button>
+    </div>
+    <div id="draftPreview"></div>
+    <div id="shortMessagePanel" class="hidden section-gap"><h3>Short outreach message</h3><p class="muted">Copy this message for a connection request or direct message.</p><div id="shortMessage" class="preview-box"></div></div>
+    <div class="dialog-actions" id="draftActions"></div>
+  </dialog>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+token.json
+tokens.json
+credentials.json
+client_secret*.json
+oauth_tokens/
+
+# User data, CVs, uploads, and local validation artifacts
+data/
+uploads/
+CVs/
+.verification/
+
+# Local databases and sidecar files
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*
+*.db-wal
+*.db-shm
+
+# Python bytecode, test output, and tool caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.conda/
+
+# Packaging and frontend artifacts
+build/
+dist/
+*.egg-info/
+node_modules/
+coverage/
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
