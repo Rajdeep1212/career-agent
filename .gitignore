@@ -57,3 +57,21 @@ coverage/
 Thumbs.db
 .idea/
 .vscode/
+
+# Logs and transient process files
+*.log
+*.pid
+*.tmp
+*.temp
+*.bak
+
+# Additional caches and editor artifacts
+.cache/
+.vs/
+.ipynb_checkpoints/
+*.swp
+*.swo
+
+# Browser test output
+playwright-report/
+test-results/
