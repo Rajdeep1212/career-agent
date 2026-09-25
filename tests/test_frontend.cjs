@@ -371,6 +371,20 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   assert.match(markup, /Jobs via <a href="https:\/\/in\.jooble\.org"[^>]*>Jooble<\/a>/);
   assert.equal((markup.match(/provider-credit/g) || []).length, 2);
 
+  // Dates are readable: relative for recent posts, "24 Sep 2026" otherwise; unknown text is kept.
+  const daysAgo = n => new Date(Date.now() - n * 86400000).toISOString();
+  const label = value => vm.runInContext(`postedLabel(${JSON.stringify(value)})`, d.context);
+  assert.equal(label(daysAgo(0)).startsWith('Posted today'), true);
+  assert.equal(label(daysAgo(1)).startsWith('Posted yesterday'), true);
+  assert.match(label(daysAgo(3)), /^Posted 3 days ago · \d{1,2} [A-Z][a-z]{2} \d{4}$/);
+  assert.equal(label('2020-01-05T08:00:00Z'), 'Posted 5 Jan 2020');
+  assert.equal(label('2020-01-05T10:15:00.0000000'), 'Posted 5 Jan 2020');
+  assert.equal(label('Recently'), 'Recently');
+  assert.equal(vm.runInContext(`formatDate('2026-09-24T08:00:00+00:00')`, d.context), '24 Sep 2026');
+  const cardWithDate = vm.runInContext(`jobCardsMarkup([{ id: '${'d'.repeat(64)}', title: 'X', company: 'Y', posted_date: '2020-01-05T08:00:00Z' }])`, d.context);
+  assert.match(cardWithDate, /Posted 5 Jan 2020/);
+  assert.doesNotMatch(cardWithDate, /2020-01-05T08/);
+
   // A costly search asks first; cancelling sends nothing to /chat/run.
   const costly = { will_search: true, provider_requests: 8, warning: 'This search will send 8 requests to JSearch/RapidAPI.' };
   d = await dashboard({ configured: true, connected: false }, '', false, {
