@@ -18,8 +18,6 @@ from _offline import configure_environment, network_guards  # noqa: E402
 def main():
     with tempfile.TemporaryDirectory(prefix="job-agent-tests-") as directory:
         configure_environment(directory)
-        from app.storage import history
-        history.DB_PATH = Path(directory) / "history.sqlite3"
         with ExitStack() as stack:
             for guard in network_guards():
                 stack.enter_context(guard)

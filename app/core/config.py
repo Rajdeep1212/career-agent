@@ -67,6 +67,8 @@ class Settings(BaseSettings):
 
     data_dir: str = str(BASE_DIR / "data")
     upload_dir: str = str(BASE_DIR / "data" / "uploads")
+    # Pre-M1B location of the seen-job history; copied once into data_dir. Empty disables.
+    legacy_history_path: str = str(BASE_DIR / "app" / "storage" / "job_history.sqlite3")
 
     @field_validator("jooble_host")
     @classmethod

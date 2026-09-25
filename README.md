@@ -95,6 +95,19 @@ graph stores only bounded sanitized text and safe IDs. Outreach pauses once at
 the final editable draft; one confirmed resume approves it and enters the
 existing atomic Gmail send boundary.
 
+## Local data and upgrades
+
+Everything the app stores lives in `data/` (ignored by Git). Database changes
+are numbered migrations: before a pending migration runs, the database is
+copied to `data/backups/<UTC time>/`, and nothing is applied if that copy
+fails.
+
+**Recovering from a failed upgrade:** stop the app, copy the database file from
+the newest `data/backups/<time>/` folder back into `data/`, and start the
+previous version. The seen-job history moved from `app/storage/` to
+`data/job_history.sqlite3`; the old file is copied once and never modified or
+deleted, so removing `data/job_history.sqlite3` re-imports it on the next start.
+
 ## Verification
 
 Run the complete offline checks from the repository root. Tests live in

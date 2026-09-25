@@ -10,9 +10,6 @@ _state = {}
 def pytest_configure(config):
     directory = tempfile.mkdtemp(prefix="job-agent-tests-")
     configure_environment(directory)
-    from pathlib import Path
-    from app.storage import history
-    history.DB_PATH = Path(directory) / "history.sqlite3"
     guards = network_guards()
     for guard in guards:
         guard.start()

@@ -18,6 +18,7 @@ def configure_environment(directory: str) -> None:
     """Must run before any `app` module is imported."""
     os.environ.update({"DATA_DIR": directory, "UPLOAD_DIR": str(Path(directory) / "uploads"),
                        "JOB_PROVIDERS": "jsearch,adzuna,jooble", "DEMO_MODE": "false",
+                       "LEGACY_HISTORY_PATH": "",
                        **{name: "" for name in BLANK_SETTINGS}})
 
 
