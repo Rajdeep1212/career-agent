@@ -154,5 +154,84 @@ class ProfileLoadTests(_IsolatedApp):
         self.assertEqual([p.name for p in self.directory.iterdir() if p.suffix == '.tmp'], [])
 
 
+class _FakeCredentials:
+    token, refresh_token, token_uri = 'access', 'refresh', 'https://oauth2.googleapis.com/token'
+    client_id, client_secret, expiry = 'client', 'secret', None
+
+    def __init__(self, scopes):
+        self.scopes = scopes
+
+
+class _FakeSession:
+    def __init__(self):
+        self.token = {}
+
+
+class _FakeFlow:
+    granted = ['https://www.googleapis.com/auth/gmail.send']
+    fetch_error = None
+    authorization_kwargs = None
+
+    def __init__(self):
+        self.oauth2session = _FakeSession()
+        self.redirect_uri = None
+        self.credentials = _FakeCredentials(['https://www.googleapis.com/auth/gmail.send'])
+
+    @classmethod
+    def from_client_config(cls, _config, scopes, state):
+        return cls()
+
+    def authorization_url(self, **kwargs):
+        type(self).authorization_kwargs = kwargs
+        return 'https://accounts.google.com/o/oauth2/auth?fake', 'state'
+
+    def fetch_token(self, code):
+        if self.fetch_error:
+            raise self.fetch_error
+        self.oauth2session.token = {'scope': ' '.join(self.granted)}
+
+
+class GmailScopeTests(unittest.TestCase):
+    """S5: only a grant of exactly gmail.send is stored."""
+
+    def setUp(self):
+        from app.services import gmail_service
+        self.gmail = gmail_service
+        _FakeFlow.granted = ['https://www.googleapis.com/auth/gmail.send']
+        _FakeFlow.fetch_error = None
+        for target, value in (('_google_imports', lambda: (None, None, _FakeFlow, None)),
+                              ('_client_config', lambda: {'web': {}}),
+                              ('consume_state', lambda state: True),
+                              ('create_state', lambda: 'state')):
+            patcher = patch.object(gmail_service, target, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        saver = patch.object(gmail_service, 'save_token')
+        self.save_token = saver.start()
+        self.addCleanup(saver.stop)
+
+    def test_exact_gmail_send_grant_is_saved(self):
+        self.assertEqual(self.gmail.exchange_callback('code', 'state')['connected'], True)
+        self.save_token.assert_called_once()
+
+    def test_extra_granted_scope_is_rejected_and_not_saved(self):
+        _FakeFlow.granted = ['https://www.googleapis.com/auth/gmail.send',
+                             'https://www.googleapis.com/auth/gmail.readonly']
+        with self.assertRaises(ValueError) as caught:
+            self.gmail.exchange_callback('code', 'state')
+        self.assertIn('gmail.send', str(caught.exception))
+        self.save_token.assert_not_called()
+
+    def test_oauthlib_scope_change_warning_is_rejected_and_not_saved(self):
+        _FakeFlow.fetch_error = Warning('Scope has changed')
+        with self.assertRaises(ValueError):
+            self.gmail.exchange_callback('code', 'state')
+        self.save_token.assert_not_called()
+
+    def test_authorization_does_not_merge_earlier_grants(self):
+        self.gmail.build_authorization_url()
+        self.assertNotIn('include_granted_scopes', _FakeFlow.authorization_kwargs)
+
+
 if __name__ == '__main__':
     unittest.main()
