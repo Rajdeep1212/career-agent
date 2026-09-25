@@ -249,14 +249,17 @@ async def agent_search(request: AgentSearchRequest):
 
 
 @app.post("/attachments")
-async def upload_attachment(file: UploadFile = File(...)):
+async def upload_attachment(request: Request, file: UploadFile = File(...)):
+    require_local_origin(request)
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename is required.")
 
     try:
-        return save_attachment(file.filename, await file.read())
+        attachment = save_attachment(file.filename, await file.read())
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    # Never expose the local filesystem path to the browser.
+    return {key: attachment[key] for key in ("id", "original_name", "mime_type", "size_bytes")}
 
 
 # -------------------------
