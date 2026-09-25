@@ -60,6 +60,11 @@ _DEGREE = re.compile(
     r"|B\.?\s?Des\.?|M\.?\s?Des\.?|BBA|MBA|BCA|MCA|BFA|MFA|B\.A\.?|M\.A\.?|Ph\.?D\.?|Diploma)\b",
     re.IGNORECASE,
 )
+_SCHOOL = re.compile(
+    r"\b(?:class|std\.?|standard|grade)\s*(?:x|xii|10|12|10th|12th)\b|\b(?:10th|12th|x|xii)\s+(?:class|std\.?|standard|grade)\b"
+    r"|\b(?:ssc|hsc|sslc|cbse|icse|isc|matriculation|matric|puc|higher\s+secondary|senior\s+secondary|secondary\s+school|intermediate)\b",
+    re.IGNORECASE,
+)
 
 
 def _contains(text: str, phrase: str) -> bool:
@@ -154,6 +159,11 @@ def parse_profile_from_text(text: str) -> CandidateProfile:
     degree = degrees[0] if degrees else None
     years = []
     for line in education:
+        # Indian CVs list Class X/XII results in Education; they are not the degree year.
+        if _SCHOOL.search(line) and not _DEGREE.search(line):
+            continue
+        # "2021-25" ends in 2025; keep the four-digit form for the lookup below.
+        line = re.sub(r"\b((?:19|20)(\d{2}))\s*[-–]\s*(\d{2})\b(?!\d)", lambda m: f"{m[1]} - {m[1][:2]}{m[3]}", line)
         candidates = re.findall(r"\b(?:19|20)\d{2}\b", line)
         if candidates and not re.search(r"\b(?:present|ongoing|current)\b", line, re.IGNORECASE):
             years.append(int(candidates[-1]))

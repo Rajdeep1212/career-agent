@@ -65,5 +65,26 @@ class TitleWordTests(unittest.TestCase):
         self.assertEqual(match_job(profile, job, SearchIntent(), EligibilityResult()).transferable_skills, [])
 
 
+class GraduationYearTests(unittest.TestCase):
+    """B5: school-level years (Class X/XII, SSC, HSC, CBSE) must not hide the degree year."""
+
+    def _year(self, education):
+        return parse_profile_from_text('Jane Doe\nEducation\n' + education + '\nSkills: Python').graduation_year
+
+    def test_class_xii_line_is_ignored(self):
+        self.assertEqual(self._year('B.Tech CSE 2025\nClass XII 2021'), 2025)
+
+    def test_common_indian_school_labels_are_ignored(self):
+        for school in ('Class X, CBSE, 2019', 'Class 12 (ISC) 2021', 'Higher Secondary (WBCHSE), 2021',
+                       'SSC 2019', 'HSC 2021', '12th Standard, 2021', 'Senior Secondary 2021'):
+            self.assertEqual(self._year('B.Tech Computer Science, 2021 - 2025\n' + school), 2025, school)
+
+    def test_two_digit_range_end_year(self):
+        self.assertEqual(self._year('B.Tech CSE, Example Institute, 2021-25'), 2025)
+
+    def test_multiple_degrees_are_still_not_guessed(self):
+        self.assertIsNone(self._year('B.Com 2020\nMBA 2023\nClass XII 2017'))
+
+
 if __name__ == '__main__':
     unittest.main()
