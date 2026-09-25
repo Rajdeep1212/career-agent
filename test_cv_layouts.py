@@ -74,6 +74,39 @@ class SkillCanonicalizationTests(unittest.TestCase):
         from app.services.skills import extract_skills
         self.assertEqual(extract_skills('React.js and ReactJS apps on GitHub'), ['GitHub', 'React'])
 
+class SectionDetectionTests(unittest.TestCase):
+    """Combined headings, skill sub-labels, research internships and domain evidence."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.profile = parse_fixture('in_btech_multiline.txt')
+
+    def test_combined_heading_starts_a_new_section(self):
+        self.assertEqual(self.profile.certifications,
+                         ['Google Cloud Digital Leader', 'Winner, inter-college hackathon 2024'])
+        self.assertFalse(any('CERTIFICATION' in line.upper() or 'Digital Leader' in line
+                             for line in self.profile.projects))
+
+    def test_skill_sub_labels_stay_in_the_skills_section(self):
+        for skill in ('Python', 'C++', 'PyTorch', 'BigQuery', 'Looker Studio', 'S3', 'EC2', 'GitHub'):
+            self.assertIn(skill, self.profile.skills)
+
+    def test_research_internship_is_listed_as_an_internship(self):
+        self.assertTrue(any(line.startswith('Research Intern') for line in self.profile.internships))
+        self.assertTrue(any(line.startswith('Research Intern') for line in self.profile.research))
+
+    def test_board_names_are_not_domain_knowledge(self):
+        self.assertNotIn('Education', self.profile.domain_knowledge)
+        self.assertIn('Computer Science', self.profile.domain_knowledge)
+        evidence = self.profile.evidence.get('domain_knowledge', [])
+        self.assertFalse(any('WBBSE' in line or 'WBCHSE' in line for line in evidence))
+
+    def test_real_education_domain_is_still_detected(self):
+        from app.models.schemas import CandidateProfile
+        from app.services.candidate_intelligence import analyze_candidate
+        profile = analyze_candidate(CandidateProfile(experience=['Teaching assistant in primary Education outreach']))
+        self.assertIn('Education', profile.domain_knowledge)
+
 
 if __name__ == '__main__':
     unittest.main()

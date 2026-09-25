@@ -73,7 +73,15 @@ def extract_pdf_text(path: str) -> str:
 
 def _heading(line: str) -> tuple[str | None, str]:
     label, separator, rest = line.partition(":")
-    return _HEADINGS.get(label.strip().casefold()), rest.strip() if separator else ""
+    key = label.strip().casefold()
+    section = _HEADINGS.get(key)
+    if section is None:
+        # Combined headings such as "ACHIEVEMENTS & CERTIFICATIONS".
+        parts = [part for part in re.split(r"\s*(?:&|\band\b|/|,|\+)\s*", key) if part]
+        mapped = [_HEADINGS.get(part) for part in parts]
+        if len(parts) > 1 and all(mapped):
+            section = next((value for value in mapped if value != "other"), "other")
+    return section, rest.strip() if separator else ""
 
 
 def _extract_name(lines: list[str]) -> str | None:
@@ -209,7 +217,10 @@ def parse_profile_from_text(text: str) -> CandidateProfile:
     section = "summary"
     for line in lines:
         heading, value = _heading(line)
-        if heading:
+        if heading in ("skills", "other") and value and section == "skills":
+            # A sub-label inside Skills ("Languages: Python, C++") is not a new section.
+            sections[section].append(value)
+        elif heading:
             section = heading
             if value:
                 sections[section].append(value)
@@ -232,6 +243,9 @@ def parse_profile_from_text(text: str) -> CandidateProfile:
     internships, experience = sections["internships"][:], []
     for line in sections["experience"]:
         (internships if re.search(r"\bintern(?:ship)?\b", line, re.IGNORECASE) else experience).append(line)
+    # A research internship stays under research and is also an internship.
+    internships += [line for line in sections["research"]
+                    if re.search(r"\bintern(?:ship)?s?\b", line, re.IGNORECASE) and line not in internships]
     evidence = {key: value[:] for key, value in sections.items() if value and key != "other"}
     if education:
         evidence["education"] = education[:]

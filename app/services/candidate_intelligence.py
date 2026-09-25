@@ -2,7 +2,7 @@
 import re
 
 from app.models.schemas import CandidateProfile
-from app.services.cv_parser import SKILL_CATEGORIES, _contains
+from app.services.cv_parser import _SCHOOL, SKILL_CATEGORIES, _contains
 
 _DOMAINS = [
     "Accounting", "Finance", "Banking", "Healthcare", "Education", "Retail",
@@ -25,9 +25,14 @@ def analyze_candidate(profile: CandidateProfile) -> CandidateProfile:
         result.education + result.experience + result.internships + result.projects + result.research
         + result.certifications + result.skills + ([result.degree] if result.degree else [])
     ))
+    # School/board lines are not domain evidence, and "Education" inside an
+    # education line names an institution ("Board of Secondary Education").
+    education = set(result.education)
+    sources = [source for source in sources if not (source in education and _SCHOOL.search(source))]
     domain_evidence = []
     for domain in _DOMAINS:
-        matches = [source for source in sources if _contains(source, domain)]
+        candidates = [source for source in sources if source not in education] if domain == "Education" else sources
+        matches = [source for source in candidates if _contains(source, domain)]
         if matches:
             if domain.casefold() not in {value.casefold() for value in result.domain_knowledge}:
                 result.domain_knowledge.append(domain)
