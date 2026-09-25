@@ -54,17 +54,28 @@ def _provider_error_message(name, exc):
     return message+(f', resets {format_reset(exc.reset_at)}' if exc.reset_at else '')
 
 
-def search_cost_warning(plan, quota):
+def search_cost_warning(plan):
     """Why the dashboard should ask before running this search, or None."""
     requests=plan['provider_requests']
+    shares=plan.get('requests_by_provider',{})
     parts=[]
     if requests>=settings.search_warn_requests:
-        parts.append(f"This search will send {requests} requests to {', '.join(plan['providers'])}.")
-    remaining=(quota or {}).get('remaining')
-    if requests and remaining is not None and remaining<=requests and 'JSearch/RapidAPI' in plan['providers']:
-        limit=f" of {quota['limit']}" if quota.get('limit') else ''
-        reset=f", resetting {format_reset(quota['reset_at'])}" if quota.get('reset_at') else ''
-        parts.append(f"Only {remaining}{limit} JSearch requests remain{reset}.")
+        split=', '.join(f'{name} {count}' for name,count in shares.items())
+        parts.append(f"This search will send {requests} requests ({split}).")
+    for name,share in shares.items():
+        quota=plan.get('quotas',{}).get(name) or {}
+        remaining,limit=quota.get('remaining'),quota.get('limit')
+        if not share or remaining is None:
+            continue
+        # A per-key lifetime allowance (Jooble's free plan) is worth flagging before it runs out.
+        lifetime=quota.get('reset_at') is None and quota.get('counted_locally')
+        if remaining>share and not (lifetime and limit and remaining<=limit*0.1):
+            continue
+        text=f"Only {remaining}"+(f" of {limit}" if limit else '')+f" {name} requests remain"
+        text+=f" {quota['window']}" if quota.get('window') else ''
+        text+=f", resetting {format_reset(quota['reset_at'])}" if quota.get('reset_at') else ''
+        text+=' (counted on this machine)' if quota.get('counted_locally') else ''
+        parts.append(text+'.')
     return ' '.join(parts) or None
 
 
@@ -132,8 +143,15 @@ class CareerAgent:
             return dict(provider_requests=0,queries=[],providers=[p.name for p in providers],reuses_results=reuse)
         roles=expand_roles(intent,profile)[:6]
         queries=plan_search_queries(profile,intent,roles,preferences.search_query_limit)
+        # Mirrors search(): one request per planned query, round-robin across providers.
+        shares={}
+        for index in range(len(queries)):
+            name=providers[index%len(providers)].name
+            shares[name]=shares.get(name,0)+1
+        quotas={p.name:p.quota() for p in providers if callable(getattr(p,'quota',None))}
         return dict(provider_requests=len(queries),queries=[q.query for q in queries],
-                    providers=list(dict.fromkeys(p.name for p in providers)),reuses_results=False)
+                    providers=list(dict.fromkeys(p.name for p in providers)),requests_by_provider=shares,
+                    quotas={name:quota for name,quota in quotas.items() if quota},reuses_results=False)
 
     async def search(self, query, *, include_seen=False, session_id=None, strict_mode=None):
         started=time.monotonic()

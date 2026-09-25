@@ -1,6 +1,8 @@
 """Jooble adapter: country endpoint, request body, normalization and safe errors."""
 import json
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import httpx
@@ -8,6 +10,7 @@ import httpx
 from app.core.config import Settings, settings
 from app.models.career import SearchQuery
 from app.providers.base import ProviderError
+from app.storage import provider_usage
 from app.providers.jooble_provider import JoobleProvider, normalize_item
 
 ITEM = {
@@ -23,6 +26,12 @@ class JoobleTests(unittest.IsolatedAsyncioTestCase):
         patcher = patch.multiple(settings, jooble_api_key='JOOBLE-SECRET', jooble_host='in.jooble.org')
         patcher.start()
         self.addCleanup(patcher.stop)
+        # Request counts go to a temporary file, never the real data directory.
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        usage = patch.object(provider_usage, 'USAGE_PATH', Path(directory.name) / 'provider_usage.json')
+        usage.start()
+        self.addCleanup(usage.stop)
         self.requests = []
 
     def _serve(self, response):

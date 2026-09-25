@@ -151,6 +151,11 @@ class JSearchProvider(JobProvider):
     def configured(cls) -> bool:
         return bool(settings.rapidapi_key)
 
+    def quota(self) -> dict | None:
+        """Quota reported by RapidAPI on the last response in this process, if any."""
+        quota = last_quota()
+        return {**quota, "window": None, "counted_locally": False} if quota else None
+
     async def search(self, query: str, page: int = 1) -> list[JobPosting]:
         if not settings.rapidapi_key:
             raise ProviderError("JSearch is not configured. Add credentials in the local .env.")

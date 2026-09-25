@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.models.schemas import JobPosting
 from app.providers.base import JobProvider, ProviderError
 from app.providers.common import build_posting, split_location
+from app.storage import provider_usage
 
 _COUNTRY_NAMES = ("india", "in")
 _STATUS_REASONS = {
@@ -42,6 +43,12 @@ class JoobleProvider(JobProvider):
     def configured(cls) -> bool:
         return bool(settings.jooble_api_key)
 
+    def quota(self) -> dict:
+        """Remaining requests for this key by local count; the free plan never resets."""
+        used = provider_usage.usage("jooble", settings.jooble_api_key or "")
+        return {"remaining": max(0, settings.jooble_key_limit - used["total"]), "limit": settings.jooble_key_limit,
+                "window": "for this key", "reset_at": None, "counted_locally": True}
+
     async def search(self, query: str, page: int = 1) -> list[JobPosting]:
         return await self._search(query, "", page)
 
@@ -57,6 +64,7 @@ class JoobleProvider(JobProvider):
         if key in self._seen:
             return [job.model_copy(deep=True) for job in self._seen[key]]
         body = {"keywords": keywords[:180], "location": location[:100], "page": str(int(page))}
+        provider_usage.record("jooble", settings.jooble_api_key)
         try:
             async with httpx.AsyncClient(timeout=settings.request_timeout_seconds, verify=True,
                                          follow_redirects=False, trust_env=False) as client:

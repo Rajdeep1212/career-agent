@@ -1,5 +1,7 @@
 """Adzuna adapter: request shape, normalization, safe errors, and terms-driven choices."""
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import httpx
@@ -8,6 +10,7 @@ from app.core.config import settings
 from app.models.career import SearchQuery
 from app.providers.adzuna_provider import AdzunaProvider, normalize_item
 from app.providers.base import ProviderError
+from app.storage import provider_usage
 
 ITEM = {
     'id': '4711', 'title': 'Junior <strong>Data Analyst</strong>', 'created': '2026-09-24T08:00:00Z',
@@ -24,6 +27,12 @@ class AdzunaTests(unittest.IsolatedAsyncioTestCase):
         patcher = patch.multiple(settings, adzuna_app_id='test-id', adzuna_app_key='ADZUNA-SECRET', search_country='in')
         patcher.start()
         self.addCleanup(patcher.stop)
+        # Request counts go to a temporary file, never the real data directory.
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        usage = patch.object(provider_usage, 'USAGE_PATH', Path(directory.name) / 'provider_usage.json')
+        usage.start()
+        self.addCleanup(usage.stop)
         self.requests = []
 
     def _serve(self, response):

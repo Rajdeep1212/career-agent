@@ -27,7 +27,6 @@ from app.services.cv_parser import extract_pdf_text, parse_profile_from_text
 from app.services.ranker import rank_jobs
 from app.providers.mock_provider import MockJobProvider
 from app.agent.routing import deterministic_action
-from app.providers.jsearch_provider import last_quota
 from app.providers.registry import provider_status
 from app.services.career_agent import CareerAgent, search_cost_warning
 from app.services.gmail_service import (
@@ -281,8 +280,7 @@ def preview_search(payload: SearchPreviewRequest, request: Request):
     except ValueError:
         # An unknown session is reported by the search itself.
         return {"will_search": False}
-    quota = last_quota()
-    return {"will_search": True, **plan, "quota": quota, "warning": search_cost_warning(plan, quota)}
+    return {"will_search": True, **plan, "warning": search_cost_warning(plan)}
 
 
 @app.post("/attachments")

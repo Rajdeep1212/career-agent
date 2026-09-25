@@ -7,12 +7,15 @@ Terms that shape this adapter (https://developer.adzuna.com/docs/terms_of_servic
 - Predicted ("Jobsworth") salaries need their own attribution, so they are dropped.
 - Job links are Adzuna redirect URLs; they are opened only when the user clicks them.
 """
+from datetime import datetime, timedelta, timezone
+
 import httpx
 
 from app.core.config import settings
 from app.models.schemas import JobPosting
 from app.providers.base import JobProvider, ProviderError
 from app.providers.common import build_posting, split_location
+from app.storage import provider_usage
 
 _BASE_URL = "https://api.adzuna.com/v1/api/jobs"
 _COUNTRY_NAMES = ("india", "in")
@@ -22,6 +25,13 @@ _STATUS_REASONS = {
     403: "access denied; check ADZUNA_APP_ID and ADZUNA_APP_KEY",
     429: "rate limit exceeded (default 25 a minute, 250 a day)",
 }
+
+
+def _next_utc(period: str) -> str:
+    now = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    if period == "day":
+        return (now + timedelta(days=1)).isoformat()
+    return (now.replace(day=1) + timedelta(days=32)).replace(day=1).isoformat()
 
 
 def normalize_item(item: dict) -> JobPosting:
@@ -51,6 +61,17 @@ class AdzunaProvider(JobProvider):
     def configured(cls) -> bool:
         return bool(settings.adzuna_app_id and settings.adzuna_app_key)
 
+    def quota(self) -> dict:
+        """Remaining requests by local count: the tighter of the daily and monthly limits."""
+        used = provider_usage.usage("adzuna", settings.adzuna_app_key or "")
+        daily = settings.adzuna_daily_limit - used["today"]
+        monthly = settings.adzuna_monthly_limit - used["month"]
+        if daily <= monthly:
+            return {"remaining": max(0, daily), "limit": settings.adzuna_daily_limit, "window": "today (UTC)",
+                    "reset_at": _next_utc("day"), "counted_locally": True}
+        return {"remaining": max(0, monthly), "limit": settings.adzuna_monthly_limit, "window": "this month (UTC)",
+                "reset_at": _next_utc("month"), "counted_locally": True}
+
     async def search(self, query: str, page: int = 1) -> list[JobPosting]:
         return await self._search(query, "", page)
 
@@ -70,6 +91,7 @@ class AdzunaProvider(JobProvider):
                   "what": what[:180], "results_per_page": 20, "content-type": "application/json"}
         if where:
             params["where"] = where[:100]
+        provider_usage.record("adzuna", settings.adzuna_app_key)
         try:
             async with httpx.AsyncClient(timeout=settings.request_timeout_seconds, verify=True,
                                          follow_redirects=False, trust_env=False) as client:

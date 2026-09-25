@@ -65,7 +65,7 @@ class SearchPreviewTests(unittest.TestCase):
         body = self._preview('Find python developer jobs').json()
         self.assertIn('2 of 200', body['warning'])
         self.assertIn(f'{reset:%d %b %Y %H:%M} UTC', body['warning'])
-        self.assertEqual(body['quota']['remaining'], 2)
+        self.assertEqual(body['quotas']['JSearch/RapidAPI']['remaining'], 2)
 
     def test_non_search_messages_are_not_previewed(self):
         body = self._preview('How do I become a data analyst?').json()
