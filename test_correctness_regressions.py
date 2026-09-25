@@ -30,5 +30,21 @@ class FresherFlagTests(unittest.TestCase):
             self.assertTrue(normalize_item(_item(title, description)).fresher_allowed, title)
 
 
+class InternshipExclusionTests(unittest.TestCase):
+    """B2: excluding internships must not reject 'Internal Tools Engineer'."""
+
+    def _rejections(self, **job):
+        posting = JobPosting(company='Example', location='India', **job)
+        return evaluate_eligibility(CandidateProfile(experience_years=0), posting, JobSearchPreferences(),
+                                    SearchIntent(internship_allowed=False)).hard_rejections
+
+    def test_internal_title_is_not_an_internship(self):
+        self.assertNotIn('Internships were excluded.', self._rejections(title='Internal Tools Engineer'))
+
+    def test_real_internships_are_still_excluded(self):
+        self.assertIn('Internships were excluded.', self._rejections(title='Software Engineering Intern'))
+        self.assertIn('Internships were excluded.', self._rejections(title='Analyst', employment_type='INTERN'))
+
+
 if __name__ == '__main__':
     unittest.main()

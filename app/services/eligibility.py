@@ -52,7 +52,7 @@ def evaluate_eligibility(profile, job, preferences, intent: SearchIntent) -> Eli
         if job.location.lower() in ('unknown','not specified'):result.warnings.append('Location is not specified.')
         else:result.hard_rejections.append('Location does not match the requested locations.')
     employment=(job.employment_type or '').lower()+' '+job.title.lower()
-    if not intent.internship_allowed and 'intern' in employment:result.hard_rejections.append('Internships were excluded.')
+    if not intent.internship_allowed and re.search(r'\bintern(?:ship)?s?\b',employment):result.hard_rejections.append('Internships were excluded.')
     if not intent.contract_allowed and 'contract' in employment:result.hard_rejections.append('Contract work was excluded.')
     if intent.company_preferences and not any(c.casefold() in job.company.casefold() for c in intent.company_preferences):
         result.hard_rejections.append('Company does not match the requested companies.')
