@@ -65,6 +65,17 @@ class TitleWordTests(unittest.TestCase):
         self.assertEqual(match_job(profile, job, SearchIntent(), EligibilityResult()).transferable_skills, [])
 
 
+class AmbiguousSkillTests(unittest.TestCase):
+    """B4 (part): single-letter skills must not match inside 'R&D'."""
+
+    def test_r_and_d_is_not_the_r_language(self):
+        self.assertNotIn('R', extract_skills('Join our R&D team.'))
+
+    def test_r_in_a_skill_list_is_still_found(self):
+        self.assertIn('R', extract_skills('Python, R, SQL'))
+        self.assertIn('R', extract_skills('Statistics using R programming'))
+
+
 class GraduationYearTests(unittest.TestCase):
     """B5: school-level years (Class X/XII, SSC, HSC, CBSE) must not hide the degree year."""
 

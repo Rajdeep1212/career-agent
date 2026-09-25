@@ -71,9 +71,16 @@ def _contains(text: str, phrase: str) -> bool:
     return bool(re.search(r"(?<![\w])" + re.escape(phrase) + r"(?![\w])", text, re.IGNORECASE))
 
 
+def _contains_single_letter(text: str, letter: str) -> bool:
+    # Case-sensitive, and not part of "R&D", "R/3" or "R-series".
+    return bool(re.search(r"(?<![\w&/.'’-])" + re.escape(letter) + r"(?![\w&/'’-])(?!\.\w)", text))
+
+
 def extract_skills(text: str) -> list[str]:
     """Vocabulary matches with token boundaries, reusable for resumes and jobs."""
-    return sorted((skill for skill in KNOWN_SKILLS if _contains(text, skill)), key=str.casefold)
+    return sorted((skill for skill in KNOWN_SKILLS
+                   if (_contains_single_letter(text, skill) if len(skill) == 1 else _contains(text, skill))),
+                  key=str.casefold)
 
 
 def extract_pdf_text(path: str) -> str:
