@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -61,6 +62,15 @@ class Settings(BaseSettings):
 
     data_dir: str = str(BASE_DIR / "data")
     upload_dir: str = str(BASE_DIR / "data" / "uploads")
+
+    @field_validator("jooble_host")
+    @classmethod
+    def _jooble_site(cls, value: str) -> str:
+        # The API key is sent in the URL path, so only Jooble's own country sites are allowed.
+        value = value.strip().lower()
+        if not re.fullmatch(r"(?:[a-z]{2}\.)?jooble\.org", value):
+            raise ValueError("JOOBLE_HOST must be a Jooble country site such as in.jooble.org")
+        return value
 
     @field_validator("app_origin")
     @classmethod
