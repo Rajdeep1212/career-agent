@@ -80,5 +80,17 @@ class LocalOriginTests(_IsolatedApp):
             delete_token.assert_called_once_with('gmail')
 
 
+class LegacySearchEndpointTests(_IsolatedApp):
+    """S2/B8: the side-effecting legacy GET is retired with 410 Gone."""
+
+    def test_legacy_get_returns_410_without_provider_calls(self):
+        with patch('app.providers.jsearch_provider.JSearchProvider.search',
+                   side_effect=AssertionError('provider must not be called')):
+            response = self.client.get('/jobs/search-and-rank?query=python')
+        self.assertEqual(response.status_code, 410)
+        self.assertIn('/agent/search', response.json()['detail'])
+        self.assertFalse((self.directory / 'history.sqlite3').exists())
+
+
 if __name__ == '__main__':
     unittest.main()

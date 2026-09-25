@@ -42,28 +42,6 @@ def _infer_work_mode(job: dict) -> str:
     return "unknown"
 
 
-def _infer_experience(text: str) -> tuple[float, float | None]:
-    t = text.lower()
-
-    if any(x in t for x in [
-        "no experience", "fresher", "fresh graduate", "recent graduate"
-    ]):
-        return 0.0, 1.0
-
-    range_match = re.search(
-        r"(\d+(?:\.\d+)?)\s*(?:-|–|to)\s*(\d+(?:\.\d+)?)\s*(?:years?|yrs?)",
-        t,
-    )
-    if range_match:
-        return float(range_match.group(1)), float(range_match.group(2))
-
-    min_match = re.search(r"(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)", t)
-    if min_match:
-        return float(min_match.group(1)), None
-
-    return 0.0, None
-
-
 def _extract_items(payload: dict) -> list[dict]:
     """
     JSearch /search-v2 may return:

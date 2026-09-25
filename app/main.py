@@ -25,7 +25,6 @@ from app.models.schemas import (
 from app.services.cv_parser import extract_pdf_text, parse_profile_from_text
 from app.services.ranker import rank_jobs
 from app.providers.mock_provider import MockJobProvider
-from app.services.search_pipeline import search_verify_rank
 from app.services.career_agent import CareerAgent
 from app.services.gmail_service import (
     build_authorization_url,
@@ -220,14 +219,13 @@ async def demo_search_and_rank(query: str = "AI ML Python fresher India"):
 
 
 @app.get("/jobs/search-and-rank")
-async def real_search_and_rank(
-    query: str = "AI ML Python fresher India",
-    include_seen: bool = False,
-):
-    try:
-        return await search_verify_rank(query, include_seen=include_seen)
-    except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
+def retired_search_and_rank():
+    # Retired: a GET that spent provider quota and changed seen-history could be
+    # triggered by any website. Kept as 410 for one release, then deleted.
+    raise HTTPException(
+        status_code=410,
+        detail="This endpoint was retired. Search from the dashboard, which uses POST /agent/search.",
+    )
 
 
 @app.post("/agent/search")
