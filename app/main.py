@@ -2,7 +2,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
-from fastapi.responses import RedirectResponse, FileResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
@@ -57,7 +57,7 @@ from app.storage.email_store import (
     approve_draft,
     cancel_draft,
 )
-from app.storage.profile_store import load_profile, save_profile
+from app.storage.profile_store import ProfileUnreadableError, load_profile, save_profile
 from app.storage.preference_store import preferences_for, save_preferences
 
 
@@ -67,6 +67,21 @@ app.include_router(linkedin_router)
 app.include_router(career_router)
 app.include_router(chat_router)
 career_agent = CareerAgent()
+
+
+@app.exception_handler(ProfileUnreadableError)
+async def profile_unreadable(_request: Request, exc: ProfileUnreadableError):
+    # Show the problem instead of recommending jobs for the fictional demo profile.
+    return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+
+def _upload_baseline() -> CandidateProfile:
+    """Saved role/location preferences to carry into a new CV, if they can be read."""
+    try:
+        return load_profile()
+    except ProfileUnreadableError:
+        return CandidateProfile()
+
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -153,7 +168,7 @@ async def parse_cv(request: Request, file: UploadFile = File(...)):
 
     try:
         parsed = parse_profile_from_text(extract_pdf_text(tmp_path))
-        baseline = load_profile()
+        baseline = _upload_baseline()
         parsed.preferred_locations = baseline.preferred_locations
         parsed.preferred_roles = baseline.preferred_roles
         return parsed
@@ -175,7 +190,7 @@ async def upload_cv(request: Request, file: UploadFile = File(...)):
 
     try:
         parsed = parse_profile_from_text(extract_pdf_text(tmp_path))
-        baseline = load_profile()
+        baseline = _upload_baseline()
         parsed.preferred_locations = baseline.preferred_locations
         parsed.preferred_roles = baseline.preferred_roles
         save_profile(parsed)

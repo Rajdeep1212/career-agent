@@ -118,5 +118,41 @@ class AppOriginTests(unittest.TestCase):
         self.assertEqual(Settings(app_origin='http://localhost:9000/').app_origin, 'http://localhost:9000')
 
 
+class ProfileLoadTests(_IsolatedApp):
+    """B6: a corrupt profile is reported, never replaced by the fictional demo profile."""
+
+    def _corrupt(self):
+        profile_store.PROFILE_PATH.write_text('{"name": "Real Student", "skills": ', encoding='utf-8')
+
+    def test_missing_profile_still_uses_the_labeled_demo(self):
+        response = self.client.get('/profile/current')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('demo', response.json()['name'].lower())
+
+    def test_corrupt_profile_is_a_visible_error(self):
+        self._corrupt()
+        for response in (self.client.get('/profile/current'),
+                         self.client.post('/agent/search', json={'query': 'python jobs'})):
+            self.assertEqual(response.status_code, 409)
+            self.assertIn('could not be read', response.json()['detail'])
+            self.assertNotIn('Alex Morgan', response.text)
+
+    def test_reupload_recovers_and_keeps_a_copy_of_the_corrupt_file(self):
+        self._corrupt()
+        response = self.client.post('/cv/upload', files={'file': ('cv.pdf', _pdf(), 'application/pdf')},
+                                    headers=LOCAL)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.client.get('/profile/current').json()['name'], 'Test Member')
+        backups = list(self.directory.glob('profile.corrupt-*.json'))
+        self.assertEqual(len(backups), 1)
+        self.assertIn('Real Student', backups[0].read_text(encoding='utf-8'))
+
+    def test_save_is_atomic_and_leaves_no_temporary_file(self):
+        from app.models.schemas import CandidateProfile
+        profile_store.save_profile(CandidateProfile(name='Test Member'))
+        self.assertEqual(json.loads(profile_store.PROFILE_PATH.read_text(encoding='utf-8'))['name'], 'Test Member')
+        self.assertEqual([p.name for p in self.directory.iterdir() if p.suffix == '.tmp'], [])
+
+
 if __name__ == '__main__':
     unittest.main()
