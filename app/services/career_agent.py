@@ -173,7 +173,8 @@ class CareerAgent:
                 continue
             diagnostics['provider_requests']+=1
             try:
-                returned=await provider.search(planned.query)
+                search_planned=getattr(provider,'search_planned',None)
+                returned=await (search_planned(planned) if search_planned else provider.search(planned.query))
                 if not isinstance(returned,list):raise ValueError('Invalid provider result')
                 diagnostics['provider_results']+=len(returned)
                 diagnostics['provider_counts'][name]=diagnostics['provider_counts'].get(name,0)+len(returned)

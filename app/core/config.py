@@ -16,6 +16,13 @@ class Settings(BaseSettings):
     # Job search provider
     rapidapi_key: str | None = None
     rapidapi_host: str = "jsearch.p.rapidapi.com"
+    # Adzuna (https://developer.adzuna.com/) and Jooble (https://jooble.org/api/about).
+    # Each provider is optional: without its key it is skipped.
+    adzuna_app_id: str | None = None
+    adzuna_app_key: str | None = None
+    jooble_api_key: str | None = None
+    # A Jooble key works only on the country site it was issued for (India: in.jooble.org).
+    jooble_host: str = "in.jooble.org"
     job_providers: str = "jsearch"
     search_country: str = "in"
     verification_concurrency: int = 4
