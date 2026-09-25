@@ -14,6 +14,11 @@ FRESHER_TERMS = [
     "graduate engineer trainee", "intern", "internship", "no experience",
     "0-1 year", "0–1 year", "0 to 1 year"
 ]
+# Whole phrases only: "intern" must not match "international" or "internal".
+_FRESHER_PATTERN = re.compile(
+    r"(?<![\w-])(?:" + "|".join(re.escape(term) for term in FRESHER_TERMS) + r")s?(?![\w-])",
+    re.IGNORECASE,
+)
 
 SKILL_TERMS = [
     "Python", "SQL", "FastAPI", "Flask", "Django", "Docker", "REST API",
@@ -118,7 +123,7 @@ def normalize_item(item: dict) -> JobPosting:
         location=", ".join(str(item[k]) for k in ("job_city", "job_state", "job_country") if item.get(k)) or "Not specified",
         work_mode=_infer_work_mode(item), description=description,
         experience_min=exp_min, experience_max=exp_max,
-        fresher_allowed=any(x in combined.lower() for x in FRESHER_TERMS),
+        fresher_allowed=bool(_FRESHER_PATTERN.search(combined)),
         recent_graduate_allowed="recent graduate" in combined.lower(), graduation_years=years,
         skills=extract_skills(combined), application_url=apply_url,
         source="JSearch/RapidAPI", source_job_id=str(item["job_id"]) if item.get("job_id") else None,
