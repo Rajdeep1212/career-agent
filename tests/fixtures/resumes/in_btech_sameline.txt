@@ -1,0 +1,7 @@
+SAMPLE CANDIDATE
+EDUCATION
+B.Tech in Computer Science, Example Institute of Technology, 2021 - 2025, CGPA 8.1
+Class XII (CBSE), Example Public School, 2021, 91%
+Class X (CBSE), Example Public School, 2019, 94%
+SKILLS
+Python, SQL, Docker

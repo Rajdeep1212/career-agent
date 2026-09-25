@@ -36,7 +36,9 @@ _DEGREE = re.compile(
 )
 _SCHOOL = re.compile(
     r"\b(?:class|std\.?|standard|grade)\s*(?:x|xii|10|12|10th|12th)\b|\b(?:10th|12th|x|xii)\s+(?:class|std\.?|standard|grade)\b"
-    r"|\b(?:ssc|hsc|sslc|cbse|icse|isc|matriculation|matric|puc|higher\s+secondary|senior\s+secondary|secondary\s+school|intermediate)\b",
+    r"|\b(?:10th|12th|secondary|ssc|hsc|sslc|cbse|icse|isc|matriculation|matric|puc|intermediate)\b"
+    # State boards, e.g. WBBSE, WBCHSE, BSEB, RBSE, MPBSE, GSEB, PSEB, HBSE, CHSE.
+    r"|\b(?:wbbse|wbchse|bseb|rbse|mpbse|gseb|pseb|hbse|chse|upmsp|state\s+board)\b",
     re.IGNORECASE,
 )
 
@@ -102,6 +104,51 @@ def _explicit_skills(lines: list[str]) -> list[str]:
     return result
 
 
+_ONGOING = re.compile(r"\b(?:present|ongoing|current|pursuing)\b", re.IGNORECASE)
+
+
+def _years(line: str) -> list[int]:
+    # "2021-25" ends in 2025.
+    line = re.sub(r"\b((?:19|20)\d{2})\s*[-–]\s*(\d{2})\b(?!\d)", lambda m: f"{m[1]} - {m[1][:2]}{m[2]}", line)
+    return [int(year) for year in re.findall(r"\b(?:19|20)\d{2}\b", line)]
+
+
+def _education_blocks(lines: list[str]) -> list[dict]:
+    """Group each Education line with the nearest qualification heading above it.
+
+    Dates often sit on their own line below the degree ("Aug 2021 – Jul 2025"),
+    and Indian CVs list Class X/XII (school) results in the same section.
+    """
+    blocks: list[dict] = []
+    for line in lines:
+        kind = "degree" if _DEGREE.search(line) else "school" if _SCHOOL.search(line) else None
+        if kind is None and blocks:
+            blocks[-1]["lines"].append(line)
+        elif blocks and blocks[-1]["kind"] == "unknown" and kind == "degree" and len(blocks) == 1:
+            # Dates written above the degree belong to it.
+            blocks[-1].update(kind=kind, lines=blocks[-1]["lines"] + [line])
+        else:
+            blocks.append({"kind": kind or "unknown", "lines": [line]})
+    return blocks
+
+
+def _graduation_year(education: list[str]) -> int | None:
+    """The single degree's end year; school blocks never count."""
+    blocks = _education_blocks(education)
+    degrees = [block for block in blocks if block["kind"] == "degree"]
+    if not degrees:
+        if any(block["kind"] == "school" for block in blocks):
+            return None
+        degrees = blocks
+    if len(degrees) != 1:
+        return None
+    lines = degrees[0]["lines"]
+    if any(_ONGOING.search(line) for line in lines):
+        return None
+    years = [year for line in lines for year in _years(line)]
+    return max(years) if years else None
+
+
 def parse_profile_from_text(text: str) -> CandidateProfile:
     if not text.strip():
         raise ValueError("Resume has no readable text. Paste text or upload a text-based PDF.")
@@ -122,18 +169,7 @@ def parse_profile_from_text(text: str) -> CandidateProfile:
     education = sections["education"] or [line for line in lines if _DEGREE.search(line)]
     degrees = [match.group(0).strip().rstrip(".") for line in education if (match := _DEGREE.search(line))]
     degree = degrees[0] if degrees else None
-    years = []
-    for line in education:
-        # Indian CVs list Class X/XII results in Education; they are not the degree year.
-        if _SCHOOL.search(line) and not _DEGREE.search(line):
-            continue
-        # "2021-25" ends in 2025; keep the four-digit form for the lookup below.
-        line = re.sub(r"\b((?:19|20)(\d{2}))\s*[-–]\s*(\d{2})\b(?!\d)", lambda m: f"{m[1]} - {m[1][:2]}{m[3]}", line)
-        candidates = re.findall(r"\b(?:19|20)\d{2}\b", line)
-        if candidates and not re.search(r"\b(?:present|ongoing|current)\b", line, re.IGNORECASE):
-            years.append(int(candidates[-1]))
-    distinct_years = set(years)
-    graduation_year = next(iter(distinct_years)) if len(distinct_years) == 1 and len(degrees) <= 1 else None
+    graduation_year = _graduation_year(education)
     warnings = []
     if graduation_year is None:
         warnings.append("Graduation year is missing or ambiguous; please confirm it.")

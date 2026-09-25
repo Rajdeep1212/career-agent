@@ -1,0 +1,29 @@
+TEST STUDENT
+Kolkata, West Bengal | test.student@example.com
+SUMMARY
+Recent B.Tech graduate focused on GenAI, NLP and backend engineering.
+EDUCATION
+B.Tech., Computer Science and Technology
+Aug 2021 – Jul 2025
+Example University of Engineering and Management, Kolkata | CGPA: 7.64
+Higher Secondary (12th)
+Jul 2018 – May 2020
+West Bengal Council of Higher Secondary Education (WBCHSE) | 83%
+Secondary (10th)
+May 2018
+West Bengal Board of Secondary Education (WBBSE) | 66%
+TECHNICAL SKILLS
+Languages: Python, SQL, C++
+ML & GenAI: PyTorch, scikit-learn, Hugging Face Transformers, LangChain, RAG, LLM Fine-tuning, Fine-tuning
+MLOps & Cloud: Docker, MLflow, GCP (BigQuery, Looker Studio), AWS (S3, EC2)
+Web & Tools: FastAPI, React, React.js, Git, Git/GitHub
+RESEARCH EXPERIENCE
+Research Intern — Indian Institute of Technology (IIT) Example
+Jul 2025 – Dec 2025
+Built a retrieval-augmented question answering pipeline over scientific papers.
+PROJECTS
+Career Agent — FastAPI, LangGraph
+Local job-search agent with listing verification and approval-gated outreach.
+ACHIEVEMENTS & CERTIFICATIONS
+Google Cloud Digital Leader
+Winner, inter-college hackathon 2024
