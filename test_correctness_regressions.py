@@ -97,5 +97,52 @@ class GraduationYearTests(unittest.TestCase):
         self.assertIsNone(self._year('B.Com 2020\nMBA 2023\nClass XII 2017'))
 
 
+class SkillVocabularyTests(unittest.TestCase):
+    """B4: one versioned vocabulary for CVs and jobs, including GenAI skills."""
+
+    GENAI_JOB = ('Build RAG pipelines with LangChain and LangGraph, FAISS or Pinecone vector databases, '
+                 'fine-tuning with LoRA on Hugging Face Transformers, served with vLLM.')
+
+    def test_genai_terms_are_extracted_from_job_text(self):
+        skills = extract_skills(self.GENAI_JOB)
+        for skill in ('RAG', 'LangChain', 'LangGraph', 'FAISS', 'Pinecone', 'Vector Database',
+                      'Fine-tuning', 'LoRA', 'Hugging Face', 'Transformers', 'vLLM'):
+            self.assertIn(skill, skills)
+
+    def test_aliases_map_to_canonical_names(self):
+        skills = extract_skills('sklearn, Postgres, k8s and Golang services')
+        self.assertEqual(skills, ['Go', 'Kubernetes', 'PostgreSQL', 'scikit-learn'])
+
+    def test_ambiguous_words_need_their_skill_form(self):
+        self.assertEqual(extract_skills("We go live next week with a spark of energy."), [])
+
+    def test_cv_explicit_skills_use_canonical_names(self):
+        profile = parse_profile_from_text('Jane Doe\nSkills: sklearn, LangChain, Go, Zoho Books')
+        self.assertIn('scikit-learn', profile.skills)
+        self.assertNotIn('sklearn', profile.skills)
+        self.assertIn('LangChain', profile.skills)
+        self.assertIn('Go', profile.skills)
+        self.assertIn('Zoho Books', profile.skills)
+
+    def test_job_and_cv_share_the_vocabulary(self):
+        from app.models.career import EligibilityResult
+        from app.services.matching import match_job
+        job = normalize_item(_item('GenAI Engineer', self.GENAI_JOB))
+        self.assertIn('LangChain', job.skills)
+        profile = parse_profile_from_text('Jane Doe\nSkills: LangChain, FAISS, Python')
+        match = match_job(profile, job, SearchIntent(), EligibilityResult())
+        self.assertIn('LangChain', match.matched_skills)
+        self.assertIn('FAISS', match.matched_skills)
+
+    def test_vocabulary_is_versioned_and_consistent(self):
+        from app.services import skills
+        self.assertEqual(skills.VOCABULARY_VERSION, 1)
+        seen = {}
+        for entry in skills.load_vocabulary()['skills']:
+            for term in [entry['name'], *entry.get('aliases', [])]:
+                self.assertNotIn(term.casefold(), seen, f'{term} is defined twice')
+                seen[term.casefold()] = entry['name']
+
+
 if __name__ == '__main__':
     unittest.main()

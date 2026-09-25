@@ -3,40 +3,14 @@ import re
 from pathlib import Path
 
 from app.models.schemas import CandidateProfile
+# Re-exported: the vocabulary lives in app/services/skills.py and app/core/skills/.
+from app.services.skills import KNOWN_SKILLS, SKILL_CATEGORIES, canonical_skill, extract_skills
+from app.services.skills import contains_phrase as _contains
 
 MAX_PDF_BYTES = 10 * 1024 * 1024
 MAX_PDF_PAGES = 100
 MAX_TEXT_CHARS = 200_000
 
-SKILL_CATEGORIES = {
-    "technical": [
-        "Python", "C++", "C#", "Java", "JavaScript", "TypeScript", "SQL", "R",
-        "PyTorch", "TensorFlow", "Keras", "scikit-learn", "NumPy", "Pandas", "OpenCV",
-        "Machine Learning", "Deep Learning", "NLP", "LLM", "RAG", "Prompt Engineering",
-        "Hugging Face", "Docker", "Kubernetes", "MLflow", "GCP", "AWS", "Azure", "Git",
-        "CI/CD", "Postman", "FastAPI", "Flask", "REST API", "React.js", "React",
-        "Node.js", "MySQL", "PostgreSQL", "MongoDB", "HTML", "CSS", "Linux",
-        "AutoCAD", "MATLAB", "SolidWorks", "Data Analysis", "Statistics",
-    ],
-    "business": [
-        "Excel", "Advanced Excel", "Power BI", "Tableau", "Financial Modeling",
-        "Financial Analysis", "Financial Reporting", "Accounting", "Bookkeeping",
-        "Market Research", "Business Analysis", "Project Management", "Product Management",
-        "Sales", "Marketing", "Digital Marketing", "SEO", "CRM", "Salesforce", "SAP",
-        "Operations", "Supply Chain", "Inventory Management", "Recruitment", "HR",
-    ],
-    "design": [
-        "Figma", "Sketch", "Adobe XD", "Photoshop", "Illustrator", "InDesign", "Canva",
-        "UI Design", "UX Design", "User Research", "Wireframing", "Prototyping",
-        "Typography", "Graphic Design", "Interaction Design", "Visual Design",
-    ],
-    "transferable": [
-        "Communication", "Teamwork", "Leadership", "Problem Solving", "Critical Thinking",
-        "Stakeholder Management", "Negotiation", "Presentation", "Public Speaking",
-        "Time Management", "Collaboration", "Customer Service", "Writing", "Research",
-    ],
-}
-KNOWN_SKILLS = list(dict.fromkeys(skill for group in SKILL_CATEGORIES.values() for skill in group))
 _HEADINGS = {
     "education": "education", "academic qualifications": "education", "qualifications": "education",
     "academic background": "education", "educational qualifications": "education",
@@ -65,22 +39,6 @@ _SCHOOL = re.compile(
     r"|\b(?:ssc|hsc|sslc|cbse|icse|isc|matriculation|matric|puc|higher\s+secondary|senior\s+secondary|secondary\s+school|intermediate)\b",
     re.IGNORECASE,
 )
-
-
-def _contains(text: str, phrase: str) -> bool:
-    return bool(re.search(r"(?<![\w])" + re.escape(phrase) + r"(?![\w])", text, re.IGNORECASE))
-
-
-def _contains_single_letter(text: str, letter: str) -> bool:
-    # Case-sensitive, and not part of "R&D", "R/3" or "R-series".
-    return bool(re.search(r"(?<![\w&/.'’-])" + re.escape(letter) + r"(?![\w&/'’-])(?!\.\w)", text))
-
-
-def extract_skills(text: str) -> list[str]:
-    """Vocabulary matches with token boundaries, reusable for resumes and jobs."""
-    return sorted((skill for skill in KNOWN_SKILLS
-                   if (_contains_single_letter(text, skill) if len(skill) == 1 else _contains(text, skill))),
-                  key=str.casefold)
 
 
 def extract_pdf_text(path: str) -> str:
@@ -181,7 +139,8 @@ def parse_profile_from_text(text: str) -> CandidateProfile:
         warnings.append("Graduation year is missing or ambiguous; please confirm it.")
     if len(degrees) > 1:
         warnings.append("Multiple qualifications found; confirm the primary degree and graduation year.")
-    skills_by_key = {skill.casefold(): skill for skill in _explicit_skills(sections["skills"])}
+    explicit = [canonical_skill(skill) for skill in _explicit_skills(sections["skills"])]
+    skills_by_key = {skill.casefold(): skill for skill in explicit}
     skill_text = "\n".join(value for section_lines in sections.values() for value in section_lines)
     skills_by_key.update({skill.casefold(): skill for skill in extract_skills(skill_text)})
     internships, experience = sections["internships"][:], []

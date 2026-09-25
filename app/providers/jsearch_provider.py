@@ -6,6 +6,7 @@ from app.models.schemas import JobPosting
 from app.providers.base import JobProvider, ProviderError
 from urllib.parse import urlsplit
 from app.services.job_requirements import extract_requirements
+from app.services.skills import extract_skills
 
 
 FRESHER_TERMS = [
@@ -19,14 +20,6 @@ _FRESHER_PATTERN = re.compile(
     r"(?<![\w-])(?:" + "|".join(re.escape(term) for term in FRESHER_TERMS) + r")s?(?![\w-])",
     re.IGNORECASE,
 )
-
-SKILL_TERMS = [
-    "Python", "SQL", "FastAPI", "Flask", "Django", "Docker", "REST API",
-    "PyTorch", "TensorFlow", "scikit-learn", "Pandas", "NumPy",
-    "NLP", "LLM", "RAG", "Hugging Face", "AWS", "GCP", "PostgreSQL",
-    "MySQL", "MongoDB", "Power BI", "Tableau", "LangChain", "LangGraph",
-]
-
 
 def _infer_work_mode(job: dict) -> str:
     if job.get("job_is_remote") is True:
@@ -71,11 +64,6 @@ def _infer_experience(text: str) -> tuple[float, float | None]:
     return 0.0, None
 
 
-def _extract_skills(text: str) -> list[str]:
-    low = text.lower()
-    return sorted({s for s in SKILL_TERMS if s.lower() in low})
-
-
 def _extract_items(payload: dict) -> list[dict]:
     """
     JSearch /search-v2 may return:
@@ -114,7 +102,6 @@ def normalize_item(item: dict) -> JobPosting:
             apply_url = None
     except ValueError:
         apply_url = None
-    from app.services.cv_parser import extract_skills
     salary = None
     if item.get("job_min_salary") is not None or item.get("job_max_salary") is not None:
         salary = " ".join(str(item.get(k) or "") for k in ("job_min_salary", "job_max_salary", "job_salary_currency", "job_salary_period")).strip()
