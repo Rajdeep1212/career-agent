@@ -410,7 +410,7 @@ Effort figures assume one developer working about 20 hours a week. For every mil
 
 | ID | Decision | Status |
 |---|---|---|
-| A | Pooled cohort (10–30 students) | **Still open.** Decision messages have left `[CAN / CANNOT]` unfilled three times (last 2026-09-25). Needed by the start of M2. Until then, M4 plans for both branches. |
+| A | Pooled cohort (10–30 students) | **Decided (2026-09-25): CANNOT.** M4 = heuristic prior plus LLM-teacher distillation, evaluated on the owner's 👍/👎 relevance labels (target ≈300). Calibrated probabilities are future work and are never claimed (claim levels stay at L0–L2). |
 | B | Hosted demo | **Decided:** Hugging Face Spaces (Docker); fallback Render |
 | C | Send rate limits | **Decided:** 10 per day, 5-minute gap, at most 2 per company per 14 days |
 | D | `GET /jobs/search-and-rank` | **Decided:** return 410 for one release, then delete |
