@@ -31,6 +31,27 @@ class GraduationYearLayoutTests(unittest.TestCase):
         text = 'Jane Doe\nEducation\nB.Tech., Computer Science\nKolkata\nSecondary (10th)\nMay 2018\nSkills: Python'
         self.assertIsNone(parse_profile_from_text(text).graduation_year)
 
+class SkillListSplittingTests(unittest.TestCase):
+    """Commas inside parentheses belong to the bracketed group, not the outer list."""
+
+    def _skills(self, line):
+        return parse_profile_from_text('Jane Doe\nSkills\n' + line).skills
+
+    def test_parenthesized_groups_become_separate_skills(self):
+        skills = self._skills('MLOps & Cloud: Docker, MLflow, GCP (BigQuery, Looker Studio), AWS (S3, EC2)')
+        for skill in ('Docker', 'MLflow', 'GCP', 'BigQuery', 'Looker Studio', 'AWS', 'S3', 'EC2'):
+            self.assertIn(skill, skills)
+
+    def test_no_unbalanced_brackets_are_ever_emitted(self):
+        for line in ('GCP (BigQuery, Looker Studio), AWS (S3, EC2)', 'GCP (BigQuery, Looker Studio',
+                     'Tools: Tableau), Excel', 'Python [Pandas; NumPy] | SQL {Joins}'):
+            for skill in self._skills(line):
+                self.assertNotRegex(skill, r'[()\[\]{}]', line)
+
+    def test_proficiency_qualifiers_are_not_skills(self):
+        skills = self._skills('Python (Advanced), SQL (Intermediate), Excel')
+        self.assertEqual(sorted(skills, key=str.casefold), ['Excel', 'Python', 'SQL'])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -93,14 +93,56 @@ def _extract_name(lines: list[str]) -> str | None:
     return None
 
 
+_OPEN, _CLOSE, _LIST_SEPARATORS = "([{", ")]}", ",;|•"
+_PROFICIENCY = {"basic", "beginner", "intermediate", "advanced", "proficient", "expert", "familiar", "fluent", "native"}
+
+
+def _split_top_level(value: str) -> list[str]:
+    """Split a skills list on separators outside brackets."""
+    parts, current, depth = [], "", 0
+    for char in value:
+        if char in _OPEN:
+            depth += 1
+        elif char in _CLOSE:
+            depth = max(0, depth - 1)
+        if depth == 0 and char in _LIST_SEPARATORS:
+            parts.append(current)
+            current = ""
+        else:
+            current += char
+    return parts + [current]
+
+
+def _expand_group(item: str) -> list[str]:
+    """"GCP (BigQuery, Looker Studio)" becomes GCP, BigQuery and Looker Studio."""
+    start = next((index for index, char in enumerate(item) if char in _OPEN), None)
+    if start is None:
+        return [item]
+    depth, end = 0, len(item)
+    for index in range(start, len(item)):
+        if item[index] in _OPEN:
+            depth += 1
+        elif item[index] in _CLOSE:
+            depth -= 1
+            if depth == 0:
+                end = index
+                break
+    inner = [part for piece in _split_top_level(item[start + 1:end]) for part in _expand_group(piece)]
+    return [item[:start], *inner, *_expand_group(item[end + 1:])]
+
+
 def _explicit_skills(lines: list[str]) -> list[str]:
     result = []
     for line in lines:
         value = line.split(":", 1)[-1]
-        for item in re.split(r"[,;|•]", value):
-            item = item.strip(" \t-–")
-            if item and len(item) <= 60 and len(item.split()) <= 6 and not re.search(r"[.!?]$", item):
-                result.append(item)
+        for group in _split_top_level(value):
+            for item in _expand_group(group):
+                # Never emit an unbalanced or stray bracket.
+                item = re.sub(r"[()\[\]{}]", " ", item)
+                item = " ".join(item.split()).strip(" \t-–")
+                if (item and item.casefold() not in _PROFICIENCY and len(item) <= 60
+                        and len(item.split()) <= 6 and not re.search(r"[.!?]$", item)):
+                    result.append(item)
     return result
 
 
