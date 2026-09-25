@@ -36,3 +36,22 @@ jobs:
         run: python -m pytest
       - name: Dashboard script
         run: node tests/test_frontend.cjs
+
+  demo-image:
+    name: demo image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: docker build -t career-agent-demo .
+      - name: Smoke test (demo data only)
+        run: |
+          docker run -d --name demo -p 7860:7860 career-agent-demo
+          for i in $(seq 1 30); do curl -fs http://localhost:7860/health && break; sleep 2; done
+          curl -fs http://localhost:7860/profile/current | grep -q "synthetic"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:7860/auth/google/status)" = "404"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Origin: http://localhost:7860' http://localhost:7860/email/drafts/1/send)" = "404"
+          docker exec demo sh -c 'test ! -e /home/app/career-agent/.env && test ! -e /home/app/career-agent/data'
+      - name: Logs
+        if: always()
+        run: docker logs demo || true
