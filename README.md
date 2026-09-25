@@ -1,5 +1,7 @@
 # Career Agent
 
+[![CI](https://github.com/Rajdeep1212/career-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Rajdeep1212/career-agent/actions/workflows/ci.yml)
+
 Career Agent is a local FastAPI application for evidence-based job discovery,
 application tracking, and user-approved outreach. It parses text-based PDF
 resumes, persists profile and search preferences, searches configured job
