@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -65,10 +66,25 @@ from app.storage.preference_store import preferences_for, save_preferences
 
 install_oauth_log_filter()
 app = FastAPI(title=settings.app_name)
-app.include_router(linkedin_router)
+if settings.demo_mode:
+    # Hosted demo: synthetic data, no OAuth, no email, no outbound HTTP.
+    from app.demo import prepare as prepare_demo
+    prepare_demo(settings)
+else:
+    app.include_router(linkedin_router)
 app.include_router(career_router)
 app.include_router(chat_router)
 career_agent = CareerAgent()
+
+
+_DEMO_BLOCKED = re.compile(r"^/(?:auth/|email/drafts/\d+/send$)")
+
+
+@app.middleware("http")
+async def demo_mode_boundary(request: Request, call_next):
+    if settings.demo_mode and _DEMO_BLOCKED.match(request.url.path):
+        return JSONResponse(status_code=404, content={"detail": "Not available in demo mode."})
+    return await call_next(request)
 
 
 @app.exception_handler(ProfileUnreadableError)

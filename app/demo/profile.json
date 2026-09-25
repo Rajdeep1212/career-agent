@@ -1,0 +1,16 @@
+{
+  "name": "Demo Student (synthetic)",
+  "degree": "B.Tech",
+  "graduation_year": 2025,
+  "skills": ["Python", "SQL", "FastAPI", "PyTorch", "scikit-learn", "LangChain", "RAG", "Docker", "Git"],
+  "projects": [
+    "Retrieval-augmented question answering over course notes using LangChain and FAISS",
+    "FastAPI service for a small inventory dashboard with SQL and Docker"
+  ],
+  "education": ["B.Tech, Computer Science, Example Institute of Technology, 2021 - 2025"],
+  "internships": ["Machine Learning Intern, Example Labs (synthetic), 2024"],
+  "preferred_roles": ["Machine Learning Engineer", "Python Developer"],
+  "preferred_locations": ["Bengaluru", "Pune"],
+  "experience_years": 0,
+  "parsing_warnings": ["Synthetic demo profile. This hosted demo never stores or sends real data."]
+}

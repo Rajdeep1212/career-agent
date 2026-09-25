@@ -104,6 +104,8 @@ def _is_aggregator_link(job: JobPosting) -> bool:
 async def verify_application(job: JobPosting) -> JobPosting:
     if not job.application_url:
         return _status(job, "UNVERIFIED", "No application URL was provided.")
+    if settings.demo_mode:
+        return _status(job, "UNVERIFIED", "Demo data: synthetic listing, never fetched.")
     if _is_aggregator_link(job):
         # Adzuna and Jooble links are tracked redirects; an automated visit would count as a click.
         return _status(job, "UNVERIFIED", "Aggregator link (Adzuna/Jooble): not checked automatically, because "
