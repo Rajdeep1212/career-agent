@@ -1,7 +1,6 @@
 """Additive career storage sharing the agent database without touching legacy tables."""
 import json
-import sqlite3
-from contextlib import closing, contextmanager
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import get_args
@@ -11,6 +10,7 @@ from app.core.config import settings
 from app.models.career import ApplicationStatus, ContactCandidate
 from app.models.schemas import JobPosting
 from app.services.job_identity import job_identity
+from app.storage import db
 
 
 DB_PATH = Path(settings.data_dir) / 'agent.sqlite3'
@@ -21,52 +21,51 @@ def _now():
     return datetime.now(timezone.utc).isoformat()
 
 
+_V1_TABLES = (
+    """CREATE TABLE IF NOT EXISTS career_sessions (
+        id TEXT PRIMARY KEY, intent_json TEXT NOT NULL, response_json TEXT NOT NULL,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL)""",
+    """CREATE TABLE IF NOT EXISTS career_jobs (
+        id TEXT PRIMARY KEY, job_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)""",
+    """CREATE TABLE IF NOT EXISTS career_applications (
+        id TEXT PRIMARY KEY, job_id TEXT NOT NULL UNIQUE REFERENCES career_jobs(id),
+        status TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL, applied_at TEXT,
+        outreach_state TEXT NOT NULL DEFAULT 'NONE')""",
+    """CREATE TABLE IF NOT EXISTS career_contacts (
+        id TEXT PRIMARY KEY, company TEXT NOT NULL, contact_json TEXT NOT NULL, created_at TEXT NOT NULL)""",
+    "CREATE INDEX IF NOT EXISTS career_contacts_company ON career_contacts(company COLLATE NOCASE)",
+    """CREATE TABLE IF NOT EXISTS career_outreach (
+        draft_id INTEGER PRIMARY KEY, application_id TEXT NOT NULL REFERENCES career_applications(id),
+        contact_id TEXT REFERENCES career_contacts(id),
+        short_message TEXT NOT NULL, created_at TEXT NOT NULL, sent_at TEXT)""",
+)
+
+
+def _career_v1(conn):
+    for statement in _V1_TABLES:
+        conn.execute(statement)
+
+
+def _outreach_contact_v2(conn):
+    columns = {row['name'] for row in conn.execute('PRAGMA table_info(career_outreach)').fetchall()}
+    if 'contact_id' not in columns:
+        conn.execute('ALTER TABLE career_outreach ADD COLUMN contact_id TEXT')
+
+
+# Versions match the ids earlier releases recorded, so existing databases have nothing pending.
+MIGRATIONS = [
+    db.Migration('career_v1', _career_v1, 'Restore data/backups/<time>/agent.sqlite3; the tables are additive.'),
+    db.Migration('career_outreach_contact_v2', _outreach_contact_v2,
+                 'Restore data/backups/<time>/agent.sqlite3; SQLite cannot drop the contact_id column in place.'),
+]
+
+
 @contextmanager
 def _connection():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with closing(sqlite3.connect(DB_PATH, timeout=15)) as connection:
-        connection.row_factory = sqlite3.Row
-        connection.execute('PRAGMA foreign_keys = ON')
-        with connection:
-            connection.executescript('''
-                CREATE TABLE IF NOT EXISTS schema_migrations (
-                    version TEXT PRIMARY KEY, applied_at TEXT NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS career_sessions (
-                    id TEXT PRIMARY KEY, intent_json TEXT NOT NULL, response_json TEXT NOT NULL,
-                    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS career_jobs (
-                    id TEXT PRIMARY KEY, job_json TEXT NOT NULL,
-                    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS career_applications (
-                    id TEXT PRIMARY KEY, job_id TEXT NOT NULL UNIQUE REFERENCES career_jobs(id),
-                    status TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '',
-                    created_at TEXT NOT NULL, updated_at TEXT NOT NULL, applied_at TEXT,
-                    outreach_state TEXT NOT NULL DEFAULT 'NONE'
-                );
-                CREATE TABLE IF NOT EXISTS career_contacts (
-                    id TEXT PRIMARY KEY, company TEXT NOT NULL, contact_json TEXT NOT NULL,
-                    created_at TEXT NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS career_contacts_company ON career_contacts(company COLLATE NOCASE);
-                CREATE TABLE IF NOT EXISTS career_outreach (
-                    draft_id INTEGER PRIMARY KEY,
-                    application_id TEXT NOT NULL REFERENCES career_applications(id),
-                    contact_id TEXT REFERENCES career_contacts(id),
-                    short_message TEXT NOT NULL, created_at TEXT NOT NULL, sent_at TEXT
-                );
-            ''')
-            outreach_columns = {
-                row['name'] for row in connection.execute('PRAGMA table_info(career_outreach)').fetchall()
-            }
-            if 'contact_id' not in outreach_columns:
-                connection.execute('ALTER TABLE career_outreach ADD COLUMN contact_id TEXT')
-            connection.execute('INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)', ('career_v1', _now()))
-            connection.execute('INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)', ('career_outreach_contact_v2', _now()))
-        with connection:
-            yield connection
+    db.ensure(DB_PATH, MIGRATIONS)
+    with db.connect(DB_PATH) as connection:
+        yield connection
 
 
 def save_session(session_id: str | None, intent: dict, response: dict) -> str:
