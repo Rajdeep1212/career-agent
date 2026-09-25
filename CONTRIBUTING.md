@@ -25,9 +25,11 @@ and deterministic behavior.
 Run all required checks before submitting a change:
 
 ```powershell
-python run_tests.py
-node test_frontend.cjs
-python -m compileall -q app
+python -m pip install -r requirements-dev.txt
+python -m pytest
+node tests/test_frontend.cjs
+python -m ruff check .
+python -m mypy
 ```
 
 Describe the user-visible behavior, tests run, storage migrations, and security

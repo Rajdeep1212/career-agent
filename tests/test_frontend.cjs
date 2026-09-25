@@ -2,9 +2,11 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const script = fs.readFileSync('app/static/app.js', 'utf8');
-const html = fs.readFileSync('app/static/index.html', 'utf8');
-const css = fs.readFileSync('app/static/styles.css', 'utf8');
+const path = require('node:path');
+const root = path.join(__dirname, '..');
+const script = fs.readFileSync(path.join(root, 'app', 'static', 'app.js'), 'utf8');
+const html = fs.readFileSync(path.join(root, 'app', 'static', 'index.html'), 'utf8');
+const css = fs.readFileSync(path.join(root, 'app', 'static', 'styles.css'), 'utf8');
 
 assert.match(html, /id="careerWorkspace"/);
 assert.match(html, /id="workspaceJobResults"/);

@@ -95,13 +95,18 @@ existing atomic Gmail send boundary.
 
 ## Verification
 
-Run the complete offline checks from the repository root:
+Run the complete offline checks from the repository root. Tests live in
+`tests/`, use recorded fixtures and never touch the live network:
 
 ```powershell
-python run_tests.py
-node test_frontend.cjs
-python -m compileall -q app
+python -m pip install -r requirements-dev.txt
+python -m pytest
+node tests/test_frontend.cjs
+python -m ruff check .
+python -m mypy
 ```
+
+`python run_tests.py` runs the same suite without the dev tools.
 
 ## Documentation
 

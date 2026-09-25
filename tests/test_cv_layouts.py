@@ -4,7 +4,7 @@ from pathlib import Path
 
 from app.services.cv_parser import parse_profile_from_text
 
-FIXTURES = Path(__file__).resolve().parent / 'tests' / 'fixtures' / 'resumes'
+FIXTURES = Path(__file__).resolve().parent / 'fixtures' / 'resumes'
 
 
 def parse_fixture(name):

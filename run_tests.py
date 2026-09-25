@@ -1,31 +1,30 @@
-"""Run all tests offline with disposable storage and no real credentials."""
-import os
+"""Run all tests offline with disposable storage and no real credentials.
+
+Equivalent to `python -m pytest`; kept so the suite runs without dev tools.
+"""
 import gc
-from pathlib import Path
+import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from contextlib import ExitStack
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT / "tests"))
+
+from _offline import configure_environment, network_guards  # noqa: E402
 
 
 def main():
     with tempfile.TemporaryDirectory(prefix="job-agent-tests-") as directory:
-        os.environ.update({
-            "DATA_DIR": directory, "UPLOAD_DIR": str(Path(directory) / "uploads"),
-            "JOB_PROVIDERS": "jsearch,adzuna,jooble", "RAPIDAPI_KEY": "", "ADZUNA_APP_ID": "", "ADZUNA_APP_KEY": "", "JOOBLE_API_KEY": "",
-            "GOOGLE_CLIENT_ID": "", "GOOGLE_CLIENT_SECRET": "",
-            "LINKEDIN_CLIENT_ID": "", "LINKEDIN_CLIENT_SECRET": "",
-            "TOKEN_ENCRYPTION_KEY": "",
-        })
+        configure_environment(directory)
         from app.storage import history
         history.DB_PATH = Path(directory) / "history.sqlite3"
-        with patch("httpx.HTTPTransport.handle_request", side_effect=AssertionError("Live HTTP forbidden in tests")), \
-             patch("httpcore._backends.auto.AutoBackend.connect_tcp", side_effect=AssertionError("Live TCP forbidden in tests")), \
-             patch("httpcore._backends.auto.AutoBackend.connect_unix_socket", side_effect=AssertionError("Live sockets forbidden in tests")), \
-             patch("socket.getaddrinfo", side_effect=AssertionError("Live DNS forbidden in tests")):
-            # Guard the async network boundary so the TLS transport regression
-            # can use real HTTP machinery with its explicit fake socket stream.
-            # TestClient's in-process transport and event-loop socketpairs work.
-            suite = unittest.defaultTestLoader.discover(".", pattern="test_*.py")
+        with ExitStack() as stack:
+            for guard in network_guards():
+                stack.enter_context(guard)
+            suite = unittest.defaultTestLoader.discover(str(ROOT / "tests"), pattern="test_*.py",
+                                                        top_level_dir=str(ROOT / "tests"))
             result = unittest.TextTestRunner(verbosity=2).run(suite)
         gc.collect()
         return 0 if result.wasSuccessful() else 1
