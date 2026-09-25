@@ -11,6 +11,7 @@ from app.agent.routing import (
     sanitize_text,
     validated_model_advice,
 )
+from app.agent.errors import ResumeConflictError, ThreadNotFoundError  # noqa: F401 (re-exported)
 from app.agent.state import CareerGraphState
 from app.agent.tools import CareerGraphTools
 from app.llm.factory import build_chat_model
@@ -19,12 +20,6 @@ from app.services.career_agent import CareerAgent
 from app.storage.graph_checkpoint import TurnReceiptStore
 
 
-class ThreadNotFoundError(ValueError):
-    pass
-
-
-class ResumeConflictError(ValueError):
-    pass
 
 
 async def _maybe_await(value):

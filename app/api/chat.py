@@ -2,7 +2,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 
-from app.agent.runtime import CareerGraphRuntime, ResumeConflictError, ThreadNotFoundError
+from app.agent.errors import ResumeConflictError, ThreadNotFoundError
 from app.core.config import settings
 from app.core.origin_security import has_exact_local_origin
 from app.models.chat import ChatResponse, ChatResumeRequest, ChatRunRequest
@@ -18,7 +18,9 @@ def require_chat_origin(request: Request) -> None:
         raise HTTPException(status_code=403, detail="Open the localhost dashboard to run career actions.")
 
 
-def _runtime() -> CareerGraphRuntime:
+def _runtime():
+    # LangGraph is optional; load it only when a chat endpoint is used.
+    from app.agent.runtime import CareerGraphRuntime
     return CareerGraphRuntime(checkpoint_path=CHECKPOINT_PATH)
 
 
