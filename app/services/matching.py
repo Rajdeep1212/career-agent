@@ -2,9 +2,11 @@
 import re
 from datetime import datetime, timezone
 from app.models.career import MatchResult
+from app.services.skills import KNOWN_SKILLS, contains_phrase
 
 STOP={'engineer','junior','senior','jobs','job','role','roles','and','the','of','in'}
 # Whole-token synonyms; substring replacement turned "Qatar" into "testingtar".
+_VOCABULARY={s.casefold() for s in KNOWN_SKILLS}
 SYNONYMS={'qa':'testing','tester':'testing','testers':'testing','analyst':'analysis','analysts':'analysis'}
 
 
@@ -16,6 +18,10 @@ def words(text):
 def match_job(profile, job, intent, eligibility):
     candidate={s.casefold():s for s in profile.skills}
     required={s.casefold():s for s in job.skills}
+    # A CV skill outside the shared vocabulary still counts when the listing names it.
+    posting=job.title+' '+job.description
+    required.update({key:value for key,value in candidate.items() if key not in required
+                     and key not in _VOCABULARY and len(key)>=3 and contains_phrase(posting,value)})
     matched=[candidate[s] for s in candidate if s in required]
     missing=[required[s] for s in required if s not in candidate]
     skill=round(35*len(matched)/len(required)) if required else 0

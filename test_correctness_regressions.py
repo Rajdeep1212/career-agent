@@ -134,6 +134,16 @@ class SkillVocabularyTests(unittest.TestCase):
         self.assertIn('LangChain', match.matched_skills)
         self.assertIn('FAISS', match.matched_skills)
 
+    def test_cv_skill_outside_vocabulary_matches_listing_text(self):
+        from app.models.career import EligibilityResult
+        from app.services.matching import match_job
+        job = JobPosting(company='Example', title='Accounts Executive', location='India',
+                         description='Daily bookkeeping in Zoho Books and Excel.', skills=['Excel'])
+        profile = CandidateProfile(skills=['Zoho Books', 'Excel', 'Tally'])
+        match = match_job(profile, job, SearchIntent(), EligibilityResult())
+        self.assertEqual(sorted(match.matched_skills), ['Excel', 'Zoho Books'])
+        self.assertNotIn('Tally', match.missing_skills)
+
     def test_vocabulary_is_versioned_and_consistent(self):
         from app.services import skills
         self.assertEqual(skills.VOCABULARY_VERSION, 1)
