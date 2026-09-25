@@ -422,11 +422,12 @@ Effort figures assume one developer working about 20 hours a week. For every mil
 
 ### 7.3 Backlog (found in manual testing)
 
-- A "●" bullet character is kept at the start of certification lines.
-- Internship dates are lost (only the title line reaches `internships`).
-- "Research" is extracted as a skill from headings and job titles.
-- Cards show raw ISO dates instead of readable dates.
-- Job-side GenAI skill extraction is weak on short aggregator snippets.
+All five items were fixed in M1B:
+- ~~A "●" bullet character is kept at the start of certification lines.~~ Leading list markers are stripped.
+- ~~Internship dates are lost.~~ A date-only line is merged into the entry above it.
+- ~~"Research" is extracted as a skill from headings and job titles.~~ Vocabulary v2 marks it explicit-only.
+- ~~Cards show raw ISO dates.~~ Cards, the tracker and drafts show readable dates.
+- ~~Job-side GenAI skill extraction is weak on short snippets.~~ Vocabulary v2 adds snippet aliases, Embeddings and BERT.
 
 ---
 
