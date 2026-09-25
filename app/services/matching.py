@@ -4,11 +4,13 @@ from datetime import datetime, timezone
 from app.models.career import MatchResult
 
 STOP={'engineer','junior','senior','jobs','job','role','roles','and','the','of','in'}
+# Whole-token synonyms; substring replacement turned "Qatar" into "testingtar".
+SYNONYMS={'qa':'testing','tester':'testing','testers':'testing','analyst':'analysis','analysts':'analysis'}
 
 
 def words(text):
-    text=text.lower().replace('qa','testing').replace('tester','testing').replace('analyst','analysis')
-    return set(re.findall(r'[a-z0-9+#]+',text))-STOP
+    tokens=re.findall(r'[a-z0-9+#]+',text.lower())
+    return {SYNONYMS.get(token,token) for token in tokens}-STOP
 
 
 def match_job(profile, job, intent, eligibility):
@@ -23,9 +25,9 @@ def match_job(profile, job, intent, eligibility):
     if not targets:
         role=min(15,5*len(matched))
     transfer=[]
-    if any(w in job.title.lower() for w in ('qa','test','quality')):
+    if title_words&{'testing','test','quality'}:
         transfer=[s for s in profile.skills if s.casefold() in ('python','postman','rest api','sql','api testing') and s not in matched]
-    elif any(w in job.title.lower() for w in ('analyst','analytics','business','operations')):
+    elif title_words&{'analysis','analytics','business','operations'}:
         transfer=[s for s in profile.skills if s.casefold() in ('python','sql','excel','power bi','tableau','communication') and s not in matched]
     transfer_score=min(5,len(transfer)*2)
     experience=10 if eligibility.experience_match=='match' else 5 if eligibility.experience_match=='possible' else 0

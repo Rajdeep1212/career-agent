@@ -46,5 +46,24 @@ class InternshipExclusionTests(unittest.TestCase):
         self.assertIn('Internships were excluded.', self._rejections(title='Analyst', employment_type='INTERN'))
 
 
+class TitleWordTests(unittest.TestCase):
+    """B3: QA/tester/analyst normalisation must act on whole tokens only."""
+
+    def test_words_containing_qa_are_not_corrupted(self):
+        self.assertEqual(words('Qatar analytics'), {'qatar', 'analytics'})
+
+    def test_whole_token_normalisation_is_kept(self):
+        self.assertEqual(words('QA Engineer'), {'testing'})
+        self.assertEqual(words('Software Tester'), {'software', 'testing'})
+        self.assertEqual(words('Data Analyst'), {'data', 'analysis'})
+
+    def test_qatar_title_gets_no_qa_transferable_skills(self):
+        from app.services.matching import match_job
+        from app.models.career import EligibilityResult
+        profile = CandidateProfile(skills=['Postman', 'Python'])
+        job = JobPosting(company='Example', title='Sales Manager, Qatar', location='Doha')
+        self.assertEqual(match_job(profile, job, SearchIntent(), EligibilityResult()).transferable_skills, [])
+
+
 if __name__ == '__main__':
     unittest.main()
