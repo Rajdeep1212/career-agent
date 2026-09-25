@@ -161,6 +161,7 @@ def _explicit_skills(lines: list[str]) -> list[str]:
     return result
 
 
+_BULLET = re.compile(r"^(?:[•●▪◦‣∙·○■□➢➤►✓✔]|[-–—*](?=\s))\s*")
 _ONGOING = re.compile(r"\b(?:present|ongoing|current|pursuing)\b", re.IGNORECASE)
 
 
@@ -211,7 +212,9 @@ def parse_profile_from_text(text: str) -> CandidateProfile:
         raise ValueError("Resume has no readable text. Paste text or upload a text-based PDF.")
     if len(text) > MAX_TEXT_CHARS:
         raise ValueError("Resume text exceeds 200,000 characters. Use a shorter resume.")
-    lines = [line.strip().strip("• ") for line in text.splitlines() if line.strip()]
+    # Leading list markers (•, ●, ▪, ◦, –, -, * and similar) are formatting, not content.
+    lines = [_BULLET.sub("", line.strip()) for line in text.splitlines() if line.strip()]
+    lines = [line for line in lines if line]
     sections: dict[str, list[str]] = {key: [] for key in set(_HEADINGS.values())}
     section = "summary"
     for line in lines:

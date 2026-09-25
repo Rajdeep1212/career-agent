@@ -108,5 +108,27 @@ class SectionDetectionTests(unittest.TestCase):
         self.assertIn('Education', profile.domain_knowledge)
 
 
+class BulletTests(unittest.TestCase):
+    """Backlog: list markers such as ● must not reach section entries."""
+
+    def test_common_bullet_characters_are_removed(self):
+        text = '''Jane Doe
+Certifications
+● Google Cloud Digital Leader
+▪ AWS Cloud Practitioner
+◦ Azure AI-900
+– Oracle OCI Foundations
+* Kaggle Learn: Intro to ML'''
+        self.assertEqual(parse_profile_from_text(text).certifications,
+                         ['Google Cloud Digital Leader', 'AWS Cloud Practitioner', 'Azure AI-900',
+                          'Oracle OCI Foundations', 'Kaggle Learn: Intro to ML'])
+
+    def test_hyphenated_words_and_negative_numbers_are_kept(self):
+        text = '''Jane Doe
+Projects
+C-sharp tooling for -5 dB audio'''
+        self.assertEqual(parse_profile_from_text(text).projects, ['C-sharp tooling for -5 dB audio'])
+
+
 if __name__ == '__main__':
     unittest.main()
