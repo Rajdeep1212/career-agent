@@ -171,6 +171,21 @@ def _years(line: str) -> list[int]:
     return [int(year) for year in re.findall(r"\b(?:19|20)\d{2}\b", line)]
 
 
+_MONTH_YEAR = r"(?:[A-Za-z]{3,9}\.?\s+)?(?:19|20)\d{2}"
+_DATE_LINE = re.compile(rf"^{_MONTH_YEAR}(?:\s*(?:-|–|—|to)\s*(?:{_MONTH_YEAR}|present|current|ongoing|now))?$", re.IGNORECASE)
+
+
+def _merge_date_lines(lines: list[str]) -> list[str]:
+    """A date-only line ("Jul 2025 – Dec 2025") belongs to the entry above it."""
+    merged: list[str] = []
+    for line in lines:
+        if merged and _DATE_LINE.match(line):
+            merged[-1] = f"{merged[-1]} ({line})"
+        else:
+            merged.append(line)
+    return merged
+
+
 def _education_blocks(lines: list[str]) -> list[dict]:
     """Group each Education line with the nearest qualification heading above it.
 
@@ -242,11 +257,11 @@ def parse_profile_from_text(text: str) -> CandidateProfile:
     skills_by_key = {skill.casefold(): skill for skill in explicit}
     skill_text = "\n".join(value for section_lines in sections.values() for value in section_lines)
     skills_by_key.update({skill.casefold(): skill for skill in extract_skills(skill_text)})
-    internships, experience = sections["internships"][:], []
-    for line in sections["experience"]:
+    internships, experience = _merge_date_lines(sections["internships"]), []
+    for line in _merge_date_lines(sections["experience"]):
         (internships if re.search(r"\bintern(?:ship)?\b", line, re.IGNORECASE) else experience).append(line)
     # A research internship stays under research and is also an internship.
-    internships += [line for line in sections["research"]
+    internships += [line for line in _merge_date_lines(sections["research"])
                     if re.search(r"\bintern(?:ship)?s?\b", line, re.IGNORECASE) and line not in internships]
     evidence = {key: value[:] for key, value in sections.items() if value and key != "other"}
     if education:
