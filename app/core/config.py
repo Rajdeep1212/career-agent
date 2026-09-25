@@ -24,7 +24,8 @@ class Settings(BaseSettings):
     jooble_api_key: str | None = None
     # A Jooble key works only on the country site it was issued for (India: in.jooble.org).
     jooble_host: str = "in.jooble.org"
-    job_providers: str = "jsearch"
+    # Comma-separated; providers without credentials are skipped.
+    job_providers: str = "jsearch,adzuna,jooble"
     search_country: str = "in"
     verification_concurrency: int = 4
     # Ask before a dashboard search that will send at least this many provider requests.

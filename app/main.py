@@ -28,6 +28,7 @@ from app.services.ranker import rank_jobs
 from app.providers.mock_provider import MockJobProvider
 from app.agent.routing import deterministic_action
 from app.providers.jsearch_provider import last_quota
+from app.providers.registry import provider_status
 from app.services.career_agent import CareerAgent, search_cost_warning
 from app.services.gmail_service import (
     build_authorization_url,
@@ -107,7 +108,8 @@ def dashboard(request: Request):
 @app.get("/connections/search/status")
 def search_connection_status():
     # Configuration only; no paid provider call just to render Connections.
-    return {"configured": bool(settings.rapidapi_key)}
+    providers = provider_status()
+    return {"configured": any(item["installed"] and item["configured"] for item in providers), "providers": providers}
 
 
 @app.get("/health")

@@ -147,6 +147,10 @@ def format_reset(value: str) -> str:
 class JSearchProvider(JobProvider):
     name = "JSearch/RapidAPI"
 
+    @classmethod
+    def configured(cls) -> bool:
+        return bool(settings.rapidapi_key)
+
     async def search(self, query: str, page: int = 1) -> list[JobPosting]:
         if not settings.rapidapi_key:
             raise ProviderError("JSearch is not configured. Add credentials in the local .env.")

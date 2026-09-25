@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
+from app.core.config import settings
 from app.main import app
 from app.models.schemas import JobSearchPreferences
 from app.providers import jsearch_provider
@@ -28,6 +29,7 @@ class SearchPreviewTests(unittest.TestCase):
             (profile_store, 'PROFILE_PATH', self.directory / 'profile.json'),
             (preference_store, 'PREFERENCES_PATH', self.directory / 'preferences.json'),
             (jsearch_provider, '_last_quota', None),
+            (settings, 'rapidapi_key', 'test-key'),
         ):
             patcher = patch.object(module, name, value)
             patcher.start()

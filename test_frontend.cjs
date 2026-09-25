@@ -349,6 +349,17 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   d.elements.get('preferenceScore').value = '65';
   await d.elements.get('preferencesForm').handlers.submit({ preventDefault() {} });
   assert.ok(d.calls.some(([path, method, body]) => path === '/preferences/current' && method === 'PUT' && body.minimum_match_score === 65));
+  // Connections lists each provider; one without its key is shown as skipped.
+  d = await dashboard({ configured: true, connected: false }, '', false, {
+    '/connections/search/status': { configured: true, providers: [
+      { id: 'jsearch', name: 'JSearch/RapidAPI', installed: true, configured: true, requires: 'RAPIDAPI_KEY' },
+      { id: 'adzuna', name: 'Adzuna', installed: true, configured: false, requires: 'ADZUNA_APP_ID and ADZUNA_APP_KEY' },
+      { id: 'linkedin_jobs', name: 'linkedin_jobs', installed: false, configured: false, reason: 'n/a' }] }
+  });
+  assert.match(d.elements.get('searchApiStatusBox').innerHTML, /Adzuna: skipped \(add ADZUNA_APP_ID and ADZUNA_APP_KEY to .env\)/);
+  assert.doesNotMatch(d.elements.get('searchApiStatusBox').innerHTML, /linkedin_jobs/);
+  assert.equal(d.elements.get('providerPill').textContent, 'Search API: 1 of 2 providers');
+
   // A costly search asks first; cancelling sends nothing to /chat/run.
   const costly = { will_search: true, provider_requests: 8, warning: 'This search will send 8 requests to JSearch/RapidAPI.' };
   d = await dashboard({ configured: true, connected: false }, '', false, {

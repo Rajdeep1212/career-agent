@@ -11,7 +11,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix="job-agent-tests-") as directory:
         os.environ.update({
             "DATA_DIR": directory, "UPLOAD_DIR": str(Path(directory) / "uploads"),
-            "RAPIDAPI_KEY": "", "GOOGLE_CLIENT_ID": "", "GOOGLE_CLIENT_SECRET": "",
+            "JOB_PROVIDERS": "jsearch,adzuna,jooble", "RAPIDAPI_KEY": "", "ADZUNA_APP_ID": "", "ADZUNA_APP_KEY": "", "JOOBLE_API_KEY": "",
+            "GOOGLE_CLIENT_ID": "", "GOOGLE_CLIENT_SECRET": "",
             "LINKEDIN_CLIENT_ID": "", "LINKEDIN_CLIENT_SECRET": "",
             "TOKEN_ENCRYPTION_KEY": "",
         })

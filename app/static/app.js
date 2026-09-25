@@ -976,11 +976,17 @@ async function refreshExistingConnections() {
 
   try {
     const search = await api("/connections/search/status");
+    const installed = (search.providers || []).filter(provider => provider.installed);
+    const ready = installed.filter(provider => provider.configured);
+    const list = installed.map(provider => `<li>${escapeHtml(provider.name)}: ${provider.configured ? "configured" : `skipped (add ${escapeHtml(provider.requires)} to .env)`}</li>`).join("");
     $("searchApiStatusBox").innerHTML = `
       <strong>${search.configured ? "Connected" : "Not configured"}</strong>
-      <p>${search.configured ? "JSearch credentials are configured. A job search checks provider availability." : "Add your JSearch credentials to the local configuration to enable job search."}</p>
+      <p>${search.configured ? "Searches use every configured provider. A provider without its key is skipped." : "Add at least one job provider key (JSearch, Adzuna or Jooble) to the local .env to enable job search."}</p>
+      ${list ? `<ul>${list}</ul>` : ""}
     `;
-    $("providerPill").textContent = `Search API: ${search.configured ? "connected" : "not configured"}`;
+    $("providerPill").textContent = installed.length
+      ? `Search API: ${ready.length} of ${installed.length} providers`
+      : `Search API: ${search.configured ? "connected" : "not configured"}`;
   } catch {
     $("searchApiStatusBox").textContent = "Job Search API status is unavailable. Please try again.";
     $("providerPill").textContent = "Search API: unavailable";

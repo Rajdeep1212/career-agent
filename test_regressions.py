@@ -99,7 +99,7 @@ class RegressionTests(unittest.TestCase):
 
     def test_search_connection_reports_configuration_without_secrets(self):
         response = self.client.get("/connections/search/status")
-        self.assertEqual(response.json(), {"configured": True})
+        self.assertTrue(response.json()["configured"])
         self.assertNotIn("test-rapidapi-key", response.text)
         settings.rapidapi_key = ""
-        self.assertEqual(self.client.get("/connections/search/status").json(), {"configured": False})
+        self.assertFalse(self.client.get("/connections/search/status").json()["configured"])
