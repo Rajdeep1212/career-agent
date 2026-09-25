@@ -1,10 +1,11 @@
 $ErrorActionPreference = "Stop"
 $Project = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $Project
+. (Join-Path $Project "scripts\python_env.ps1")
 
-$Python = Join-Path $env:USERPROFILE "anaconda3\envs\job-agent\python.exe"
-if (!(Test-Path $Python)) {
-    Write-Host "job-agent environment not found. Run 01_SETUP_WINDOWS.ps1 first." -ForegroundColor Red
+$Python = Find-ProjectPython $Project
+if (-not $Python) {
+    Write-Host "Project Python environment not found. Run 01_SETUP_WINDOWS.ps1 first." -ForegroundColor Red
     exit 1
 }
 
