@@ -1,7 +1,6 @@
 import asyncio
 import time
 import unittest
-from unittest.mock import patch
 
 import httpx
 from pydantic import ValidationError

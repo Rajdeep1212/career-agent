@@ -1,5 +1,4 @@
 """Deterministic verification and SSRF regression tests; never uses live DNS/HTTP."""
-import socket
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch

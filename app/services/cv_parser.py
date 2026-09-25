@@ -3,9 +3,8 @@ import re
 from pathlib import Path
 
 from app.models.schemas import CandidateProfile
-# Re-exported: the vocabulary lives in app/services/skills.py and app/core/skills/.
-from app.services.skills import KNOWN_SKILLS, SKILL_CATEGORIES, canonical_skill, extract_skills, split_composite
-from app.services.skills import contains_phrase as _contains
+# The vocabulary lives in app/services/skills.py and app/core/skills/.
+from app.services.skills import canonical_skill, extract_skills, split_composite
 
 MAX_PDF_BYTES = 10 * 1024 * 1024
 MAX_PDF_PAGES = 100

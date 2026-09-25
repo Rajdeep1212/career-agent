@@ -35,7 +35,6 @@ from app.services.gmail_service import (
     gmail_status,
     send_approved_email,
     GmailNotConfiguredError,
-    GmailNotConnectedError,
     GmailDependencyError,
 )
 from app.services.email_send_boundary import (
