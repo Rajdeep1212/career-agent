@@ -54,6 +54,20 @@ def _provider_error_message(name, exc):
     return message+(f', resets {format_reset(exc.reset_at)}' if exc.reset_at else '')
 
 
+def search_cost_warning(plan, quota):
+    """Why the dashboard should ask before running this search, or None."""
+    requests=plan['provider_requests']
+    parts=[]
+    if requests>=settings.search_warn_requests:
+        parts.append(f"This search will send {requests} requests to {', '.join(plan['providers'])}.")
+    remaining=(quota or {}).get('remaining')
+    if requests and remaining is not None and remaining<=requests and 'JSearch/RapidAPI' in plan['providers']:
+        limit=f" of {quota['limit']}" if quota.get('limit') else ''
+        reset=f", resetting {format_reset(quota['reset_at'])}" if quota.get('reset_at') else ''
+        parts.append(f"Only {remaining}{limit} JSearch requests remain{reset}.")
+    return ' '.join(parts) or None
+
+
 _PROFILE_LOCATION_REFERENCE = re.compile(
     r'\b(?:saved|preferred|profile)\s+locations?\b|'
     r'\bmy\s+(?:saved\s+|preferred\s+)?locations?\b|'
@@ -84,8 +98,8 @@ class CareerAgent:
     def __init__(self, providers=None):
         self.providers=providers
 
-    async def search(self, query, *, include_seen=False, session_id=None, strict_mode=None):
-        started=time.monotonic()
+    def _interpret(self, query, session_id, strict_mode):
+        """Profile, preferences, stored session and structured intent; no side effects."""
         profile=analyze_candidate(load_profile())
         preferences=preferences_for(profile)
         previous=career_store.get_session(session_id) if session_id else None
@@ -107,8 +121,25 @@ class CareerAgent:
         elif not previous and not intent.locations:
             intent.locations=preferences.preferred_locations[:]
         profile_key=hashlib.sha256(profile.model_dump_json().encode()).hexdigest()
+        reuse=bool(intent.filter_only and previous and previous['response'].get('_profile_key')==profile_key)
+        return profile,preferences,previous,intent,profile_key,reuse
+
+    def plan(self, query, *, session_id=None, strict_mode=None):
+        """The provider requests a search would send, without sending or storing anything."""
+        profile,preferences,_previous,intent,_key,reuse=self._interpret(query,session_id,strict_mode)
+        providers=self.providers if self.providers is not None else get_providers()
+        if reuse or not providers:
+            return dict(provider_requests=0,queries=[],providers=[p.name for p in providers],reuses_results=reuse)
+        roles=expand_roles(intent,profile)[:6]
+        queries=plan_search_queries(profile,intent,roles,preferences.search_query_limit)
+        return dict(provider_requests=len(queries),queries=[q.query for q in queries],
+                    providers=list(dict.fromkeys(p.name for p in providers)),reuses_results=False)
+
+    async def search(self, query, *, include_seen=False, session_id=None, strict_mode=None):
+        started=time.monotonic()
+        profile,preferences,previous,intent,profile_key,reuse=self._interpret(query,session_id,strict_mode)
         session_id=session_id or str(uuid.uuid4())
-        if intent.filter_only and previous and previous['response'].get('_profile_key')==profile_key:
+        if reuse:
             response=previous['response']
             ranked=response.get('_ranked_candidates',response.get('results',[]))
             response['results']=[r for r in ranked if r['total_score']>=intent.minimum_match_score][:50]

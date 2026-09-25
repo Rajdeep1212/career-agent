@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     job_providers: str = "jsearch"
     search_country: str = "in"
     verification_concurrency: int = 4
+    # Ask before a dashboard search that will send at least this many provider requests.
+    search_warn_requests: int = Field(default=5, ge=1, le=50)
 
     # HTTP safety / verification
     request_timeout_seconds: float = 20.0

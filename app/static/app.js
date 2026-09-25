@@ -401,6 +401,21 @@ async function handleChatResponse(response) {
   }
 }
 
+// Ask before a search that will spend many provider requests or most of the
+// remaining quota. The preview is advisory: if it fails, the request proceeds.
+async function confirmSearchCost(message) {
+  let preview = null;
+  try {
+    preview = await api('/agent/search/preview', jsonOptions('POST', {
+      message, career_session_id: searchSessionId, strict_mode: $('strictSearch').checked
+    }));
+  } catch {
+    return true;
+  }
+  if (!preview?.warning || typeof window.confirm !== 'function') return true;
+  return window.confirm(`${preview.warning}\n\nRun this search?`);
+}
+
 async function runChat(message, extra = {}) {
   const value = String(message || '').trim();
   if (!value || searchBusy) return null;
@@ -415,6 +430,16 @@ async function runChat(message, extra = {}) {
   $('searchForm').setAttribute('aria-busy', 'true');
   $('searchSubmit').textContent = 'Working…';
   showStatus($('searchStatus'), 'Career Agent is processing this request…');
+  if (!retryingSameTurn && !(await confirmSearchCost(value))) {
+    pendingTurn = null;
+    searchBusy = false;
+    $('searchSubmit').disabled = false;
+    $('newSearchBtn').disabled = false;
+    $('searchForm').removeAttribute('aria-busy');
+    $('searchSubmit').textContent = 'Send';
+    showStatus($('searchStatus'), 'Search not run. No provider requests were sent.');
+    return null;
+  }
   if (!retryingSameTurn) addConversation('user', value);
   const application = selectedJob?.id ? applicationsByJob.get(selectedJob.id) : null;
   const payload = {

@@ -68,6 +68,7 @@ Open `http://localhost:8010/app/`. Windows users may instead run
 | `APP_ORIGIN` | The only browser origin allowed to change data; defaults to `http://localhost:8010`. |
 | `RAPIDAPI_KEY` | Enables live JSearch requests. |
 | `RAPIDAPI_HOST` | JSearch RapidAPI host. |
+| `SEARCH_WARN_REQUESTS` | The dashboard asks before a search that will send at least this many provider requests (default 5), or more than the remaining JSearch quota. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Enable Gmail OAuth. |
 | `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` | Enable LinkedIn OpenID Connect. |
 | `TOKEN_ENCRYPTION_KEY` | Encrypts locally stored OAuth tokens. |

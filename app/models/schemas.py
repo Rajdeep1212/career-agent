@@ -183,6 +183,13 @@ class AgentSearchRequest(BaseModel):
     strict_mode: bool | None = None
 
 
+class SearchPreviewRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    message: str = Field(min_length=1, max_length=4000)
+    career_session_id: str | None = Field(default=None, max_length=128)
+    strict_mode: bool | None = None
+
+
 class PrepareJobEmailRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     recipient: str

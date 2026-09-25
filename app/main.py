@@ -18,6 +18,7 @@ from app.models.schemas import (
     RankJobsRequest,
     CreateEmailDraftRequest,
     AgentSearchRequest,
+    SearchPreviewRequest,
     PrepareJobEmailRequest,
     CandidateProfileUpdate,
     JobSearchPreferencesUpdate,
@@ -25,7 +26,9 @@ from app.models.schemas import (
 from app.services.cv_parser import extract_pdf_text, parse_profile_from_text
 from app.services.ranker import rank_jobs
 from app.providers.mock_provider import MockJobProvider
-from app.services.career_agent import CareerAgent
+from app.agent.routing import deterministic_action
+from app.providers.jsearch_provider import last_quota
+from app.services.career_agent import CareerAgent, search_cost_warning
 from app.services.gmail_service import (
     build_authorization_url,
     exchange_callback,
@@ -262,6 +265,22 @@ async def agent_search(request: AgentSearchRequest):
         raise HTTPException(status_code=404, detail=str(exc))
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
+
+
+@app.post("/agent/search/preview")
+def preview_search(payload: SearchPreviewRequest, request: Request):
+    """What a chat message would spend on providers; sends and stores nothing."""
+    require_local_origin(request)
+    if deterministic_action(payload.message) != "search_jobs":
+        return {"will_search": False}
+    try:
+        plan = career_agent.plan(payload.message, session_id=payload.career_session_id,
+                                 strict_mode=payload.strict_mode)
+    except ValueError:
+        # An unknown session is reported by the search itself.
+        return {"will_search": False}
+    quota = last_quota()
+    return {"will_search": True, **plan, "quota": quota, "warning": search_cost_warning(plan, quota)}
 
 
 @app.post("/attachments")
