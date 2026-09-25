@@ -22,12 +22,14 @@ Status date: 2026-09-25 · Baseline commit `ede0d3c` · Phase 1 (documentation o
 4. *Sample size:* a single student's outcomes can't support calibration claims. Pooled data or a narrower claim is required.
 5. *Claim inflation:* a heuristic score presented as a "probability" would undermine the research framing.
 
-**Milestone order** (fixed):
-- **M1** correctness and security (A), then hygiene, storage, tests and DEMO_MODE/Docker (B)
-- → **M2** outcome data engine
-- → **M3** sourcing and ghost/scam risk signals
-- → **M4** modeling, what-if and planner
-- → **M5** grounded outreach and showcase polish
+**Milestone order** (revised 2026-09-25; M1A is complete on `m1a-correctness`):
+- **M1B** hygiene: pyproject, `tests/`, CI, storage migrations, DEMO_MODE/Docker
+- → **M1C** index-first Company Radar, job identity resolution, daily sync, 7 am self-digest
+- → **M1D** IMAP job-alert ingestion, bookmarklet capture, 3-way eligibility
+- → **M2** outcome tracker, 👍/👎 relevance labels
+- → **M3** evidence matrix, ESCO skill graph, scam rules, job lifecycle observatory (ATS aggregates only)
+- → **M4** LLM-teacher → calibrated model; competition/timing-aware ranking
+- → **M5** grounded outreach, MCP server, showcase
 
 **Decisions already made** (recorded in §7):
 - Local Ollama by default; hosted models are opt-in only.
@@ -408,12 +410,23 @@ Effort figures assume one developer working about 20 hours a week. For every mil
 
 | ID | Decision | Status |
 |---|---|---|
-| A | Pooled cohort (10–30 students) | **Still open.** The decision message again left `[CAN / CANNOT]` unfilled. Needed by the start of M2. Until then, M4 plans for both branches. |
+| A | Pooled cohort (10–30 students) | **Still open.** Decision messages have left `[CAN / CANNOT]` unfilled three times (last 2026-09-25). Needed by the start of M2. Until then, M4 plans for both branches. |
 | B | Hosted demo | **Decided:** Hugging Face Spaces (Docker); fallback Render |
 | C | Send rate limits | **Decided:** 10 per day, 5-minute gap, at most 2 per company per 14 days |
 | D | `GET /jobs/search-and-rank` | **Decided:** return 410 for one release, then delete |
 | E | Company job boards | **Decided:** seed about 50 India-relevant boards for review in M3 |
 | F | Gemini | **Decided:** stays gated to synthetic data; no hosted model sees real CV content |
+| G | Sourcing (see `docs/SOURCING_FEASIBILITY.md` §7) | **Decided:** Workday sitemap + JSON-LD by default (`cxs` opt-in); undocumented JSON opt-in per company, 1 request/day, cached, labeled; alerts via IMAP app password on a dedicated account (`.eml` fallback); bookmarklet + localhost form; ₹0; seed list approved and extended with India AI startups and GCCs under owner review; HN on, remote-job APIs off |
+| H | Gmail OAuth app | **Decided:** move to Production to avoid 7-day refresh-token expiry |
+| I | Roadmap order | **Decided:** M1B → M1C → M1D → M2 → M3 → M4 → M5 (executive summary). The detailed §5 milestone text predates this and is refined per milestone |
+
+### 7.3 Backlog (found in manual testing)
+
+- A "●" bullet character is kept at the start of certification lines.
+- Internship dates are lost (only the title line reaches `internships`).
+- "Research" is extracted as a skill from headings and job titles.
+- Cards show raw ISO dates instead of readable dates.
+- Job-side GenAI skill extraction is weak on short aggregator snippets.
 
 ---
 
