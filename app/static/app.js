@@ -133,7 +133,10 @@ function parseDate(value) {
 
 function formatDate(value) {
   const date = parseDate(value);
-  return date ? `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}` : String(value ?? '');
+  if (!date) return String(value ?? '');
+  // Timestamps show the viewer's local date; a date-only value ("2026-09-24") is that calendar day.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+  return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
 }
 
 function postedLabel(value) {

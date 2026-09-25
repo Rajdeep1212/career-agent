@@ -1,9 +1,10 @@
+import hashlib
 import re
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
@@ -102,6 +103,20 @@ def _upload_baseline() -> CandidateProfile:
 
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+
+def asset_version(name: str) -> str:
+    """Short content hash of a dashboard asset, used as a cache-busting query."""
+    return hashlib.sha256((STATIC_DIR / name).read_bytes()).hexdigest()[:12]
+
+
+@app.middleware("http")
+async def revalidate_static_assets(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/static/"):
+        # Browsers may keep the file but must check it is current (ETag) before use.
+        response.headers["Cache-Control"] = "no-cache"
+    return response
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
@@ -116,7 +131,11 @@ def dashboard(request: Request):
     # visitors (e.g. http://127.0.0.1:8010) to that origin first.
     if request.url.hostname in ("127.0.0.1", "::1") and str(request.base_url).rstrip("/") != settings.app_origin:
         return RedirectResponse(settings.app_origin + "/app/", status_code=303)
-    return FileResponse(STATIC_DIR / "index.html")
+    html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    # Versioned asset URLs: an updated app.js/styles.css is never served from a stale browser cache.
+    for name in ("app.js", "styles.css"):
+        html = html.replace(f'/static/{name}"', f'/static/{name}?v={asset_version(name)}"')
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/connections/search/status")

@@ -385,6 +385,20 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   assert.match(cardWithDate, /Posted 5 Jan 2020/);
   assert.doesNotMatch(cardWithDate, /2020-01-05T08/);
 
+  // The tracker shows a readable local date, never the raw ISO timestamp (manual-test failure).
+  const stamp = '2026-09-25T12:49:14.072837+00:00';
+  const local = new Date('2026-09-25T12:49:14.072+00:00');
+  const expectedLocal = `${local.getDate()} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][local.getMonth()]} ${local.getFullYear()}`;
+  d = await dashboard({ configured: true, connected: false }, '', false, {
+    '/applications': [{ id: 'app-1', job_id: 'j'.repeat(64), status: 'APPLIED', notes: '', updated_at: stamp, created_at: stamp,
+                        job: { title: 'Data Analyst', company: 'Example', application_url: 'https://example.com/jobs/1' } }]
+  });
+  await vm.runInContext('loadTracker()', d.context);
+  const tracker = d.elements.get('trackerList').innerHTML;
+  assert.match(tracker, new RegExp(`Last updated: ${expectedLocal}<`));
+  assert.doesNotMatch(tracker, /T12:49:14/);
+  assert.equal(vm.runInContext(`formatDate('2026-09-24')`, d.context), '24 Sep 2026');  // date-only stays that day
+
   // A costly search asks first; cancelling sends nothing to /chat/run.
   const costly = { will_search: true, provider_requests: 8, warning: 'This search will send 8 requests to JSearch/RapidAPI.' };
   d = await dashboard({ configured: true, connected: false }, '', false, {
