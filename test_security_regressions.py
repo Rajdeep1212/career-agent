@@ -92,5 +92,31 @@ class LegacySearchEndpointTests(_IsolatedApp):
         self.assertFalse((self.directory / 'history.sqlite3').exists())
 
 
+class AppOriginTests(unittest.TestCase):
+    """S4: the trusted dashboard origin is a setting, not a constant."""
+
+    def test_origin_check_follows_the_setting(self):
+        with patch.object(settings, 'app_origin', 'http://localhost:9000'):
+            with TestClient(app, base_url='http://localhost:9000') as client:
+                self.assertEqual(client.put('/preferences/current', json={},
+                                            headers={'Origin': 'http://localhost:8010'}).status_code, 403)
+            with TestClient(app, base_url='http://localhost:8010') as client:
+                self.assertEqual(client.put('/preferences/current', json={}, headers=LOCAL).status_code, 403)
+
+    def test_loopback_ip_redirects_to_the_configured_origin(self):
+        with patch.object(settings, 'app_origin', 'http://localhost:9000'):
+            with TestClient(app, base_url='http://127.0.0.1:9000') as client:
+                response = client.get('/app/', follow_redirects=False)
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers['location'], 'http://localhost:9000/app/')
+
+    def test_invalid_origin_setting_is_rejected(self):
+        from app.core.config import Settings
+        for value in ('localhost:8010', 'ftp://localhost:8010', 'http://localhost:8010/app', 'http://'):
+            with self.assertRaises(ValueError, msg=value):
+                Settings(app_origin=value)
+        self.assertEqual(Settings(app_origin='http://localhost:9000/').app_origin, 'http://localhost:9000')
+
+
 if __name__ == '__main__':
     unittest.main()

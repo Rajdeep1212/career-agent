@@ -65,6 +65,7 @@ Open `http://localhost:8010/app/`. Windows users may instead run
 
 | Setting | Purpose |
 | --- | --- |
+| `APP_ORIGIN` | The only browser origin allowed to change data; defaults to `http://localhost:8010`. |
 | `RAPIDAPI_KEY` | Enables live JSearch requests. |
 | `RAPIDAPI_HOST` | JSearch RapidAPI host. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Enable Gmail OAuth. |

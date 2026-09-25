@@ -1,5 +1,7 @@
 from pathlib import Path
-from pydantic import Field
+from urllib.parse import urlsplit
+
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -8,6 +10,8 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 
 class Settings(BaseSettings):
     app_name: str = "Career Agent"
+    # The one browser origin trusted for mutations (scheme://host:port, no path).
+    app_origin: str = "http://localhost:8010"
 
     # Job search provider
     rapidapi_key: str | None = None
@@ -48,6 +52,20 @@ class Settings(BaseSettings):
 
     data_dir: str = str(BASE_DIR / "data")
     upload_dir: str = str(BASE_DIR / "data" / "uploads")
+
+    @field_validator("app_origin")
+    @classmethod
+    def _plain_origin(cls, value: str) -> str:
+        value = value.strip().rstrip("/")
+        try:
+            parts = urlsplit(value)
+            parts.port
+        except ValueError as exc:
+            raise ValueError("APP_ORIGIN must look like http://localhost:8010") from exc
+        if (parts.scheme not in ("http", "https") or not parts.hostname or parts.path
+                or parts.query or parts.fragment or parts.username or parts.password):
+            raise ValueError("APP_ORIGIN must look like http://localhost:8010")
+        return value
 
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),

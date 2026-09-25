@@ -79,8 +79,10 @@ def root():
 
 @app.get("/app/")
 def dashboard(request: Request):
-    if request.url.hostname == "127.0.0.1":
-        return RedirectResponse("http://localhost:8010/app/", status_code=303)
+    # Browser mutations are accepted only from APP_ORIGIN, so move loopback-IP
+    # visitors (e.g. http://127.0.0.1:8010) to that origin first.
+    if request.url.hostname in ("127.0.0.1", "::1") and str(request.base_url).rstrip("/") != settings.app_origin:
+        return RedirectResponse(settings.app_origin + "/app/", status_code=303)
     return FileResponse(STATIC_DIR / "index.html")
 
 
