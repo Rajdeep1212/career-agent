@@ -429,6 +429,10 @@ All five items were fixed in M1B:
 - ~~Cards show raw ISO dates.~~ Cards, the tracker and drafts show readable dates.
 - ~~Job-side GenAI skill extraction is weak on short snippets.~~ Vocabulary v2 adds snippet aliases, Embeddings and BERT.
 
+Open (recorded after M1B, 2026-09-26):
+- Migrate the email, attachment and OAuth-token stores (`email_store`, `attachment_store`, `oauth_state`, `token_store`) to `storage/db.py` migrations.
+- Bump `actions/checkout` (and `setup-python`/`setup-node`) to releases that run on Node 24; CI warns that Node 20 actions are deprecated.
+
 ---
 
 ## Appendix A: reproduced defects
