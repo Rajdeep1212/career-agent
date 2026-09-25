@@ -146,7 +146,8 @@ class SkillVocabularyTests(unittest.TestCase):
 
     def test_vocabulary_is_versioned_and_consistent(self):
         from app.services import skills
-        self.assertEqual(skills.VOCABULARY_VERSION, 1)
+        self.assertEqual(skills.VOCABULARY_VERSION, 2)
+        self.assertEqual(skills.load_vocabulary(1)['version'], 1)  # released versions stay loadable
         seen = {}
         for entry in skills.load_vocabulary()['skills']:
             for term in [entry['name'], *entry.get('aliases', [])]:
