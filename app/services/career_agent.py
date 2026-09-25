@@ -11,6 +11,8 @@ from collections import Counter
 from app.core.config import settings
 from app.models.career import SearchIntent
 from app.models.schemas import JobPosting
+from app.providers.base import ProviderError
+from app.providers.jsearch_provider import format_reset
 from app.providers.registry import get_providers
 from app.services.candidate_intelligence import analyze_candidate
 from app.services.search_intent import interpret_search_request
@@ -39,9 +41,17 @@ def _summary(diagnostics):
             f"{d.get('intent_rejected',0)} outside requested roles, "
             f"{d.get('below_match_threshold',0)} below the match threshold. "
             f"{d['final_recommendations']} recommendations. "
-            + ("Provider errors occurred; check Connections and the diagnostics." if d['errors'] else
+            + (f"Provider errors: {'; '.join(d['errors'][:3])}." if d['errors'] else
                "Broaden the role/location filters or include seen jobs if needed." if not d['final_recommendations'] else
                "Review evidence and application status before applying."))
+
+
+def _provider_error_message(name, exc):
+    """e.g. "JSearch/RapidAPI: HTTP 429 quota or rate limit exceeded, resets 01 Oct 2026 00:00 UTC"."""
+    if exc.status_code is None:
+        return f'{name}: {exc.reason or str(exc).rstrip(".")}'
+    message=f'{name}: HTTP {exc.status_code} {exc.reason or "request failed"}'
+    return message+(f', resets {format_reset(exc.reset_at)}' if exc.reset_at else '')
 
 
 _PROFILE_LOCATION_REFERENCE = re.compile(
@@ -117,7 +127,9 @@ class CareerAgent:
         diagnostics=dict(generated_queries=len(queries),provider_requests=0,provider_results=0,
             unique_jobs=0,already_seen=0,active_verified=0,likely_active=0,unverified=0,closed=0,
             eligibility_rejected=0,intent_rejected=0,ranked_results=0,final_recommendations=0,
-            below_match_threshold=0,provider_counts={},errors=[],filtered_examples=[],reused_results=False)
+            below_match_threshold=0,provider_counts={},errors=[],provider_errors=[],skipped_requests=0,
+            filtered_examples=[],reused_results=False)
+        blocked=set()
         jobs=[]
         if not providers:diagnostics['errors'].append('No configured provider is available.')
         # One request per planned query, distributed across enabled providers.
@@ -125,6 +137,9 @@ class CareerAgent:
         for index,planned in enumerate(queries if providers else []):
             provider=providers[index%len(providers)]
             name=provider.name
+            if name in blocked:
+                diagnostics['skipped_requests']+=1
+                continue
             diagnostics['provider_requests']+=1
             try:
                 returned=await provider.search(planned.query)
@@ -138,6 +153,15 @@ class CareerAgent:
                         jobs.append(job)
                     except (ValueError,TypeError):
                         diagnostics['errors'].append(f'{name}: a malformed listing was skipped.')
+            except ProviderError as exc:
+                message=_provider_error_message(name,exc)
+                if message not in diagnostics['errors']:
+                    diagnostics['errors'].append(message)
+                    diagnostics['provider_errors'].append(dict(provider=name,status_code=exc.status_code,
+                        reason=exc.reason,reset_at=exc.reset_at,remaining=exc.remaining,limit=exc.limit))
+                # Credential and quota failures repeat for every query; stop spending requests.
+                if exc.status_code in (401,403,429) or exc.status_code is None and exc.reason is None:
+                    blocked.add(name)
             except Exception:
                 message=f'{name}: request unavailable; check provider configuration/access/quota.'
                 if message not in diagnostics['errors']:diagnostics['errors'].append(message)
