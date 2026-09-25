@@ -156,6 +156,10 @@
       "category": "technical"
     },
     {
+      "name": "GitHub",
+      "category": "technical"
+    },
+    {
       "name": "CI/CD",
       "category": "technical"
     },
@@ -181,15 +185,12 @@
       ]
     },
     {
-      "name": "React.js",
+      "name": "React",
       "category": "technical",
       "aliases": [
+        "React.js",
         "ReactJS"
       ]
-    },
-    {
-      "name": "React",
-      "category": "technical"
     },
     {
       "name": "Node.js",
@@ -490,9 +491,6 @@
     {
       "name": "Transformers",
       "category": "technical",
-      "aliases": [
-        "Hugging Face Transformers"
-      ],
       "match": "strict"
     },
     {

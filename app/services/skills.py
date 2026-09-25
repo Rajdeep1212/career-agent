@@ -54,6 +54,31 @@ def canonical_skill(value: str) -> str:
     return _index()[1].get(value.strip().casefold(), value.strip())
 
 
+def _term_pattern(term: str, strict: bool) -> re.Pattern:
+    if strict:
+        return re.compile(r"(?<![\w&/.'’-])" + re.escape(term) + r"(?![\w&/'’-])(?!\.\w)")
+    return re.compile(r"(?<![\w])" + re.escape(term) + r"(?![\w])", re.IGNORECASE)
+
+
+def split_composite(item: str) -> list[str] | None:
+    """Known skills making up a whole list item, e.g. "Git/GitHub" or "LLM Fine-tuning".
+
+    Returns None when any word is not a known skill, so unknown skills and
+    known compound names such as "CI/CD" are left as written.
+    """
+    covered = [False] * len(item)
+    found: list[tuple[int, str]] = []
+    for entry in load_vocabulary()["skills"]:
+        for term, strict in _patterns(entry):
+            for match in _term_pattern(term, strict).finditer(item):
+                found.append((match.start(), entry["name"]))
+                covered[match.start():match.end()] = [True] * (match.end() - match.start())
+    leftover = "".join(" " if covered[index] else char for index, char in enumerate(item))
+    if not found or re.sub(r"\b(?:and|with)\b|[\s/&+,-]", "", leftover, flags=re.IGNORECASE):
+        return None
+    return list(dict.fromkeys(name for _, name in sorted(found)))
+
+
 def extract_skills(text: str) -> list[str]:
     """Vocabulary matches with token boundaries, sorted by canonical name."""
     found = set()

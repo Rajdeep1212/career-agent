@@ -52,6 +52,28 @@ class SkillListSplittingTests(unittest.TestCase):
         skills = self._skills('Python (Advanced), SQL (Intermediate), Excel')
         self.assertEqual(sorted(skills, key=str.casefold), ['Excel', 'Python', 'SQL'])
 
+class SkillCanonicalizationTests(unittest.TestCase):
+    """One name per skill; composite items made of known skills are split."""
+
+    def _skills(self, line):
+        return parse_profile_from_text('Jane Doe\nSkills\n' + line).skills
+
+    def test_duplicate_spellings_collapse_to_one_skill(self):
+        skills = self._skills('React, React.js, Git, Git/GitHub, Hugging Face Transformers, LLM Fine-tuning, Fine-tuning')
+        for skill in ('React', 'Git', 'GitHub', 'Hugging Face', 'Transformers', 'Fine-tuning', 'LLM'):
+            self.assertIn(skill, skills)
+        for duplicate in ('React.js', 'Git/GitHub', 'Hugging Face Transformers', 'LLM Fine-tuning'):
+            self.assertNotIn(duplicate, skills)
+        self.assertEqual(len(skills), len({skill.casefold() for skill in skills}))
+
+    def test_known_compound_names_and_unknown_skills_are_kept(self):
+        skills = self._skills('CI/CD, Zoho Books, Looker Studio')
+        self.assertEqual(sorted(skills, key=str.casefold), ['CI/CD', 'Looker Studio', 'Zoho Books'])
+
+    def test_job_text_uses_the_same_names(self):
+        from app.services.skills import extract_skills
+        self.assertEqual(extract_skills('React.js and ReactJS apps on GitHub'), ['GitHub', 'React'])
+
 
 if __name__ == '__main__':
     unittest.main()

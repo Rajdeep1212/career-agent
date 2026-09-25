@@ -4,7 +4,7 @@ from pathlib import Path
 
 from app.models.schemas import CandidateProfile
 # Re-exported: the vocabulary lives in app/services/skills.py and app/core/skills/.
-from app.services.skills import KNOWN_SKILLS, SKILL_CATEGORIES, canonical_skill, extract_skills
+from app.services.skills import KNOWN_SKILLS, SKILL_CATEGORIES, canonical_skill, extract_skills, split_composite
 from app.services.skills import contains_phrase as _contains
 
 MAX_PDF_BYTES = 10 * 1024 * 1024
@@ -131,6 +131,14 @@ def _expand_group(item: str) -> list[str]:
     return [item[:start], *inner, *_expand_group(item[end + 1:])]
 
 
+def _canonical_skills(item: str) -> list[str]:
+    """One vocabulary name per skill: "React.js" is React, "Git/GitHub" is Git and GitHub."""
+    name = canonical_skill(item)
+    if name != item.strip():
+        return [name]
+    return split_composite(item) or [name]
+
+
 def _explicit_skills(lines: list[str]) -> list[str]:
     result = []
     for line in lines:
@@ -217,7 +225,7 @@ def parse_profile_from_text(text: str) -> CandidateProfile:
         warnings.append("Graduation year is missing or ambiguous; please confirm it.")
     if len(degrees) > 1:
         warnings.append("Multiple qualifications found; confirm the primary degree and graduation year.")
-    explicit = [canonical_skill(skill) for skill in _explicit_skills(sections["skills"])]
+    explicit = [name for skill in _explicit_skills(sections["skills"]) for name in _canonical_skills(skill)]
     skills_by_key = {skill.casefold(): skill for skill in explicit}
     skill_text = "\n".join(value for section_lines in sections.values() for value in section_lines)
     skills_by_key.update({skill.casefold(): skill for skill in extract_skills(skill_text)})
