@@ -141,7 +141,8 @@ def update_current_preferences(update: JobSearchPreferencesUpdate, request: Requ
 
 
 @app.post("/cv/parse", response_model=CandidateProfile)
-async def parse_cv(file: UploadFile = File(...)):
+async def parse_cv(request: Request, file: UploadFile = File(...)):
+    require_local_origin(request)
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF CVs are supported.")
 
@@ -290,7 +291,8 @@ def google_callback(code: str, state: str):
 
 
 @app.delete("/auth/google/disconnect")
-def google_disconnect():
+def google_disconnect(request: Request):
+    require_local_origin(request)
     delete_token("gmail")
     return {"connected": False}
 
@@ -303,7 +305,7 @@ def require_local_origin(request: Request) -> None:
     if not has_exact_local_origin(request):
         raise HTTPException(
             status_code=403,
-            detail="Open the localhost dashboard to modify email drafts.",
+            detail="Open the localhost dashboard to make this change.",
         )
 
 

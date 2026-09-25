@@ -83,7 +83,11 @@ class RegressionTests(unittest.TestCase):
         with fitz.open() as pdf:
             pdf.new_page().insert_text((72, 72), "OTHER MEMBER\nPython 2025")
             content = pdf.tobytes()
-        self.assertEqual(self.client.post("/cv/parse", files={"file": ("cv.pdf", content, "application/pdf")}).status_code, 200)
+        self.assertEqual(self.client.post(
+            "/cv/parse",
+            files={"file": ("cv.pdf", content, "application/pdf")},
+            headers={"Origin": "http://localhost:8010"},
+        ).status_code, 200)
         self.assertEqual(self.client.get("/profile/current").json(), baseline)
 
     def test_cv_rejects_wrong_file_type(self):

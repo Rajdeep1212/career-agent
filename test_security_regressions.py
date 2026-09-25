@@ -64,5 +64,21 @@ class AttachmentUploadTests(_IsolatedApp):
         self.assertEqual(set(response.json()), {'id', 'original_name', 'mime_type', 'size_bytes'})
 
 
+class LocalOriginTests(_IsolatedApp):
+    """S3: remaining browser mutations require the exact local origin."""
+
+    def test_cv_parse_requires_local_origin(self):
+        files = {'file': ('cv.pdf', _pdf(), 'application/pdf')}
+        self.assertEqual(self.client.post('/cv/parse', files=files).status_code, 403)
+        self.assertEqual(self.client.post('/cv/parse', files=files, headers=LOCAL).status_code, 200)
+
+    def test_gmail_disconnect_requires_local_origin(self):
+        with patch('app.main.delete_token') as delete_token:
+            self.assertEqual(self.client.delete('/auth/google/disconnect').status_code, 403)
+            delete_token.assert_not_called()
+            self.assertEqual(self.client.delete('/auth/google/disconnect', headers=LOCAL).status_code, 200)
+            delete_token.assert_called_once_with('gmail')
+
+
 if __name__ == '__main__':
     unittest.main()
