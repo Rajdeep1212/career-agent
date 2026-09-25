@@ -1,0 +1,30 @@
+[project]
+name = "career-agent"
+version = "0.1.0"
+description = "Local-first, evidence-based job search, tracking and approved outreach"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+python_files = ["test_*.py"]
+addopts = "-q"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 140
+extend-exclude = ["tests/fixtures"]
+
+[tool.ruff.lint]
+# Start with correctness rules; style rules can be added later without churn.
+select = ["E9", "F"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["app"]
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
+# Lenient start: unannotated empty containers are allowed.
+disable_error_code = ["var-annotated"]
+check_untyped_defs = false
+warn_unused_ignores = false

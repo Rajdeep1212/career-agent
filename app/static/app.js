@@ -122,6 +122,32 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function parseDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(value)) return null;
+  // Some providers send 7 fractional digits (Jooble); JavaScript accepts at most 3.
+  const date = new Date(value.replace(/(\.\d{3})\d+/, '$1'));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDate(value) {
+  const date = parseDate(value);
+  if (!date) return String(value ?? '');
+  // Timestamps show the viewer's local date; a date-only value ("2026-09-24") is that calendar day.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+  return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+function postedLabel(value) {
+  const date = parseDate(value);
+  if (!date) return String(value ?? '');
+  const days = Math.floor((Date.now() - date.getTime()) / 86400000);
+  if (days < 0 || days > 30) return `Posted ${formatDate(value)}`;
+  const relative = days === 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
+  return `Posted ${relative} · ${formatDate(value)}`;
+}
+
 function safeExternalUrl(value) {
   if (typeof value !== 'string' || /[\u0000-\u0020\\]/.test(value)) return null;
   try {
@@ -574,7 +600,7 @@ function jobCardsMarkup(jobs, compact = false) {
     const storedId = /^[0-9a-f]{64}$/.test(job.id || '') ? job.id : '';
     return `<article class="job-card ${compact ? 'compact' : ''} ${selectedJob?.id === job.id ? 'selected' : ''}">
       <div class="job-head"><div><h3>${escapeHtml(job.title)}</h3><div class="company">${escapeHtml(job.company)}</div>${providerCredit(job)}</div><div class="score" style="--score:${score}"><span>${Math.round(score)}%</span></div></div>
-      <div class="meta">${tags([job.location || 'Location unknown', job.work_mode || 'Work arrangement unknown'])}${job.salary ? tags([job.salary], 'good') : ''}${job.official_application ? '<span class="tag good">Official application</span>' : ''}${job.posted_date ? tags([job.posted_date]) : ''}</div>
+      <div class="meta">${tags([job.location || 'Location unknown', job.work_mode || 'Work arrangement unknown'])}${job.salary ? tags([job.salary], 'good') : ''}${job.official_application ? '<span class="tag good">Official application</span>' : ''}${job.posted_date ? tags([postedLabel(job.posted_date)]) : ''}</div>
       <div class="card-state-row"><span class="tag ${state === 'ACTIVE_VERIFIED' ? 'good' : 'warn'}">Verification: ${escapeHtml(state.replaceAll('_', ' '))}</span><span class="tag ${eligible === false ? 'bad' : 'good'}">Eligibility: ${eligible === false ? 'Not eligible' : 'No exclusion'}</span><span class="tag">Tracker: ${escapeHtml(trackerState.replaceAll('_', ' '))}</span>${outreachState !== 'NONE' ? `<span class="tag">Outreach: ${escapeHtml(outreachState)}</span>` : ''}</div>
       <div><strong class="muted">Matched skills</strong><div class="skill-row">${tags(match.matched_skills || job.matched_skills, 'good') || '<span class="muted">No explicit skill match</span>'}</div></div>
       ${compact ? '' : `<div class="verification"><p>${escapeHtml(job.verification_reason || 'Application page has not been verified.')}</p></div><p>${escapeHtml(match.explanation || 'Review the listed requirements before applying.')}</p>${match.transferable_skills?.length ? `<div><strong class="muted">Transferable skills</strong><div class="skill-row">${tags(match.transferable_skills)}</div></div>` : ''}${(match.missing_skills || job.missing_skills)?.length ? `<div><strong class="muted">Missing skills</strong><div class="skill-row">${tags(match.missing_skills || job.missing_skills, 'warn')}</div></div>` : ''}<details><summary>Match evidence and eligibility</summary><p>${eligible === false ? 'Eligibility requirements are not met.' : 'No confirmed eligibility exclusion.'} ${escapeHtml(eligibility.confidence ? 'Confidence: ' + eligibility.confidence : '')}</p><ul>${textList([...(match.strengths || []), ...(match.gaps || []), ...(eligibility.positive_signals || []), ...(eligibility.warnings || []), ...(eligibility.hard_rejections || []), ...(job.reasons || [])])}</ul></details>`}
@@ -697,7 +723,7 @@ async function loadTracker() {
     $('trackerList').innerHTML = trackerEntries.length ? trackerEntries.map((entry, index) => {
       const job = entry.job || entry;
       const url = safeExternalUrl(job.application_url);
-      return `<article class="tracker-card"><div class="panel-head"><div><h3>${escapeHtml(job.title || entry.job_title || 'Saved opportunity')}</h3><p>${escapeHtml(job.company || entry.company || '')}</p></div>${url ? `<a class="secondary" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open job</a>` : ''}</div><label for="trackerState${index}">Application status</label><select id="trackerState${index}">${applicationStatuses.map(status => `<option value="${status}" ${entry.status === status ? 'selected' : ''}>${status.replaceAll('_', ' ')}</option>`).join('')}</select><label for="trackerNotes${index}">Your notes</label><textarea id="trackerNotes${index}" rows="3">${escapeHtml(entry.notes || '')}</textarea><div class="card-actions section-gap"><button class="primary" onclick="updateApplication(${index})">Save changes</button><button class="secondary" onclick="composeTrackedEmail(${index})">Prepare outreach</button></div><p class="muted">Last updated: ${escapeHtml(entry.updated_at || entry.created_at || 'Unknown')}</p></article>`;
+      return `<article class="tracker-card"><div class="panel-head"><div><h3>${escapeHtml(job.title || entry.job_title || 'Saved opportunity')}</h3><p>${escapeHtml(job.company || entry.company || '')}</p></div>${url ? `<a class="secondary" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open job</a>` : ''}</div><label for="trackerState${index}">Application status</label><select id="trackerState${index}">${applicationStatuses.map(status => `<option value="${status}" ${entry.status === status ? 'selected' : ''}>${status.replaceAll('_', ' ')}</option>`).join('')}</select><label for="trackerNotes${index}">Your notes</label><textarea id="trackerNotes${index}" rows="3">${escapeHtml(entry.notes || '')}</textarea><div class="card-actions section-gap"><button class="primary" onclick="updateApplication(${index})">Save changes</button><button class="secondary" onclick="composeTrackedEmail(${index})">Prepare outreach</button></div><p class="muted">Last updated: ${escapeHtml(formatDate(entry.updated_at || entry.created_at) || 'Unknown')}</p></article>`;
     }).join('') : '<p class="muted">No saved applications yet. Save an opportunity from Recommendations to start tracking it.</p>';
     if (window.lastJobs) renderJobs(window.lastJobs);
     renderConversation();
@@ -874,7 +900,7 @@ async function loadDrafts() {
         <div>
           <div class="status-badge ${escapeHtml(d.status)}">${escapeHtml(d.status)}</div>
           <h3>${escapeHtml(d.subject)}</h3>
-          <p>To: ${escapeHtml(d.recipient)} · ${escapeHtml(d.created_at)}</p>
+          <p>To: ${escapeHtml(d.recipient)} · ${escapeHtml(formatDate(d.created_at))}</p>
         </div>
         <button class="secondary" onclick="openDraft(${Number(d.id) || 0})">Review</button>
       </div>

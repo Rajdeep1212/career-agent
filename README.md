@@ -1,5 +1,7 @@
 # Career Agent
 
+[![CI](https://github.com/Rajdeep1212/career-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Rajdeep1212/career-agent/actions/workflows/ci.yml)
+
 Career Agent is a local FastAPI application for evidence-based job discovery,
 application tracking, and user-approved outreach. It parses text-based PDF
 resumes, persists profile and search preferences, searches configured job
@@ -93,15 +95,50 @@ graph stores only bounded sanitized text and safe IDs. Outreach pauses once at
 the final editable draft; one confirmed resume approves it and enters the
 existing atomic Gmail send boundary.
 
-## Verification
+## Demo mode and Docker
 
-Run the complete offline checks from the repository root:
+`DEMO_MODE=true` runs a self-contained demo for sharing: a synthetic profile and
+synthetic jobs in a separate `DEMO_DATA_DIR`. Every credential in `.env` is
+ignored (only their names are logged), OAuth and email routes are unavailable,
+sending is refused, listings are never fetched, and outbound HTTP is blocked.
+The app refuses to start if `DEMO_DATA_DIR` overlaps the real data directory.
+`tests/test_demo_mode.py` proves the real data directory is left untouched.
 
 ```powershell
-python run_tests.py
-node test_frontend.cjs
-python -m compileall -q app
+docker build -t career-agent-demo .
+docker run -p 7860:7860 career-agent-demo   # open http://localhost:7860/app/
 ```
+
+The image defaults to demo mode and never contains `.env` or `data/`. On a
+hosted Space, set `APP_ORIGIN` to the Space's public URL.
+
+## Local data and upgrades
+
+Everything the app stores lives in `data/` (ignored by Git). Database changes
+are numbered migrations: before a pending migration runs, the database is
+copied to `data/backups/<UTC time>/`, and nothing is applied if that copy
+fails.
+
+**Recovering from a failed upgrade:** stop the app, copy the database file from
+the newest `data/backups/<time>/` folder back into `data/`, and start the
+previous version. The seen-job history moved from `app/storage/` to
+`data/job_history.sqlite3`; the old file is copied once and never modified or
+deleted, so removing `data/job_history.sqlite3` re-imports it on the next start.
+
+## Verification
+
+Run the complete offline checks from the repository root. Tests live in
+`tests/`, use recorded fixtures and never touch the live network:
+
+```powershell
+python -m pip install -r requirements-dev.txt
+python -m pytest
+node tests/test_frontend.cjs
+python -m ruff check .
+python -m mypy
+```
+
+`python run_tests.py` runs the same suite without the dev tools.
 
 ## Documentation
 

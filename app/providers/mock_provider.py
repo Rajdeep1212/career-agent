@@ -3,7 +3,7 @@ from app.providers.base import JobProvider
 
 
 class MockJobProvider(JobProvider):
-    async def search(self, query: str) -> list[JobPosting]:
+    async def search(self, query: str, page: int = 1) -> list[JobPosting]:
         return [
             JobPosting(
                 company="Example AI Labs",

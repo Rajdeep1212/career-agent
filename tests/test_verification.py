@@ -1,5 +1,4 @@
 """Deterministic verification and SSRF regression tests; never uses live DNS/HTTP."""
-import socket
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
@@ -87,6 +86,23 @@ class VerificationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(result.verification_state, "UNVERIFIED")
                 self.assertIsNotNone(result.verification_checked_at)
                 self.assertTrue(result.verification_reason)
+
+
+class EmbeddedIPv4Tests(unittest.TestCase):
+    """6to4 and Teredo addresses embed an IPv4 address; its privacy decides.
+
+    Older Python releases (e.g. 3.11.9) report some of these as global, so the
+    check must not rely on ipaddress.is_global alone.
+    """
+
+    def test_embedded_private_ipv4_is_blocked_even_if_python_says_global(self):
+        import ipaddress
+        from unittest.mock import PropertyMock
+        from app.services.safe_http import _public_address
+        with patch.object(ipaddress.IPv6Address, "is_global", new_callable=PropertyMock, return_value=True):
+            for value in ("2002:7f00:1::", "2002:a00:1::", "2002:c0a8:101::",  # 6to4: 127.0.0.1, 10.0.0.1, 192.168.1.1
+                          "2001:0:4136:e378:8000:63bf:80ff:fffe"):  # Teredo client 127.0.0.1
+                self.assertFalse(_public_address(value), value)
 
 
 class SafeHTTPTests(unittest.IsolatedAsyncioTestCase):

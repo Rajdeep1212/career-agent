@@ -2,7 +2,9 @@
 import re
 
 from app.models.schemas import CandidateProfile
-from app.services.cv_parser import _SCHOOL, SKILL_CATEGORIES, _contains
+from app.services.cv_parser import _SCHOOL
+from app.services.skills import SKILL_CATEGORIES
+from app.services.skills import contains_phrase as _contains
 
 _DOMAINS = [
     "Accounting", "Finance", "Banking", "Healthcare", "Education", "Retail",

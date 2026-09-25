@@ -3,9 +3,8 @@ import re
 from pathlib import Path
 
 from app.models.schemas import CandidateProfile
-# Re-exported: the vocabulary lives in app/services/skills.py and app/core/skills/.
-from app.services.skills import KNOWN_SKILLS, SKILL_CATEGORIES, canonical_skill, extract_skills, split_composite
-from app.services.skills import contains_phrase as _contains
+# The vocabulary lives in app/services/skills.py and app/core/skills/.
+from app.services.skills import canonical_skill, extract_skills, split_composite
 
 MAX_PDF_BYTES = 10 * 1024 * 1024
 MAX_PDF_PAGES = 100
@@ -162,6 +161,7 @@ def _explicit_skills(lines: list[str]) -> list[str]:
     return result
 
 
+_BULLET = re.compile(r"^(?:[•●▪◦‣∙·○■□➢➤►✓✔]|[-–—*](?=\s))\s*")
 _ONGOING = re.compile(r"\b(?:present|ongoing|current|pursuing)\b", re.IGNORECASE)
 
 
@@ -169,6 +169,21 @@ def _years(line: str) -> list[int]:
     # "2021-25" ends in 2025.
     line = re.sub(r"\b((?:19|20)\d{2})\s*[-–]\s*(\d{2})\b(?!\d)", lambda m: f"{m[1]} - {m[1][:2]}{m[2]}", line)
     return [int(year) for year in re.findall(r"\b(?:19|20)\d{2}\b", line)]
+
+
+_MONTH_YEAR = r"(?:[A-Za-z]{3,9}\.?\s+)?(?:19|20)\d{2}"
+_DATE_LINE = re.compile(rf"^{_MONTH_YEAR}(?:\s*(?:-|–|—|to)\s*(?:{_MONTH_YEAR}|present|current|ongoing|now))?$", re.IGNORECASE)
+
+
+def _merge_date_lines(lines: list[str]) -> list[str]:
+    """A date-only line ("Jul 2025 – Dec 2025") belongs to the entry above it."""
+    merged: list[str] = []
+    for line in lines:
+        if merged and _DATE_LINE.match(line):
+            merged[-1] = f"{merged[-1]} ({line})"
+        else:
+            merged.append(line)
+    return merged
 
 
 def _education_blocks(lines: list[str]) -> list[dict]:
@@ -212,7 +227,9 @@ def parse_profile_from_text(text: str) -> CandidateProfile:
         raise ValueError("Resume has no readable text. Paste text or upload a text-based PDF.")
     if len(text) > MAX_TEXT_CHARS:
         raise ValueError("Resume text exceeds 200,000 characters. Use a shorter resume.")
-    lines = [line.strip().strip("• ") for line in text.splitlines() if line.strip()]
+    # Leading list markers (•, ●, ▪, ◦, –, -, * and similar) are formatting, not content.
+    lines = [_BULLET.sub("", line.strip()) for line in text.splitlines() if line.strip()]
+    lines = [line for line in lines if line]
     sections: dict[str, list[str]] = {key: [] for key in set(_HEADINGS.values())}
     section = "summary"
     for line in lines:
@@ -240,11 +257,11 @@ def parse_profile_from_text(text: str) -> CandidateProfile:
     skills_by_key = {skill.casefold(): skill for skill in explicit}
     skill_text = "\n".join(value for section_lines in sections.values() for value in section_lines)
     skills_by_key.update({skill.casefold(): skill for skill in extract_skills(skill_text)})
-    internships, experience = sections["internships"][:], []
-    for line in sections["experience"]:
+    internships, experience = _merge_date_lines(sections["internships"]), []
+    for line in _merge_date_lines(sections["experience"]):
         (internships if re.search(r"\bintern(?:ship)?\b", line, re.IGNORECASE) else experience).append(line)
     # A research internship stays under research and is also an internship.
-    internships += [line for line in sections["research"]
+    internships += [line for line in _merge_date_lines(sections["research"])
                     if re.search(r"\bintern(?:ship)?s?\b", line, re.IGNORECASE) and line not in internships]
     evidence = {key: value[:] for key, value in sections.items() if value and key != "other"}
     if education:

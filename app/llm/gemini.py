@@ -72,7 +72,7 @@ class GeminiChatModel:
         if context.get("career_session_id") not in (None, ""):
             raise HostedModelInputRejected("Hosted-model context cannot contain session identifiers.")
 
-        safe = {}
+        safe: dict[str, str | None] = {}
         for key in ("message", "conversation_summary", "deterministic_action"):
             raw = str(context.get(key) or "")
             cleaned = sanitize_text(raw, 1000)
@@ -83,7 +83,7 @@ class GeminiChatModel:
         return safe
 
     async def _generate(self, prompt: str, *, schema: dict | None = None) -> str:
-        generation_config = {"temperature": 0}
+        generation_config: dict[str, Any] = {"temperature": 0}
         if schema is not None:
             generation_config.update({
                 "responseMimeType": "application/json",

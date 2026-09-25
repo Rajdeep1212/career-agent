@@ -9,7 +9,7 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
-VOCABULARY_VERSION = 1
+VOCABULARY_VERSION = 2
 _VOCABULARY_DIR = Path(__file__).resolve().parents[1] / "core" / "skills"
 
 
@@ -30,6 +30,8 @@ def _contains_strict(text: str, term: str) -> bool:
 def _patterns(entry: dict) -> list[tuple[str, bool]]:
     """(term, strict) pairs that identify this skill in free text."""
     mode = entry.get("match", "normal")
+    if mode == "explicit_only":
+        return []  # only kept when listed under a CV's Skills section
     terms = [] if mode == "alias_only" else [(entry["name"], mode == "strict")]
     return terms + [(alias, False) for alias in entry.get("aliases", [])]
 

@@ -1,6 +1,13 @@
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 from typing import Literal
 
+WorkMode = Literal["remote", "hybrid", "onsite"]
+VerificationState = Literal["ACTIVE_VERIFIED", "LIKELY_ACTIVE", "UNVERIFIED", "CLOSED"]
+
+
+def _all_work_modes() -> list[WorkMode]:
+    return ["remote", "hybrid", "onsite"]
+
 
 class CandidateProfile(BaseModel):
     schema_version: int = 2
@@ -21,15 +28,13 @@ class CandidateProfile(BaseModel):
     evidence: dict[str, list[str]] = Field(default_factory=dict)
     experience_years: float | None = Field(default=None, ge=0, le=70)
     experience_level: str = "unknown"
-    work_mode_preferences: list[Literal["remote", "hybrid", "onsite"]] = Field(default_factory=lambda: ["remote", "hybrid", "onsite"])
+    work_mode_preferences: list[WorkMode] = Field(default_factory=_all_work_modes)
     relocation_preference: bool | None = None
     parsing_warnings: list[str] = Field(default_factory=list)
 
 
 class JobSearchPreferences(BaseModel):
-    allowed_work_modes: list[Literal["remote", "hybrid", "onsite"]] = Field(
-        default_factory=lambda: ["remote", "hybrid", "onsite"]
-    )
+    allowed_work_modes: list[WorkMode] = Field(default_factory=_all_work_modes)
     preferred_locations: list[str] = Field(default_factory=list)
     max_required_experience_years: float = 1.0
     allow_zero_to_two_when_fresher_friendly: bool = True
@@ -111,7 +116,7 @@ class JobPosting(BaseModel):
     salary: str | None = None
     education_requirements: list[str] = Field(default_factory=list)
     industry: str | None = None
-    verification_state: Literal["ACTIVE_VERIFIED", "LIKELY_ACTIVE", "UNVERIFIED", "CLOSED"] = "UNVERIFIED"
+    verification_state: VerificationState = "UNVERIFIED"
     verification_reason: str = "Not checked yet."
     verification_checked_at: str | None = None
 

@@ -40,7 +40,8 @@ Ghost/scam output is a set of evidence-backed risk signals, never a factual accu
 
 ## Working rules
 
-- Run the full offline suite after every change: `python run_tests.py` and `node test_frontend.cjs`.
+- Run the full offline suite after every change: `python -m pytest` (or `python run_tests.py`),
+  `node tests/test_frontend.cjs`, `python -m ruff check .` and `python -m mypy`.
 - Write a failing regression test before fixing a bug.
 - Keep commits small, with one concern each.
 - Database and path migrations need a backup first, must be idempotent, and must be tested. Never

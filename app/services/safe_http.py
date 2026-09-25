@@ -13,7 +13,7 @@ class UnsafeURLError(ValueError):
 
 async def _resolve_host(host: str, port: int) -> list[str]:
     answers = await asyncio.get_running_loop().getaddrinfo(host, port, type=socket.SOCK_STREAM)
-    return list(dict.fromkeys(answer[4][0] for answer in answers))
+    return list(dict.fromkeys(str(answer[4][0]) for answer in answers))
 
 
 def _public_address(value: str) -> bool:
@@ -21,8 +21,14 @@ def _public_address(value: str) -> bool:
         address = ipaddress.ip_address(value)
     except ValueError:
         return False
-    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped:
-        return _public_address(str(address.ipv4_mapped))
+    if isinstance(address, ipaddress.IPv6Address):
+        if address.ipv4_mapped:
+            return _public_address(str(address.ipv4_mapped))
+        # 6to4 (2002::/16) and Teredo embed an IPv4 address. Older Pythons call
+        # some of these global, so a private embedded address is checked here.
+        embedded = ([address.sixtofour] if address.sixtofour else []) + list(address.teredo or ())
+        if any(not _public_address(str(ipv4)) for ipv4 in embedded):
+            return False
     return bool(address.is_global and not (address.is_reserved or address.is_multicast or address.is_loopback or address.is_link_local or address.is_unspecified))
 
 

@@ -4,7 +4,7 @@ from pathlib import Path
 
 from app.services.cv_parser import parse_profile_from_text
 
-FIXTURES = Path(__file__).resolve().parent / 'tests' / 'fixtures' / 'resumes'
+FIXTURES = Path(__file__).resolve().parent / 'fixtures' / 'resumes'
 
 
 def parse_fixture(name):
@@ -106,6 +106,58 @@ class SectionDetectionTests(unittest.TestCase):
         from app.services.candidate_intelligence import analyze_candidate
         profile = analyze_candidate(CandidateProfile(experience=['Teaching assistant in primary Education outreach']))
         self.assertIn('Education', profile.domain_knowledge)
+
+
+class BulletTests(unittest.TestCase):
+    """Backlog: list markers such as ● must not reach section entries."""
+
+    def test_common_bullet_characters_are_removed(self):
+        text = '''Jane Doe
+Certifications
+● Google Cloud Digital Leader
+▪ AWS Cloud Practitioner
+◦ Azure AI-900
+– Oracle OCI Foundations
+* Kaggle Learn: Intro to ML'''
+        self.assertEqual(parse_profile_from_text(text).certifications,
+                         ['Google Cloud Digital Leader', 'AWS Cloud Practitioner', 'Azure AI-900',
+                          'Oracle OCI Foundations', 'Kaggle Learn: Intro to ML'])
+
+    def test_hyphenated_words_and_negative_numbers_are_kept(self):
+        text = '''Jane Doe
+Projects
+C-sharp tooling for -5 dB audio'''
+        self.assertEqual(parse_profile_from_text(text).projects, ['C-sharp tooling for -5 dB audio'])
+
+
+
+class InternshipDateTests(unittest.TestCase):
+    """Backlog: a date line below an internship title belongs to that internship."""
+
+    def test_research_internship_keeps_its_dates(self):
+        internship = parse_fixture('in_btech_multiline.txt').internships[0]
+        self.assertEqual(internship, 'Research Intern — Indian Institute of Technology (IIT) Example (Jul 2025 – Dec 2025)')
+
+    def test_internships_section_merges_date_lines(self):
+        text = '''Jane Doe
+Internships
+ML Intern, Example Labs
+Jun 2024 – Aug 2024
+Built a text classifier
+Data Intern, Example Retail, 2023'''
+        self.assertEqual(parse_profile_from_text(text).internships,
+                         ['ML Intern, Example Labs (Jun 2024 – Aug 2024)', 'Built a text classifier',
+                          'Data Intern, Example Retail, 2023'])
+
+    def test_experience_internship_takes_ongoing_dates(self):
+        text = '''Jane Doe
+Experience
+Software Engineering Intern, Example Soft
+May 2025 - Present
+Backend Developer, Example Corp'''
+        profile = parse_profile_from_text(text)
+        self.assertEqual(profile.internships, ['Software Engineering Intern, Example Soft (May 2025 - Present)'])
+        self.assertEqual(profile.experience, ['Backend Developer, Example Corp'])
 
 
 if __name__ == '__main__':

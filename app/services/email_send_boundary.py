@@ -1,4 +1,5 @@
 """Shared one-attempt Gmail boundary used by HTTP routes and the graph."""
+from app.core.config import settings
 from app.services.gmail_service import send_approved_email
 from app.storage import career_store
 from app.storage.email_store import (
@@ -23,6 +24,8 @@ class SendResultUncertainError(RuntimeError):
 
 
 def send_draft_once(draft_id: int, *, sender=send_approved_email) -> dict:
+    if settings.demo_mode:
+        raise DraftNotClaimableError("Demo mode never sends email.")
     if not get_draft(draft_id):
         raise DraftNotFoundError("Draft not found.")
     draft = claim_draft_for_send(draft_id)

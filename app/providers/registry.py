@@ -1,10 +1,11 @@
 from app.core.config import settings
+from app.demo import DemoJobProvider
 from app.providers.adzuna_provider import AdzunaProvider
 from app.providers.jooble_provider import JoobleProvider
 from app.providers.jsearch_provider import JSearchProvider
 
-PROVIDERS = {'jsearch': JSearchProvider, 'adzuna': AdzunaProvider, 'jooble': JoobleProvider}
-REQUIREMENTS = {'jsearch': 'RAPIDAPI_KEY', 'adzuna': 'ADZUNA_APP_ID and ADZUNA_APP_KEY', 'jooble': 'JOOBLE_API_KEY'}
+PROVIDERS = {'jsearch': JSearchProvider, 'adzuna': AdzunaProvider, 'jooble': JoobleProvider, 'demo': DemoJobProvider}
+REQUIREMENTS = {'demo': 'nothing (synthetic demo data)', 'jsearch': 'RAPIDAPI_KEY', 'adzuna': 'ADZUNA_APP_ID and ADZUNA_APP_KEY', 'jooble': 'JOOBLE_API_KEY'}
 
 
 def register_provider(name, factory):

@@ -60,7 +60,13 @@ def _client_config():
     }
 
 
+def _refuse_in_demo() -> None:
+    if settings.demo_mode:
+        raise GmailNotConfiguredError("Gmail is not available in demo mode.")
+
+
 def build_authorization_url() -> str:
+    _refuse_in_demo()
     _, _, Flow, _ = _google_imports()
     state = create_state()
 
@@ -231,6 +237,7 @@ def send_approved_email(
     body: str,
     attachment_id: str | None = None,
 ) -> dict:
+    _refuse_in_demo()
     _, _, _, build = _google_imports()
     credentials = _load_credentials()
     service = build("gmail", "v1", credentials=credentials, cache_discovery=False)

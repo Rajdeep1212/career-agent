@@ -2,9 +2,11 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const script = fs.readFileSync('app/static/app.js', 'utf8');
-const html = fs.readFileSync('app/static/index.html', 'utf8');
-const css = fs.readFileSync('app/static/styles.css', 'utf8');
+const path = require('node:path');
+const root = path.join(__dirname, '..');
+const script = fs.readFileSync(path.join(root, 'app', 'static', 'app.js'), 'utf8');
+const html = fs.readFileSync(path.join(root, 'app', 'static', 'index.html'), 'utf8');
+const css = fs.readFileSync(path.join(root, 'app', 'static', 'styles.css'), 'utf8');
 
 assert.match(html, /id="careerWorkspace"/);
 assert.match(html, /id="workspaceJobResults"/);
@@ -368,6 +370,34 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   assert.match(markup, /<a href="https:\/\/www\.adzuna\.co\.uk"[^>]*>Jobs<\/a> by <a href="https:\/\/www\.adzuna\.co\.uk"[^>]*>Adzuna<\/a>/);
   assert.match(markup, /Jobs via <a href="https:\/\/in\.jooble\.org"[^>]*>Jooble<\/a>/);
   assert.equal((markup.match(/provider-credit/g) || []).length, 2);
+
+  // Dates are readable: relative for recent posts, "24 Sep 2026" otherwise; unknown text is kept.
+  const daysAgo = n => new Date(Date.now() - n * 86400000).toISOString();
+  const label = value => vm.runInContext(`postedLabel(${JSON.stringify(value)})`, d.context);
+  assert.equal(label(daysAgo(0)).startsWith('Posted today'), true);
+  assert.equal(label(daysAgo(1)).startsWith('Posted yesterday'), true);
+  assert.match(label(daysAgo(3)), /^Posted 3 days ago · \d{1,2} [A-Z][a-z]{2} \d{4}$/);
+  assert.equal(label('2020-01-05T08:00:00Z'), 'Posted 5 Jan 2020');
+  assert.equal(label('2020-01-05T10:15:00.0000000'), 'Posted 5 Jan 2020');
+  assert.equal(label('Recently'), 'Recently');
+  assert.equal(vm.runInContext(`formatDate('2026-09-24T08:00:00+00:00')`, d.context), '24 Sep 2026');
+  const cardWithDate = vm.runInContext(`jobCardsMarkup([{ id: '${'d'.repeat(64)}', title: 'X', company: 'Y', posted_date: '2020-01-05T08:00:00Z' }])`, d.context);
+  assert.match(cardWithDate, /Posted 5 Jan 2020/);
+  assert.doesNotMatch(cardWithDate, /2020-01-05T08/);
+
+  // The tracker shows a readable local date, never the raw ISO timestamp (manual-test failure).
+  const stamp = '2026-09-25T12:49:14.072837+00:00';
+  const local = new Date('2026-09-25T12:49:14.072+00:00');
+  const expectedLocal = `${local.getDate()} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][local.getMonth()]} ${local.getFullYear()}`;
+  d = await dashboard({ configured: true, connected: false }, '', false, {
+    '/applications': [{ id: 'app-1', job_id: 'j'.repeat(64), status: 'APPLIED', notes: '', updated_at: stamp, created_at: stamp,
+                        job: { title: 'Data Analyst', company: 'Example', application_url: 'https://example.com/jobs/1' } }]
+  });
+  await vm.runInContext('loadTracker()', d.context);
+  const tracker = d.elements.get('trackerList').innerHTML;
+  assert.match(tracker, new RegExp(`Last updated: ${expectedLocal}<`));
+  assert.doesNotMatch(tracker, /T12:49:14/);
+  assert.equal(vm.runInContext(`formatDate('2026-09-24')`, d.context), '24 Sep 2026');  // date-only stays that day
 
   // A costly search asks first; cancelling sends nothing to /chat/run.
   const costly = { will_search: true, provider_requests: 8, warning: 'This search will send 8 requests to JSearch/RapidAPI.' };
