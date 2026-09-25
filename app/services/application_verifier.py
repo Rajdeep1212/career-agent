@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 
 from app.core.config import settings
-from app.models.schemas import JobPosting
+from app.models.schemas import JobPosting, VerificationState
 from app.services.safe_http import UnsafeURLError, safe_get
 
 
@@ -19,11 +19,11 @@ APPLY_PATTERN = re.compile(r"^(apply(?: now| for (?:this|the) (?:job|position|ro
 ATS_DOMAINS = ("boards.greenhouse.io", "job-boards.greenhouse.io", "jobs.lever.co", "jobs.ashbyhq.com", "apply.workable.com", "jobs.smartrecruiters.com", "myworkdayjobs.com")
 
 
-def _status(job: JobPosting, state: str, reason: str) -> JobPosting:
+def _status(job: JobPosting, state: VerificationState, reason: str) -> JobPosting:
     job.verification_state = state
     job.verification_reason = reason
     job.verification_checked_at = datetime.now(timezone.utc).isoformat()
-    job.application_status = {"ACTIVE_VERIFIED": "active", "CLOSED": "closed"}.get(state, "unverified")
+    job.application_status = "active" if state == "ACTIVE_VERIFIED" else "closed" if state == "CLOSED" else "unverified"
     return job
 
 
@@ -55,11 +55,11 @@ def _has_apply_control(soup: BeautifulSoup, role: str) -> bool:
     for control in soup.select("a[href], button, input[type=submit], [role=button]"):
         if control.has_attr("disabled") or control.get("aria-disabled") == "true" or control.find_parent(["nav", "footer", "header"]) or control.find_parent("fieldset", disabled=True):
             continue
-        label = control.get("value", "") if control.name == "input" else control.get_text(" ", strip=True)
-        label = label or control.get("aria-label", "")
+        label = str(control.get("value") or "") if control.name == "input" else control.get_text(" ", strip=True)
+        label = label or str(control.get("aria-label") or "")
         if not APPLY_PATTERN.fullmatch(label.strip()):
             continue
-        if control.name == "a" and control.get("href", "").strip().lower().startswith(("javascript:", "mailto:")):
+        if control.name == "a" and str(control.get("href") or "").strip().lower().startswith(("javascript:", "mailto:")):
             continue
         # An apply control inside a separate card must identify this role in
         # that card. Controls elsewhere on a single job page use its body.
@@ -122,7 +122,7 @@ async def verify_application(job: JobPosting) -> JobPosting:
     for hidden in soup.select('script, style, template, noscript, [hidden], [aria-hidden="true"]'):
         hidden.decompose()
     for hidden in soup.select("[style]"):
-        if hidden.attrs and re.search(r"(?:display\s*:\s*none|visibility\s*:\s*hidden)", hidden.get("style", ""), re.I):
+        if hidden.attrs and re.search(r"(?:display\s*:\s*none|visibility\s*:\s*hidden)", str(hidden.get("style") or ""), re.I):
             hidden.decompose()
     title = soup.title.get_text(" ", strip=True) if soup.title else ""
     visible = soup.get_text(" ", strip=True)

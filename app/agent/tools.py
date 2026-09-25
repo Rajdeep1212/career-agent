@@ -26,8 +26,9 @@ class CareerGraphTools:
         return result
 
     def prepare_outreach(self, state: dict) -> dict:
-        job = career_store.get_job(state.get("selected_job_id")) if state.get("selected_job_id") else None
-        application = career_store.get_application(state.get("application_id")) if state.get("application_id") else None
+        job_id, application_id = state.get("selected_job_id"), state.get("application_id")
+        job = career_store.get_job(job_id) if job_id else None
+        application = career_store.get_application(application_id) if application_id else None
         grounded = (application or {}).get("job") or job or {}
         request = PrepareJobEmailRequest(
             recipient=state.get("recipient") or "",

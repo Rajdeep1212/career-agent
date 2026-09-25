@@ -64,7 +64,7 @@ class JoobleProvider(JobProvider):
         if key in self._seen:
             return [job.model_copy(deep=True) for job in self._seen[key]]
         body = {"keywords": keywords[:180], "location": location[:100], "page": str(int(page))}
-        provider_usage.record("jooble", settings.jooble_api_key)
+        provider_usage.record("jooble", settings.jooble_api_key or "")
         try:
             async with httpx.AsyncClient(timeout=settings.request_timeout_seconds, verify=True,
                                          follow_redirects=False, trust_env=False) as client:

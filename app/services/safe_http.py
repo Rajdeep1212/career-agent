@@ -13,7 +13,7 @@ class UnsafeURLError(ValueError):
 
 async def _resolve_host(host: str, port: int) -> list[str]:
     answers = await asyncio.get_running_loop().getaddrinfo(host, port, type=socket.SOCK_STREAM)
-    return list(dict.fromkeys(answer[4][0] for answer in answers))
+    return list(dict.fromkeys(str(answer[4][0]) for answer in answers))
 
 
 def _public_address(value: str) -> bool:

@@ -55,6 +55,8 @@ def prepare_linked_outreach(request: PrepareJobEmailRequest) -> dict:
         contact = career_store.get_contact(request.contact_id)
         if contact is None:
             raise OutreachNotFoundError("Contact not found.")
+        if job is None:
+            raise OutreachInputError("A contact requires a stored job or application.")
         if contact["company"].strip().casefold() != str(job["company"]).strip().casefold():
             raise OutreachConflictError("Contact and job company do not match.")
         recipient = contact["contact_method"]

@@ -131,7 +131,10 @@ def save_application(job_id: str, status='SAVED', notes='') -> dict:
                         (id, job_id, status, notes, created_at, updated_at, applied_at)
                         VALUES (?, ?, ?, ?, ?, ?, ?)''',
                      (str(uuid4()), job_id, status, notes, stamp, stamp, stamp if status == 'APPLIED' else None))
-        return _application(conn, conn.execute('SELECT * FROM career_applications WHERE job_id=?', (job_id,)).fetchone())
+        application = _application(conn, conn.execute('SELECT * FROM career_applications WHERE job_id=?', (job_id,)).fetchone())
+        if application is None:
+            raise RuntimeError('Application could not be stored')
+        return application
 
 
 def list_applications() -> list:

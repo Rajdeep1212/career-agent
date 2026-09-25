@@ -87,11 +87,11 @@ def expand_roles(intent: SearchIntent, profile: CandidateProfile) -> list[RoleSu
     suggestions = suggestions[:6]
     titles = [list(dict.fromkeys(item.titles)) for item in suggestions]
     remaining = 6 - len(suggestions)
-    for item, candidates in zip(suggestions, titles):
-        item.titles = candidates[:1]
+    for suggestion, candidates in zip(suggestions, titles):
+        suggestion.titles = candidates[:1]
     for depth in (1, 2):
-        for item, candidates in zip(suggestions, titles):
+        for suggestion, candidates in zip(suggestions, titles):
             if remaining and len(candidates) > depth:
-                item.titles.append(candidates[depth])
+                suggestion.titles.append(candidates[depth])
                 remaining -= 1
     return suggestions

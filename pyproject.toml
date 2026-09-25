@@ -23,5 +23,8 @@ select = ["E9", "F"]
 python_version = "3.11"
 files = ["app"]
 ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
+# Lenient start: unannotated empty containers are allowed.
+disable_error_code = ["var-annotated"]
 check_untyped_defs = false
 warn_unused_ignores = false

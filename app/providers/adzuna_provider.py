@@ -35,8 +35,8 @@ def _next_utc(period: str) -> str:
 
 
 def normalize_item(item: dict) -> JobPosting:
-    company = item.get("company") if isinstance(item.get("company"), dict) else {}
-    location = item.get("location") if isinstance(item.get("location"), dict) else {}
+    company: dict = item["company"] if isinstance(item.get("company"), dict) else {}
+    location: dict = item["location"] if isinstance(item.get("location"), dict) else {}
     salary = None
     # Predicted salaries require separate "Adzuna Jobsworth" attribution; keep advertised ones only.
     if str(item.get("salary_is_predicted", "0")) != "1" and (item.get("salary_min") or item.get("salary_max")):
@@ -91,7 +91,7 @@ class AdzunaProvider(JobProvider):
                   "what": what[:180], "results_per_page": 20, "content-type": "application/json"}
         if where:
             params["where"] = where[:100]
-        provider_usage.record("adzuna", settings.adzuna_app_key)
+        provider_usage.record("adzuna", settings.adzuna_app_key or "")
         try:
             async with httpx.AsyncClient(timeout=settings.request_timeout_seconds, verify=True,
                                          follow_redirects=False, trust_env=False) as client:
