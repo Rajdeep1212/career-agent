@@ -19,10 +19,7 @@ class CareerAgentAPITests(unittest.TestCase):
             "result_count": 0,
         }
         search = AsyncMock(return_value=result)
-        with patch("app.services.career_agent.CareerAgent.search", search), patch(
-            "app.main.search_verify_rank",
-            new=AsyncMock(side_effect=AssertionError("legacy pipeline was called")),
-        ):
+        with patch("app.services.career_agent.CareerAgent.search", search):
             response = self.client.post(
                 "/agent/search",
                 json={

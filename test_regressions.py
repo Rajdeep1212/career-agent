@@ -83,7 +83,11 @@ class RegressionTests(unittest.TestCase):
         with fitz.open() as pdf:
             pdf.new_page().insert_text((72, 72), "OTHER MEMBER\nPython 2025")
             content = pdf.tobytes()
-        self.assertEqual(self.client.post("/cv/parse", files={"file": ("cv.pdf", content, "application/pdf")}).status_code, 200)
+        self.assertEqual(self.client.post(
+            "/cv/parse",
+            files={"file": ("cv.pdf", content, "application/pdf")},
+            headers={"Origin": "http://localhost:8010"},
+        ).status_code, 200)
         self.assertEqual(self.client.get("/profile/current").json(), baseline)
 
     def test_cv_rejects_wrong_file_type(self):
@@ -95,7 +99,7 @@ class RegressionTests(unittest.TestCase):
 
     def test_search_connection_reports_configuration_without_secrets(self):
         response = self.client.get("/connections/search/status")
-        self.assertEqual(response.json(), {"configured": True})
+        self.assertTrue(response.json()["configured"])
         self.assertNotIn("test-rapidapi-key", response.text)
         settings.rapidapi_key = ""
-        self.assertEqual(self.client.get("/connections/search/status").json(), {"configured": False})
+        self.assertFalse(self.client.get("/connections/search/status").json()["configured"])

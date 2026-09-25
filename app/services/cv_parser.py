@@ -3,40 +3,14 @@ import re
 from pathlib import Path
 
 from app.models.schemas import CandidateProfile
+# Re-exported: the vocabulary lives in app/services/skills.py and app/core/skills/.
+from app.services.skills import KNOWN_SKILLS, SKILL_CATEGORIES, canonical_skill, extract_skills, split_composite
+from app.services.skills import contains_phrase as _contains
 
 MAX_PDF_BYTES = 10 * 1024 * 1024
 MAX_PDF_PAGES = 100
 MAX_TEXT_CHARS = 200_000
 
-SKILL_CATEGORIES = {
-    "technical": [
-        "Python", "C++", "C#", "Java", "JavaScript", "TypeScript", "SQL", "R",
-        "PyTorch", "TensorFlow", "Keras", "scikit-learn", "NumPy", "Pandas", "OpenCV",
-        "Machine Learning", "Deep Learning", "NLP", "LLM", "RAG", "Prompt Engineering",
-        "Hugging Face", "Docker", "Kubernetes", "MLflow", "GCP", "AWS", "Azure", "Git",
-        "CI/CD", "Postman", "FastAPI", "Flask", "REST API", "React.js", "React",
-        "Node.js", "MySQL", "PostgreSQL", "MongoDB", "HTML", "CSS", "Linux",
-        "AutoCAD", "MATLAB", "SolidWorks", "Data Analysis", "Statistics",
-    ],
-    "business": [
-        "Excel", "Advanced Excel", "Power BI", "Tableau", "Financial Modeling",
-        "Financial Analysis", "Financial Reporting", "Accounting", "Bookkeeping",
-        "Market Research", "Business Analysis", "Project Management", "Product Management",
-        "Sales", "Marketing", "Digital Marketing", "SEO", "CRM", "Salesforce", "SAP",
-        "Operations", "Supply Chain", "Inventory Management", "Recruitment", "HR",
-    ],
-    "design": [
-        "Figma", "Sketch", "Adobe XD", "Photoshop", "Illustrator", "InDesign", "Canva",
-        "UI Design", "UX Design", "User Research", "Wireframing", "Prototyping",
-        "Typography", "Graphic Design", "Interaction Design", "Visual Design",
-    ],
-    "transferable": [
-        "Communication", "Teamwork", "Leadership", "Problem Solving", "Critical Thinking",
-        "Stakeholder Management", "Negotiation", "Presentation", "Public Speaking",
-        "Time Management", "Collaboration", "Customer Service", "Writing", "Research",
-    ],
-}
-KNOWN_SKILLS = list(dict.fromkeys(skill for group in SKILL_CATEGORIES.values() for skill in group))
 _HEADINGS = {
     "education": "education", "academic qualifications": "education", "qualifications": "education",
     "academic background": "education", "educational qualifications": "education",
@@ -60,15 +34,13 @@ _DEGREE = re.compile(
     r"|B\.?\s?Des\.?|M\.?\s?Des\.?|BBA|MBA|BCA|MCA|BFA|MFA|B\.A\.?|M\.A\.?|Ph\.?D\.?|Diploma)\b",
     re.IGNORECASE,
 )
-
-
-def _contains(text: str, phrase: str) -> bool:
-    return bool(re.search(r"(?<![\w])" + re.escape(phrase) + r"(?![\w])", text, re.IGNORECASE))
-
-
-def extract_skills(text: str) -> list[str]:
-    """Vocabulary matches with token boundaries, reusable for resumes and jobs."""
-    return sorted((skill for skill in KNOWN_SKILLS if _contains(text, skill)), key=str.casefold)
+_SCHOOL = re.compile(
+    r"\b(?:class|std\.?|standard|grade)\s*(?:x|xii|10|12|10th|12th)\b|\b(?:10th|12th|x|xii)\s+(?:class|std\.?|standard|grade)\b"
+    r"|\b(?:10th|12th|secondary|ssc|hsc|sslc|cbse|icse|isc|matriculation|matric|puc|intermediate)\b"
+    # State boards, e.g. WBBSE, WBCHSE, BSEB, RBSE, MPBSE, GSEB, PSEB, HBSE, CHSE.
+    r"|\b(?:wbbse|wbchse|bseb|rbse|mpbse|gseb|pseb|hbse|chse|upmsp|state\s+board)\b",
+    re.IGNORECASE,
+)
 
 
 def extract_pdf_text(path: str) -> str:
@@ -101,7 +73,15 @@ def extract_pdf_text(path: str) -> str:
 
 def _heading(line: str) -> tuple[str | None, str]:
     label, separator, rest = line.partition(":")
-    return _HEADINGS.get(label.strip().casefold()), rest.strip() if separator else ""
+    key = label.strip().casefold()
+    section = _HEADINGS.get(key)
+    if section is None:
+        # Combined headings such as "ACHIEVEMENTS & CERTIFICATIONS".
+        parts = [part for part in re.split(r"\s*(?:&|\band\b|/|,|\+)\s*", key) if part]
+        mapped = [_HEADINGS.get(part) for part in parts]
+        if len(parts) > 1 and all(mapped):
+            section = next((value for value in mapped if value != "other"), "other")
+    return section, rest.strip() if separator else ""
 
 
 def _extract_name(lines: list[str]) -> str | None:
@@ -121,15 +101,110 @@ def _extract_name(lines: list[str]) -> str | None:
     return None
 
 
+_OPEN, _CLOSE, _LIST_SEPARATORS = "([{", ")]}", ",;|•"
+_PROFICIENCY = {"basic", "beginner", "intermediate", "advanced", "proficient", "expert", "familiar", "fluent", "native"}
+
+
+def _split_top_level(value: str) -> list[str]:
+    """Split a skills list on separators outside brackets."""
+    parts, current, depth = [], "", 0
+    for char in value:
+        if char in _OPEN:
+            depth += 1
+        elif char in _CLOSE:
+            depth = max(0, depth - 1)
+        if depth == 0 and char in _LIST_SEPARATORS:
+            parts.append(current)
+            current = ""
+        else:
+            current += char
+    return parts + [current]
+
+
+def _expand_group(item: str) -> list[str]:
+    """"GCP (BigQuery, Looker Studio)" becomes GCP, BigQuery and Looker Studio."""
+    start = next((index for index, char in enumerate(item) if char in _OPEN), None)
+    if start is None:
+        return [item]
+    depth, end = 0, len(item)
+    for index in range(start, len(item)):
+        if item[index] in _OPEN:
+            depth += 1
+        elif item[index] in _CLOSE:
+            depth -= 1
+            if depth == 0:
+                end = index
+                break
+    inner = [part for piece in _split_top_level(item[start + 1:end]) for part in _expand_group(piece)]
+    return [item[:start], *inner, *_expand_group(item[end + 1:])]
+
+
+def _canonical_skills(item: str) -> list[str]:
+    """One vocabulary name per skill: "React.js" is React, "Git/GitHub" is Git and GitHub."""
+    name = canonical_skill(item)
+    if name != item.strip():
+        return [name]
+    return split_composite(item) or [name]
+
+
 def _explicit_skills(lines: list[str]) -> list[str]:
     result = []
     for line in lines:
         value = line.split(":", 1)[-1]
-        for item in re.split(r"[,;|•]", value):
-            item = item.strip(" \t-–")
-            if item and len(item) <= 60 and len(item.split()) <= 6 and not re.search(r"[.!?]$", item):
-                result.append(item)
+        for group in _split_top_level(value):
+            for item in _expand_group(group):
+                # Never emit an unbalanced or stray bracket.
+                item = re.sub(r"[()\[\]{}]", " ", item)
+                item = " ".join(item.split()).strip(" \t-–")
+                if (item and item.casefold() not in _PROFICIENCY and len(item) <= 60
+                        and len(item.split()) <= 6 and not re.search(r"[.!?]$", item)):
+                    result.append(item)
     return result
+
+
+_ONGOING = re.compile(r"\b(?:present|ongoing|current|pursuing)\b", re.IGNORECASE)
+
+
+def _years(line: str) -> list[int]:
+    # "2021-25" ends in 2025.
+    line = re.sub(r"\b((?:19|20)\d{2})\s*[-–]\s*(\d{2})\b(?!\d)", lambda m: f"{m[1]} - {m[1][:2]}{m[2]}", line)
+    return [int(year) for year in re.findall(r"\b(?:19|20)\d{2}\b", line)]
+
+
+def _education_blocks(lines: list[str]) -> list[dict]:
+    """Group each Education line with the nearest qualification heading above it.
+
+    Dates often sit on their own line below the degree ("Aug 2021 – Jul 2025"),
+    and Indian CVs list Class X/XII (school) results in the same section.
+    """
+    blocks: list[dict] = []
+    for line in lines:
+        kind = "degree" if _DEGREE.search(line) else "school" if _SCHOOL.search(line) else None
+        if kind is None and blocks:
+            blocks[-1]["lines"].append(line)
+        elif blocks and blocks[-1]["kind"] == "unknown" and kind == "degree" and len(blocks) == 1:
+            # Dates written above the degree belong to it.
+            blocks[-1].update(kind=kind, lines=blocks[-1]["lines"] + [line])
+        else:
+            blocks.append({"kind": kind or "unknown", "lines": [line]})
+    return blocks
+
+
+def _graduation_year(education: list[str]) -> int | None:
+    """The single degree's end year; school blocks never count."""
+    blocks = _education_blocks(education)
+    degrees = [block for block in blocks if block["kind"] == "degree"]
+    if not degrees:
+        if any(block["kind"] == "school" for block in blocks):
+            return None
+        degrees = blocks
+    if len(degrees) != 1:
+        return None
+    lines = degrees[0]["lines"]
+    if any(_ONGOING.search(line) for line in lines):
+        return None
+    years = [year for line in lines for year in _years(line)]
+    return max(years) if years else None
 
 
 def parse_profile_from_text(text: str) -> CandidateProfile:
@@ -142,7 +217,10 @@ def parse_profile_from_text(text: str) -> CandidateProfile:
     section = "summary"
     for line in lines:
         heading, value = _heading(line)
-        if heading:
+        if heading in ("skills", "other") and value and section == "skills":
+            # A sub-label inside Skills ("Languages: Python, C++") is not a new section.
+            sections[section].append(value)
+        elif heading:
             section = heading
             if value:
                 sections[section].append(value)
@@ -152,24 +230,22 @@ def parse_profile_from_text(text: str) -> CandidateProfile:
     education = sections["education"] or [line for line in lines if _DEGREE.search(line)]
     degrees = [match.group(0).strip().rstrip(".") for line in education if (match := _DEGREE.search(line))]
     degree = degrees[0] if degrees else None
-    years = []
-    for line in education:
-        candidates = re.findall(r"\b(?:19|20)\d{2}\b", line)
-        if candidates and not re.search(r"\b(?:present|ongoing|current)\b", line, re.IGNORECASE):
-            years.append(int(candidates[-1]))
-    distinct_years = set(years)
-    graduation_year = next(iter(distinct_years)) if len(distinct_years) == 1 and len(degrees) <= 1 else None
+    graduation_year = _graduation_year(education)
     warnings = []
     if graduation_year is None:
         warnings.append("Graduation year is missing or ambiguous; please confirm it.")
     if len(degrees) > 1:
         warnings.append("Multiple qualifications found; confirm the primary degree and graduation year.")
-    skills_by_key = {skill.casefold(): skill for skill in _explicit_skills(sections["skills"])}
+    explicit = [name for skill in _explicit_skills(sections["skills"]) for name in _canonical_skills(skill)]
+    skills_by_key = {skill.casefold(): skill for skill in explicit}
     skill_text = "\n".join(value for section_lines in sections.values() for value in section_lines)
     skills_by_key.update({skill.casefold(): skill for skill in extract_skills(skill_text)})
     internships, experience = sections["internships"][:], []
     for line in sections["experience"]:
         (internships if re.search(r"\bintern(?:ship)?\b", line, re.IGNORECASE) else experience).append(line)
+    # A research internship stays under research and is also an internship.
+    internships += [line for line in sections["research"]
+                    if re.search(r"\bintern(?:ship)?s?\b", line, re.IGNORECASE) and line not in internships]
     evidence = {key: value[:] for key, value in sections.items() if value and key != "other"}
     if education:
         evidence["education"] = education[:]

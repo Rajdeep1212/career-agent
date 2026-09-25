@@ -1,7 +1,10 @@
 from app.core.config import settings
+from app.providers.adzuna_provider import AdzunaProvider
+from app.providers.jooble_provider import JoobleProvider
 from app.providers.jsearch_provider import JSearchProvider
 
-PROVIDERS = {'jsearch': JSearchProvider}
+PROVIDERS = {'jsearch': JSearchProvider, 'adzuna': AdzunaProvider, 'jooble': JoobleProvider}
+REQUIREMENTS = {'jsearch': 'RAPIDAPI_KEY', 'adzuna': 'ADZUNA_APP_ID and ADZUNA_APP_KEY', 'jooble': 'JOOBLE_API_KEY'}
 
 
 def register_provider(name, factory):
@@ -9,14 +12,31 @@ def register_provider(name, factory):
     PROVIDERS[name] = factory
 
 
+def _names():
+    return list(dict.fromkeys(name.strip().lower() for name in settings.job_providers.split(',') if name.strip()))
+
+
+def _configured(factory) -> bool:
+    check = getattr(factory, 'configured', None)
+    return bool(check()) if callable(check) else True
+
+
 def get_providers():
-    names = [name.strip() for name in settings.job_providers.split(',') if name.strip()]
-    return [PROVIDERS[name]() for name in names if name in PROVIDERS]
+    """Listed providers whose credentials are set; a missing key skips a provider."""
+    return [PROVIDERS[name]() for name in _names() if name in PROVIDERS and _configured(PROVIDERS[name])]
+
+
+NOT_INSTALLED = (
+    ('greenhouse', 'Connector not installed'), ('lever', 'Connector not installed'),
+    ('smartrecruiters', 'Connector not installed'), ('company_careers', 'Connector not installed'),
+    ('linkedin_jobs', 'Current LinkedIn scopes allow identity only, not job/member search'),
+)
 
 
 def provider_status():
-    return [{'id': 'jsearch', 'available': bool(settings.rapidapi_key), 'reason': 'Requires RapidAPI credentials'},
-            *[{'id': name, 'available': False, 'reason': reason} for name,reason in (
-                ('company_careers','Connector not installed'), ('greenhouse','Connector not installed'),
-                ('lever','Connector not installed'), ('smartrecruiters','Connector not installed'),
-                ('linkedin_jobs','Current LinkedIn scopes allow identity only, not job/member search'))]]
+    """Configuration only (never secret values), for the Connections view."""
+    return [*[{'id': name, 'name': getattr(PROVIDERS[name], 'name', name), 'installed': True,
+               'configured': _configured(PROVIDERS[name]), 'requires': REQUIREMENTS.get(name, 'provider credentials')}
+              for name in _names() if name in PROVIDERS],
+            *[{'id': name, 'name': name, 'installed': False, 'configured': False, 'reason': reason}
+              for name, reason in NOT_INSTALLED]]

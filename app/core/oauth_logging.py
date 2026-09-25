@@ -1,4 +1,4 @@
-"""Redact OAuth query parameters before standard HTTP/access log formatting."""
+"""Redact OAuth query parameters and job-provider keys before HTTP/access log formatting."""
 import logging
 import re
 
@@ -12,7 +12,11 @@ class OAuthQueryFilter(logging.Filter):
             record.args = tuple(args)
         else:
             message = record.getMessage()
-            record.msg = re.sub(r'(/auth/[^\s?"#]+)\?[^\s"]*', r'\1?[redacted]', message)
+            message = re.sub(r'(/auth/[^\s?"#]+)\?[^\s"]*', r'\1?[redacted]', message)
+            # Job-provider keys travel in URLs: Adzuna query parameters, Jooble path.
+            message = re.sub(r'\b(app_id|app_key)=[^&\s"#]+', r'\1=[redacted]', message)
+            message = re.sub(r'(jooble\.org/api/)[^\s/?"#]+', r'\1[redacted]', message)
+            record.msg = message
             record.args = ()
         return True
 

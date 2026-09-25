@@ -1,4 +1,6 @@
 import re
+from datetime import datetime, timedelta, timezone
+
 import httpx
 
 from app.core.config import settings
@@ -6,6 +8,7 @@ from app.models.schemas import JobPosting
 from app.providers.base import JobProvider, ProviderError
 from urllib.parse import urlsplit
 from app.services.job_requirements import extract_requirements
+from app.services.skills import extract_skills
 
 
 FRESHER_TERMS = [
@@ -14,14 +17,11 @@ FRESHER_TERMS = [
     "graduate engineer trainee", "intern", "internship", "no experience",
     "0-1 year", "0–1 year", "0 to 1 year"
 ]
-
-SKILL_TERMS = [
-    "Python", "SQL", "FastAPI", "Flask", "Django", "Docker", "REST API",
-    "PyTorch", "TensorFlow", "scikit-learn", "Pandas", "NumPy",
-    "NLP", "LLM", "RAG", "Hugging Face", "AWS", "GCP", "PostgreSQL",
-    "MySQL", "MongoDB", "Power BI", "Tableau", "LangChain", "LangGraph",
-]
-
+# Whole phrases only: "intern" must not match "international" or "internal".
+_FRESHER_PATTERN = re.compile(
+    r"(?<![\w-])(?:" + "|".join(re.escape(term) for term in FRESHER_TERMS) + r")s?(?![\w-])",
+    re.IGNORECASE,
+)
 
 def _infer_work_mode(job: dict) -> str:
     if job.get("job_is_remote") is True:
@@ -42,33 +42,6 @@ def _infer_work_mode(job: dict) -> str:
     if re.search(r"\bon[- ]?site\b|\bin[- ]office\b|\bwork(?:ing)? from (?:the )?office\b", text):
         return "onsite"
     return "unknown"
-
-
-def _infer_experience(text: str) -> tuple[float, float | None]:
-    t = text.lower()
-
-    if any(x in t for x in [
-        "no experience", "fresher", "fresh graduate", "recent graduate"
-    ]):
-        return 0.0, 1.0
-
-    range_match = re.search(
-        r"(\d+(?:\.\d+)?)\s*(?:-|–|to)\s*(\d+(?:\.\d+)?)\s*(?:years?|yrs?)",
-        t,
-    )
-    if range_match:
-        return float(range_match.group(1)), float(range_match.group(2))
-
-    min_match = re.search(r"(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)", t)
-    if min_match:
-        return float(min_match.group(1)), None
-
-    return 0.0, None
-
-
-def _extract_skills(text: str) -> list[str]:
-    low = text.lower()
-    return sorted({s for s in SKILL_TERMS if s.lower() in low})
 
 
 def _extract_items(payload: dict) -> list[dict]:
@@ -109,7 +82,6 @@ def normalize_item(item: dict) -> JobPosting:
             apply_url = None
     except ValueError:
         apply_url = None
-    from app.services.cv_parser import extract_skills
     salary = None
     if item.get("job_min_salary") is not None or item.get("job_max_salary") is not None:
         salary = " ".join(str(item.get(k) or "") for k in ("job_min_salary", "job_max_salary", "job_salary_currency", "job_salary_period")).strip()
@@ -118,7 +90,7 @@ def normalize_item(item: dict) -> JobPosting:
         location=", ".join(str(item[k]) for k in ("job_city", "job_state", "job_country") if item.get(k)) or "Not specified",
         work_mode=_infer_work_mode(item), description=description,
         experience_min=exp_min, experience_max=exp_max,
-        fresher_allowed=any(x in combined.lower() for x in FRESHER_TERMS),
+        fresher_allowed=bool(_FRESHER_PATTERN.search(combined)),
         recent_graduate_allowed="recent graduate" in combined.lower(), graduation_years=years,
         skills=extract_skills(combined), application_url=apply_url,
         source="JSearch/RapidAPI", source_job_id=str(item["job_id"]) if item.get("job_id") else None,
@@ -127,8 +99,62 @@ def normalize_item(item: dict) -> JobPosting:
     )
 
 
+# Reasons are chosen here from the status code; provider response bodies never reach users.
+_STATUS_REASONS = {
+    401: "invalid or missing RAPIDAPI_KEY",
+    403: "not subscribed to JSearch, or access denied",
+    429: "quota or rate limit exceeded",
+}
+_last_quota: dict | None = None
+
+
+def _status_reason(status: int) -> str:
+    return _STATUS_REASONS.get(status) or ("provider server error" if status >= 500 else "request rejected")
+
+
+def _header_int(response: httpx.Response, name: str) -> int | None:
+    value = response.headers.get(name, "").strip()
+    return int(value) if value.isdigit() else None
+
+
+def _quota(response: httpx.Response) -> dict:
+    """RapidAPI quota headers; the reset header counts seconds from now."""
+    seconds = _header_int(response, "x-ratelimit-requests-reset")
+    if seconds is None:
+        seconds = _header_int(response, "retry-after")
+    reset_at = None
+    if seconds is not None:
+        reset_at = (datetime.now(timezone.utc) + timedelta(seconds=seconds)).replace(microsecond=0).isoformat()
+    return {"reset_at": reset_at, "remaining": _header_int(response, "x-ratelimit-requests-remaining"),
+            "limit": _header_int(response, "x-ratelimit-requests-limit")}
+
+
+def _remember_quota(quota: dict) -> None:
+    global _last_quota
+    if quota["remaining"] is not None or quota["reset_at"]:
+        _last_quota = {**quota, "observed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat()}
+
+
+def last_quota() -> dict | None:
+    """Quota from the most recent JSearch response in this process, if any."""
+    return dict(_last_quota) if _last_quota else None
+
+
+def format_reset(value: str) -> str:
+    return datetime.fromisoformat(value).astimezone(timezone.utc).strftime("%d %b %Y %H:%M UTC")
+
+
 class JSearchProvider(JobProvider):
     name = "JSearch/RapidAPI"
+
+    @classmethod
+    def configured(cls) -> bool:
+        return bool(settings.rapidapi_key)
+
+    def quota(self) -> dict | None:
+        """Quota reported by RapidAPI on the last response in this process, if any."""
+        quota = last_quota()
+        return {**quota, "window": None, "counted_locally": False} if quota else None
 
     async def search(self, query: str, page: int = 1) -> list[JobPosting]:
         if not settings.rapidapi_key:
@@ -144,13 +170,24 @@ class JSearchProvider(JobProvider):
                 response = await client.get("https://jsearch.p.rapidapi.com/search-v2", headers=headers,
                     params={"query": query[:180], "num_pages": 1, "country": settings.search_country,
                             "language": "en", "date_posted": "all"})
-            if response.status_code >= 300:
-                raise ProviderError(f"JSearch request failed (HTTP {response.status_code}). Check provider access or quota.")
+        except httpx.TimeoutException:
+            raise ProviderError("JSearch request timed out.", reason="timed out") from None
+        except httpx.HTTPError:
+            raise ProviderError("JSearch could not be reached.", reason="could not be reached") from None
+        quota = _quota(response)
+        _remember_quota(quota)
+        if response.status_code >= 300:
+            reason = _status_reason(response.status_code)
+            reset = f"; resets {format_reset(quota['reset_at'])}" if quota["reset_at"] else ""
+            raise ProviderError(f"JSearch request failed (HTTP {response.status_code}: {reason}{reset}).",
+                                status_code=response.status_code, reason=reason, **quota)
+        try:
             payload = response.json()
-            if not isinstance(payload, dict):
-                raise ProviderError("JSearch returned an invalid response.")
-        except (httpx.HTTPError, ValueError) as exc:
-            raise ProviderError("JSearch could not be reached or returned an invalid response.") from None
+        except ValueError:
+            payload = None
+        if not isinstance(payload, dict):
+            raise ProviderError("JSearch returned an invalid response.", status_code=response.status_code,
+                                reason="invalid response")
         results = []
         for item in _extract_items(payload):
             if not isinstance(item, dict):

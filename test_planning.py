@@ -34,4 +34,5 @@ class PlanningTests(unittest.TestCase):
     def test_provider_registry_declares_unavailable_connectors(self):
         from app.providers.registry import provider_status
         state = provider_status()
-        self.assertFalse(next(p for p in state if p['id']=='linkedin_jobs')['available'])
+        linkedin = next(p for p in state if p['id']=='linkedin_jobs')
+        self.assertFalse(linkedin['installed'] or linkedin['configured'])

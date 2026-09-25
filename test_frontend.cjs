@@ -21,6 +21,9 @@ assert.doesNotMatch(html, /Gemini/i);
 assert.match(css, /\.icon-btn\.mobile-menu\s*\{\s*display:\s*none/);
 assert.match(html, /class="inline-results-head sr-only"/);
 
+// Let pending promise chains (e.g. the search-cost preview) finish.
+const settle = () => new Promise(resolve => setImmediate(resolve));
+
 async function dashboard(linkedin, query = '', disconnectFails = false, responses = {}) {
   const elements = new Map();
   let activeElement = null;
@@ -239,6 +242,7 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   await d.elements.get('searchQuery').handlers.keydown({ key: 'Enter', shiftKey: true, preventDefault() { throw Error('Shift+Enter must not submit'); } });
   assert.equal(d.calls.filter(([path]) => path === '/chat/run').length, 0);
   await d.elements.get('searchQuery').handlers.keydown({ key: 'Enter', shiftKey: false, preventDefault() {} });
+  await settle();
   assert.equal(d.calls.filter(([path]) => path === '/chat/run').length, 1);
   d.elements.get('mobileMenuBtn').handlers.click();
   assert.equal(d.elements.get('sidebar').classList.contains('open'), true);
@@ -254,6 +258,7 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   d.elements.get('searchQuery').value = 'Find analyst jobs';
   const firstSubmit = d.elements.get('searchForm').handlers.submit({ preventDefault() {} });
   const duplicateSubmit = d.elements.get('searchForm').handlers.submit({ preventDefault() {} });
+  await settle();
   assert.equal(d.calls.filter(([path]) => path === '/chat/run').length, 1);
   releaseChat({ thread_id: 'x', turn_id: 'y', stage: 'completed', message: 'Done', recommendation_ids: [], advisory_roles: [], replayed: false });
   await Promise.all([firstSubmit, duplicateSubmit]);
@@ -344,5 +349,56 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   d.elements.get('preferenceScore').value = '65';
   await d.elements.get('preferencesForm').handlers.submit({ preventDefault() {} });
   assert.ok(d.calls.some(([path, method, body]) => path === '/preferences/current' && method === 'PUT' && body.minimum_match_score === 65));
-  console.log('Dashboard JavaScript: LinkedIn, search/follow-up, empty diagnostics, safe results, save, profile and preferences passed (DOM simulation, no browser).');
+  // Connections lists each provider; one without its key is shown as skipped.
+  d = await dashboard({ configured: true, connected: false }, '', false, {
+    '/connections/search/status': { configured: true, providers: [
+      { id: 'jsearch', name: 'JSearch/RapidAPI', installed: true, configured: true, requires: 'RAPIDAPI_KEY' },
+      { id: 'adzuna', name: 'Adzuna', installed: true, configured: false, requires: 'ADZUNA_APP_ID and ADZUNA_APP_KEY' },
+      { id: 'linkedin_jobs', name: 'linkedin_jobs', installed: false, configured: false, reason: 'n/a' }] }
+  });
+  assert.match(d.elements.get('searchApiStatusBox').innerHTML, /Adzuna: skipped \(add ADZUNA_APP_ID and ADZUNA_APP_KEY to .env\)/);
+  assert.doesNotMatch(d.elements.get('searchApiStatusBox').innerHTML, /linkedin_jobs/);
+  assert.equal(d.elements.get('providerPill').textContent, 'Search API: 1 of 2 providers');
+
+  // Jobs from aggregators carry the credit their terms require.
+  const markup = vm.runInContext(`jobCardsMarkup([
+    { id: '${'a'.repeat(64)}', title: 'Data Analyst', company: 'Example', source: 'Adzuna', application_url: 'https://www.adzuna.in/land/ad/1' },
+    { id: '${'b'.repeat(64)}', title: 'Data Analyst', company: 'Example', source: 'Jooble', application_url: 'https://in.jooble.org/desc/1' },
+    { id: '${'c'.repeat(64)}', title: 'Data Analyst', company: 'Example', source: 'JSearch/RapidAPI', application_url: 'https://example.com/jobs/1' }])`, d.context);
+  assert.match(markup, /<a href="https:\/\/www\.adzuna\.co\.uk"[^>]*>Jobs<\/a> by <a href="https:\/\/www\.adzuna\.co\.uk"[^>]*>Adzuna<\/a>/);
+  assert.match(markup, /Jobs via <a href="https:\/\/in\.jooble\.org"[^>]*>Jooble<\/a>/);
+  assert.equal((markup.match(/provider-credit/g) || []).length, 2);
+
+  // A costly search asks first; cancelling sends nothing to /chat/run.
+  const costly = { will_search: true, provider_requests: 8, warning: 'This search will send 8 requests to JSearch/RapidAPI.' };
+  d = await dashboard({ configured: true, connected: false }, '', false, {
+    '/agent/search/preview': costly,
+    '/chat/run': { thread_id: 'cost', turn_id: 'turn', stage: 'completed', message: 'Done', recommendation_ids: [], advisory_roles: [], replayed: false },
+    '/applications': []
+  });
+  const prompts = [];
+  d.context.window.confirm = text => { prompts.push(text); return false; };
+  d.elements.get('searchQuery').value = 'Find python developer jobs';
+  await d.elements.get('searchForm').handlers.submit({ preventDefault() {} });
+  assert.match(prompts[0], /8 requests to JSearch\/RapidAPI/);
+  assert.equal(d.calls.filter(([path]) => path === '/chat/run').length, 0);
+  assert.match(d.elements.get('searchStatus').textContent, /No provider requests were sent/);
+  assert.equal(d.elements.get('searchSubmit').disabled, false);
+  assert.equal(d.calls.find(([path]) => path === '/agent/search/preview')[2].message, 'Find python developer jobs');
+  d.context.window.confirm = () => true;
+  await d.elements.get('searchForm').handlers.submit({ preventDefault() {} });
+  assert.equal(d.calls.filter(([path]) => path === '/chat/run').length, 1);
+
+  // A preview failure never blocks the request.
+  d = await dashboard({ configured: true, connected: false }, '', false, {
+    '/agent/search/preview': () => { throw Error('preview unavailable'); },
+    '/chat/run': { thread_id: 'cost2', turn_id: 'turn', stage: 'completed', message: 'Done', recommendation_ids: [], advisory_roles: [], replayed: false },
+    '/applications': []
+  });
+  d.context.window.confirm = () => { throw Error('must not ask without a warning'); };
+  d.elements.get('searchQuery').value = 'Find python developer jobs';
+  await d.elements.get('searchForm').handlers.submit({ preventDefault() {} });
+  assert.equal(d.calls.filter(([path]) => path === '/chat/run').length, 1);
+
+  console.log('Dashboard JavaScript: LinkedIn, search/follow-up, empty diagnostics, safe results, save, profile, preferences and search-cost warning passed (DOM simulation, no browser).');
 })().catch(error => { console.error(error); process.exitCode = 1; });

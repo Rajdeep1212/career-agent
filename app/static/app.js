@@ -401,6 +401,21 @@ async function handleChatResponse(response) {
   }
 }
 
+// Ask before a search that will spend many provider requests or most of the
+// remaining quota. The preview is advisory: if it fails, the request proceeds.
+async function confirmSearchCost(message) {
+  let preview = null;
+  try {
+    preview = await api('/agent/search/preview', jsonOptions('POST', {
+      message, career_session_id: searchSessionId, strict_mode: $('strictSearch').checked
+    }));
+  } catch {
+    return true;
+  }
+  if (!preview?.warning || typeof window.confirm !== 'function') return true;
+  return window.confirm(`${preview.warning}\n\nRun this search?`);
+}
+
 async function runChat(message, extra = {}) {
   const value = String(message || '').trim();
   if (!value || searchBusy) return null;
@@ -415,6 +430,16 @@ async function runChat(message, extra = {}) {
   $('searchForm').setAttribute('aria-busy', 'true');
   $('searchSubmit').textContent = 'Working…';
   showStatus($('searchStatus'), 'Career Agent is processing this request…');
+  if (!retryingSameTurn && !(await confirmSearchCost(value))) {
+    pendingTurn = null;
+    searchBusy = false;
+    $('searchSubmit').disabled = false;
+    $('newSearchBtn').disabled = false;
+    $('searchForm').removeAttribute('aria-busy');
+    $('searchSubmit').textContent = 'Send';
+    showStatus($('searchStatus'), 'Search not run. No provider requests were sent.');
+    return null;
+  }
   if (!retryingSameTurn) addConversation('user', value);
   const application = selectedJob?.id ? applicationsByJob.get(selectedJob.id) : null;
   const payload = {
@@ -521,6 +546,19 @@ document.querySelectorAll('.suggestion-chip').forEach(button => {
   });
 });
 
+// Credit required by provider terms. Adzuna: label each displayed job "Jobs by Adzuna"
+// (at least 116 x 23 px) with the words linked to Adzuna.
+const PROVIDER_CREDITS = {
+  Adzuna: url => `<a href="${url}" target="_blank" rel="noopener noreferrer">Jobs</a> by <a href="${url}" target="_blank" rel="noopener noreferrer">Adzuna</a>`,
+  Jooble: url => `Jobs via <a href="${url}" target="_blank" rel="noopener noreferrer">Jooble</a>`,
+};
+const PROVIDER_SITES = { Adzuna: 'https://www.adzuna.co.uk', Jooble: 'https://in.jooble.org' };
+
+function providerCredit(job) {
+  const credit = PROVIDER_CREDITS[job?.source];
+  return credit ? `<span class="provider-credit">${credit(PROVIDER_SITES[job.source])}</span>` : '';
+}
+
 function jobCardsMarkup(jobs, compact = false) {
   return jobs.map(job => {
     if (job?.id) jobsById.set(job.id, job);
@@ -535,7 +573,7 @@ function jobCardsMarkup(jobs, compact = false) {
     const outreachState = application?.outreach_state || 'NONE';
     const storedId = /^[0-9a-f]{64}$/.test(job.id || '') ? job.id : '';
     return `<article class="job-card ${compact ? 'compact' : ''} ${selectedJob?.id === job.id ? 'selected' : ''}">
-      <div class="job-head"><div><h3>${escapeHtml(job.title)}</h3><div class="company">${escapeHtml(job.company)}</div></div><div class="score" style="--score:${score}"><span>${Math.round(score)}%</span></div></div>
+      <div class="job-head"><div><h3>${escapeHtml(job.title)}</h3><div class="company">${escapeHtml(job.company)}</div>${providerCredit(job)}</div><div class="score" style="--score:${score}"><span>${Math.round(score)}%</span></div></div>
       <div class="meta">${tags([job.location || 'Location unknown', job.work_mode || 'Work arrangement unknown'])}${job.salary ? tags([job.salary], 'good') : ''}${job.official_application ? '<span class="tag good">Official application</span>' : ''}${job.posted_date ? tags([job.posted_date]) : ''}</div>
       <div class="card-state-row"><span class="tag ${state === 'ACTIVE_VERIFIED' ? 'good' : 'warn'}">Verification: ${escapeHtml(state.replaceAll('_', ' '))}</span><span class="tag ${eligible === false ? 'bad' : 'good'}">Eligibility: ${eligible === false ? 'Not eligible' : 'No exclusion'}</span><span class="tag">Tracker: ${escapeHtml(trackerState.replaceAll('_', ' '))}</span>${outreachState !== 'NONE' ? `<span class="tag">Outreach: ${escapeHtml(outreachState)}</span>` : ''}</div>
       <div><strong class="muted">Matched skills</strong><div class="skill-row">${tags(match.matched_skills || job.matched_skills, 'good') || '<span class="muted">No explicit skill match</span>'}</div></div>
@@ -568,7 +606,7 @@ function renderSelectedJobContext() {
   const eligibility = selectedJob.eligibility || {};
   const application = applicationsByJob.get(selectedJob.id) || (selectedJob.application_id ? { id: selectedJob.application_id, status: 'SAVED', outreach_state: 'NONE' } : null);
   const url = safeExternalUrl(selectedJob.application_url);
-  root.innerHTML = `<div class="selected-title"><h4>${escapeHtml(selectedJob.title || 'Opportunity')}</h4><p>${escapeHtml(selectedJob.company || '')}</p></div>
+  root.innerHTML = `<div class="selected-title"><h4>${escapeHtml(selectedJob.title || 'Opportunity')}</h4><p>${escapeHtml(selectedJob.company || '')}</p>${providerCredit(selectedJob)}</div>
     <dl class="context-facts"><div><dt>Location</dt><dd>${escapeHtml(selectedJob.location || 'Unknown')}</dd></div><div><dt>Verification</dt><dd>${escapeHtml((selectedJob.verification_state || 'UNVERIFIED').replaceAll('_', ' '))}</dd></div><div><dt>Eligibility</dt><dd>${eligibility.eligible === false ? 'Not eligible' : 'No confirmed exclusion'}</dd></div><div><dt>Tracker</dt><dd>${escapeHtml((application?.status || 'NOT SAVED').replaceAll('_', ' '))}</dd></div><div><dt>Outreach</dt><dd>${escapeHtml(application?.outreach_state || 'NONE')}</dd></div></dl>
     <section class="drawer-section"><h3>Match evidence</h3><p>${escapeHtml(match.explanation || 'Review the requirements before acting.')}</p></section>
     <section class="drawer-section"><h3>Matched skills</h3><div class="skill-row">${tags(match.matched_skills || [], 'good') || '<span class="muted">No explicit skill match</span>'}</div></section>
@@ -951,11 +989,17 @@ async function refreshExistingConnections() {
 
   try {
     const search = await api("/connections/search/status");
+    const installed = (search.providers || []).filter(provider => provider.installed);
+    const ready = installed.filter(provider => provider.configured);
+    const list = installed.map(provider => `<li>${escapeHtml(provider.name)}: ${provider.configured ? "configured" : `skipped (add ${escapeHtml(provider.requires)} to .env)`}</li>`).join("");
     $("searchApiStatusBox").innerHTML = `
       <strong>${search.configured ? "Connected" : "Not configured"}</strong>
-      <p>${search.configured ? "JSearch credentials are configured. A job search checks provider availability." : "Add your JSearch credentials to the local configuration to enable job search."}</p>
+      <p>${search.configured ? "Searches use every configured provider. A provider without its key is skipped." : "Add at least one job provider key (JSearch, Adzuna or Jooble) to the local .env to enable job search."}</p>
+      ${list ? `<ul>${list}</ul>` : ""}
     `;
-    $("providerPill").textContent = `Search API: ${search.configured ? "connected" : "not configured"}`;
+    $("providerPill").textContent = installed.length
+      ? `Search API: ${ready.length} of ${installed.length} providers`
+      : `Search API: ${search.configured ? "connected" : "not configured"}`;
   } catch {
     $("searchApiStatusBox").textContent = "Job Search API status is unavailable. Please try again.";
     $("providerPill").textContent = "Search API: unavailable";

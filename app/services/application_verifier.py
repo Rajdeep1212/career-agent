@@ -92,9 +92,22 @@ def _has_explicit_closure(soup: BeautifulSoup, role: str) -> bool:
     return False
 
 
+AGGREGATOR_SOURCES = ("Adzuna", "Jooble")
+_AGGREGATOR_HOST = re.compile(r"(?:^|\.)(?:adzuna\.[a-z.]+|jooble\.org)$")
+
+
+def _is_aggregator_link(job: JobPosting) -> bool:
+    host = (urlparse(str(job.application_url)).hostname or "").lower().rstrip(".")
+    return job.source in AGGREGATOR_SOURCES or bool(_AGGREGATOR_HOST.search(host))
+
+
 async def verify_application(job: JobPosting) -> JobPosting:
     if not job.application_url:
         return _status(job, "UNVERIFIED", "No application URL was provided.")
+    if _is_aggregator_link(job):
+        # Adzuna and Jooble links are tracked redirects; an automated visit would count as a click.
+        return _status(job, "UNVERIFIED", "Aggregator link (Adzuna/Jooble): not checked automatically, because "
+                                          "automated visits would count as clicks. Open it to check the listing.")
     try:
         response = await safe_get(str(job.application_url), timeout=settings.request_timeout_seconds)
     except UnsafeURLError:

@@ -11,6 +11,8 @@ from collections import Counter
 from app.core.config import settings
 from app.models.career import SearchIntent
 from app.models.schemas import JobPosting
+from app.providers.base import ProviderError
+from app.providers.jsearch_provider import format_reset
 from app.providers.registry import get_providers
 from app.services.candidate_intelligence import analyze_candidate
 from app.services.search_intent import interpret_search_request
@@ -39,9 +41,42 @@ def _summary(diagnostics):
             f"{d.get('intent_rejected',0)} outside requested roles, "
             f"{d.get('below_match_threshold',0)} below the match threshold. "
             f"{d['final_recommendations']} recommendations. "
-            + ("Provider errors occurred; check Connections and the diagnostics." if d['errors'] else
+            + (f"Provider errors: {'; '.join(d['errors'][:3])}." if d['errors'] else
                "Broaden the role/location filters or include seen jobs if needed." if not d['final_recommendations'] else
                "Review evidence and application status before applying."))
+
+
+def _provider_error_message(name, exc):
+    """e.g. "JSearch/RapidAPI: HTTP 429 quota or rate limit exceeded, resets 01 Oct 2026 00:00 UTC"."""
+    if exc.status_code is None:
+        return f'{name}: {exc.reason or str(exc).rstrip(".")}'
+    message=f'{name}: HTTP {exc.status_code} {exc.reason or "request failed"}'
+    return message+(f', resets {format_reset(exc.reset_at)}' if exc.reset_at else '')
+
+
+def search_cost_warning(plan):
+    """Why the dashboard should ask before running this search, or None."""
+    requests=plan['provider_requests']
+    shares=plan.get('requests_by_provider',{})
+    parts=[]
+    if requests>=settings.search_warn_requests:
+        split=', '.join(f'{name} {count}' for name,count in shares.items())
+        parts.append(f"This search will send {requests} requests ({split}).")
+    for name,share in shares.items():
+        quota=plan.get('quotas',{}).get(name) or {}
+        remaining,limit=quota.get('remaining'),quota.get('limit')
+        if not share or remaining is None:
+            continue
+        # A per-key lifetime allowance (Jooble's free plan) is worth flagging before it runs out.
+        lifetime=quota.get('reset_at') is None and quota.get('counted_locally')
+        if remaining>share and not (lifetime and limit and remaining<=limit*0.1):
+            continue
+        text=f"Only {remaining}"+(f" of {limit}" if limit else '')+f" {name} requests remain"
+        text+=f" {quota['window']}" if quota.get('window') else ''
+        text+=f", resetting {format_reset(quota['reset_at'])}" if quota.get('reset_at') else ''
+        text+=' (counted on this machine)' if quota.get('counted_locally') else ''
+        parts.append(text+'.')
+    return ' '.join(parts) or None
 
 
 _PROFILE_LOCATION_REFERENCE = re.compile(
@@ -74,8 +109,8 @@ class CareerAgent:
     def __init__(self, providers=None):
         self.providers=providers
 
-    async def search(self, query, *, include_seen=False, session_id=None, strict_mode=None):
-        started=time.monotonic()
+    def _interpret(self, query, session_id, strict_mode):
+        """Profile, preferences, stored session and structured intent; no side effects."""
         profile=analyze_candidate(load_profile())
         preferences=preferences_for(profile)
         previous=career_store.get_session(session_id) if session_id else None
@@ -97,8 +132,32 @@ class CareerAgent:
         elif not previous and not intent.locations:
             intent.locations=preferences.preferred_locations[:]
         profile_key=hashlib.sha256(profile.model_dump_json().encode()).hexdigest()
+        reuse=bool(intent.filter_only and previous and previous['response'].get('_profile_key')==profile_key)
+        return profile,preferences,previous,intent,profile_key,reuse
+
+    def plan(self, query, *, session_id=None, strict_mode=None):
+        """The provider requests a search would send, without sending or storing anything."""
+        profile,preferences,_previous,intent,_key,reuse=self._interpret(query,session_id,strict_mode)
+        providers=self.providers if self.providers is not None else get_providers()
+        if reuse or not providers:
+            return dict(provider_requests=0,queries=[],providers=[p.name for p in providers],reuses_results=reuse)
+        roles=expand_roles(intent,profile)[:6]
+        queries=plan_search_queries(profile,intent,roles,preferences.search_query_limit)
+        # Mirrors search(): one request per planned query, round-robin across providers.
+        shares={}
+        for index in range(len(queries)):
+            name=providers[index%len(providers)].name
+            shares[name]=shares.get(name,0)+1
+        quotas={p.name:p.quota() for p in providers if callable(getattr(p,'quota',None))}
+        return dict(provider_requests=len(queries),queries=[q.query for q in queries],
+                    providers=list(dict.fromkeys(p.name for p in providers)),requests_by_provider=shares,
+                    quotas={name:quota for name,quota in quotas.items() if quota},reuses_results=False)
+
+    async def search(self, query, *, include_seen=False, session_id=None, strict_mode=None):
+        started=time.monotonic()
+        profile,preferences,previous,intent,profile_key,reuse=self._interpret(query,session_id,strict_mode)
         session_id=session_id or str(uuid.uuid4())
-        if intent.filter_only and previous and previous['response'].get('_profile_key')==profile_key:
+        if reuse:
             response=previous['response']
             ranked=response.get('_ranked_candidates',response.get('results',[]))
             response['results']=[r for r in ranked if r['total_score']>=intent.minimum_match_score][:50]
@@ -117,7 +176,9 @@ class CareerAgent:
         diagnostics=dict(generated_queries=len(queries),provider_requests=0,provider_results=0,
             unique_jobs=0,already_seen=0,active_verified=0,likely_active=0,unverified=0,closed=0,
             eligibility_rejected=0,intent_rejected=0,ranked_results=0,final_recommendations=0,
-            below_match_threshold=0,provider_counts={},errors=[],filtered_examples=[],reused_results=False)
+            below_match_threshold=0,provider_counts={},errors=[],provider_errors=[],skipped_requests=0,
+            filtered_examples=[],reused_results=False)
+        blocked=set()
         jobs=[]
         if not providers:diagnostics['errors'].append('No configured provider is available.')
         # One request per planned query, distributed across enabled providers.
@@ -125,9 +186,13 @@ class CareerAgent:
         for index,planned in enumerate(queries if providers else []):
             provider=providers[index%len(providers)]
             name=provider.name
+            if name in blocked:
+                diagnostics['skipped_requests']+=1
+                continue
             diagnostics['provider_requests']+=1
             try:
-                returned=await provider.search(planned.query)
+                search_planned=getattr(provider,'search_planned',None)
+                returned=await (search_planned(planned) if search_planned else provider.search(planned.query))
                 if not isinstance(returned,list):raise ValueError('Invalid provider result')
                 diagnostics['provider_results']+=len(returned)
                 diagnostics['provider_counts'][name]=diagnostics['provider_counts'].get(name,0)+len(returned)
@@ -138,6 +203,15 @@ class CareerAgent:
                         jobs.append(job)
                     except (ValueError,TypeError):
                         diagnostics['errors'].append(f'{name}: a malformed listing was skipped.')
+            except ProviderError as exc:
+                message=_provider_error_message(name,exc)
+                if message not in diagnostics['errors']:
+                    diagnostics['errors'].append(message)
+                    diagnostics['provider_errors'].append(dict(provider=name,status_code=exc.status_code,
+                        reason=exc.reason,reset_at=exc.reset_at,remaining=exc.remaining,limit=exc.limit))
+                # Credential and quota failures repeat for every query; stop spending requests.
+                if exc.status_code in (401,403,429) or exc.status_code is None and exc.reason is None:
+                    blocked.add(name)
             except Exception:
                 message=f'{name}: request unavailable; check provider configuration/access/quota.'
                 if message not in diagnostics['errors']:diagnostics['errors'].append(message)

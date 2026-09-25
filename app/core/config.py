@@ -1,5 +1,8 @@
+import re
 from pathlib import Path
-from pydantic import Field
+from urllib.parse import urlsplit
+
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -8,13 +11,29 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 
 class Settings(BaseSettings):
     app_name: str = "Career Agent"
+    # The one browser origin trusted for mutations (scheme://host:port, no path).
+    app_origin: str = "http://localhost:8010"
 
     # Job search provider
     rapidapi_key: str | None = None
     rapidapi_host: str = "jsearch.p.rapidapi.com"
-    job_providers: str = "jsearch"
+    # Adzuna (https://developer.adzuna.com/) and Jooble (https://jooble.org/api/about).
+    # Each provider is optional: without its key it is skipped.
+    adzuna_app_id: str | None = None
+    adzuna_app_key: str | None = None
+    jooble_api_key: str | None = None
+    # A Jooble key works only on the country site it was issued for (India: in.jooble.org).
+    jooble_host: str = "in.jooble.org"
+    # Published free-plan limits, counted locally because these APIs do not report usage.
+    adzuna_daily_limit: int = Field(default=250, ge=1)
+    adzuna_monthly_limit: int = Field(default=2500, ge=1)
+    jooble_key_limit: int = Field(default=500, ge=1)
+    # Comma-separated; providers without credentials are skipped.
+    job_providers: str = "jsearch,adzuna,jooble"
     search_country: str = "in"
     verification_concurrency: int = 4
+    # Ask before a dashboard search that will send at least this many provider requests.
+    search_warn_requests: int = Field(default=5, ge=1, le=50)
 
     # HTTP safety / verification
     request_timeout_seconds: float = 20.0
@@ -48,6 +67,29 @@ class Settings(BaseSettings):
 
     data_dir: str = str(BASE_DIR / "data")
     upload_dir: str = str(BASE_DIR / "data" / "uploads")
+
+    @field_validator("jooble_host")
+    @classmethod
+    def _jooble_site(cls, value: str) -> str:
+        # The API key is sent in the URL path, so only Jooble's own country sites are allowed.
+        value = value.strip().lower()
+        if not re.fullmatch(r"(?:[a-z]{2}\.)?jooble\.org", value):
+            raise ValueError("JOOBLE_HOST must be a Jooble country site such as in.jooble.org")
+        return value
+
+    @field_validator("app_origin")
+    @classmethod
+    def _plain_origin(cls, value: str) -> str:
+        value = value.strip().rstrip("/")
+        try:
+            parts = urlsplit(value)
+            parts.port
+        except ValueError as exc:
+            raise ValueError("APP_ORIGIN must look like http://localhost:8010") from exc
+        if (parts.scheme not in ("http", "https") or not parts.hostname or parts.path
+                or parts.query or parts.fragment or parts.username or parts.password):
+            raise ValueError("APP_ORIGIN must look like http://localhost:8010")
+        return value
 
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),

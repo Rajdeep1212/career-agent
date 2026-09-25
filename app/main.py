@@ -2,7 +2,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
-from fastapi.responses import RedirectResponse, FileResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
@@ -18,6 +18,7 @@ from app.models.schemas import (
     RankJobsRequest,
     CreateEmailDraftRequest,
     AgentSearchRequest,
+    SearchPreviewRequest,
     PrepareJobEmailRequest,
     CandidateProfileUpdate,
     JobSearchPreferencesUpdate,
@@ -25,8 +26,9 @@ from app.models.schemas import (
 from app.services.cv_parser import extract_pdf_text, parse_profile_from_text
 from app.services.ranker import rank_jobs
 from app.providers.mock_provider import MockJobProvider
-from app.services.search_pipeline import search_verify_rank
-from app.services.career_agent import CareerAgent
+from app.agent.routing import deterministic_action
+from app.providers.registry import provider_status
+from app.services.career_agent import CareerAgent, search_cost_warning
 from app.services.gmail_service import (
     build_authorization_url,
     exchange_callback,
@@ -58,7 +60,7 @@ from app.storage.email_store import (
     approve_draft,
     cancel_draft,
 )
-from app.storage.profile_store import load_profile, save_profile
+from app.storage.profile_store import ProfileUnreadableError, load_profile, save_profile
 from app.storage.preference_store import preferences_for, save_preferences
 
 
@@ -68,6 +70,21 @@ app.include_router(linkedin_router)
 app.include_router(career_router)
 app.include_router(chat_router)
 career_agent = CareerAgent()
+
+
+@app.exception_handler(ProfileUnreadableError)
+async def profile_unreadable(_request: Request, exc: ProfileUnreadableError):
+    # Show the problem instead of recommending jobs for the fictional demo profile.
+    return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+
+def _upload_baseline() -> CandidateProfile:
+    """Saved role/location preferences to carry into a new CV, if they can be read."""
+    try:
+        return load_profile()
+    except ProfileUnreadableError:
+        return CandidateProfile()
+
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -80,15 +97,18 @@ def root():
 
 @app.get("/app/")
 def dashboard(request: Request):
-    if request.url.hostname == "127.0.0.1":
-        return RedirectResponse("http://localhost:8010/app/", status_code=303)
+    # Browser mutations are accepted only from APP_ORIGIN, so move loopback-IP
+    # visitors (e.g. http://127.0.0.1:8010) to that origin first.
+    if request.url.hostname in ("127.0.0.1", "::1") and str(request.base_url).rstrip("/") != settings.app_origin:
+        return RedirectResponse(settings.app_origin + "/app/", status_code=303)
     return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/connections/search/status")
 def search_connection_status():
     # Configuration only; no paid provider call just to render Connections.
-    return {"configured": bool(settings.rapidapi_key)}
+    providers = provider_status()
+    return {"configured": any(item["installed"] and item["configured"] for item in providers), "providers": providers}
 
 
 @app.get("/health")
@@ -141,7 +161,8 @@ def update_current_preferences(update: JobSearchPreferencesUpdate, request: Requ
 
 
 @app.post("/cv/parse", response_model=CandidateProfile)
-async def parse_cv(file: UploadFile = File(...)):
+async def parse_cv(request: Request, file: UploadFile = File(...)):
+    require_local_origin(request)
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF CVs are supported.")
 
@@ -151,7 +172,7 @@ async def parse_cv(file: UploadFile = File(...)):
 
     try:
         parsed = parse_profile_from_text(extract_pdf_text(tmp_path))
-        baseline = load_profile()
+        baseline = _upload_baseline()
         parsed.preferred_locations = baseline.preferred_locations
         parsed.preferred_roles = baseline.preferred_roles
         return parsed
@@ -173,7 +194,7 @@ async def upload_cv(request: Request, file: UploadFile = File(...)):
 
     try:
         parsed = parse_profile_from_text(extract_pdf_text(tmp_path))
-        baseline = load_profile()
+        baseline = _upload_baseline()
         parsed.preferred_locations = baseline.preferred_locations
         parsed.preferred_roles = baseline.preferred_roles
         save_profile(parsed)
@@ -219,14 +240,13 @@ async def demo_search_and_rank(query: str = "AI ML Python fresher India"):
 
 
 @app.get("/jobs/search-and-rank")
-async def real_search_and_rank(
-    query: str = "AI ML Python fresher India",
-    include_seen: bool = False,
-):
-    try:
-        return await search_verify_rank(query, include_seen=include_seen)
-    except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
+def retired_search_and_rank():
+    # Retired: a GET that spent provider quota and changed seen-history could be
+    # triggered by any website. Kept as 410 for one release, then deleted.
+    raise HTTPException(
+        status_code=410,
+        detail="This endpoint was retired. Search from the dashboard, which uses POST /agent/search.",
+    )
 
 
 @app.post("/agent/search")
@@ -248,15 +268,33 @@ async def agent_search(request: AgentSearchRequest):
         raise HTTPException(status_code=503, detail=str(exc))
 
 
+@app.post("/agent/search/preview")
+def preview_search(payload: SearchPreviewRequest, request: Request):
+    """What a chat message would spend on providers; sends and stores nothing."""
+    require_local_origin(request)
+    if deterministic_action(payload.message) != "search_jobs":
+        return {"will_search": False}
+    try:
+        plan = career_agent.plan(payload.message, session_id=payload.career_session_id,
+                                 strict_mode=payload.strict_mode)
+    except ValueError:
+        # An unknown session is reported by the search itself.
+        return {"will_search": False}
+    return {"will_search": True, **plan, "warning": search_cost_warning(plan)}
+
+
 @app.post("/attachments")
-async def upload_attachment(file: UploadFile = File(...)):
+async def upload_attachment(request: Request, file: UploadFile = File(...)):
+    require_local_origin(request)
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename is required.")
 
     try:
-        return save_attachment(file.filename, await file.read())
+        attachment = save_attachment(file.filename, await file.read())
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    # Never expose the local filesystem path to the browser.
+    return {key: attachment[key] for key in ("id", "original_name", "mime_type", "size_bytes")}
 
 
 # -------------------------
@@ -287,7 +325,8 @@ def google_callback(code: str, state: str):
 
 
 @app.delete("/auth/google/disconnect")
-def google_disconnect():
+def google_disconnect(request: Request):
+    require_local_origin(request)
     delete_token("gmail")
     return {"connected": False}
 
@@ -300,7 +339,7 @@ def require_local_origin(request: Request) -> None:
     if not has_exact_local_origin(request):
         raise HTTPException(
             status_code=403,
-            detail="Open the localhost dashboard to modify email drafts.",
+            detail="Open the localhost dashboard to make this change.",
         )
 
 

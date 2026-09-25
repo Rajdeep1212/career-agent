@@ -71,12 +71,27 @@ def build_authorization_url() -> str:
     )
     flow.redirect_uri = settings.google_redirect_uri
 
+    # No include_granted_scopes: earlier grants on this client must not be merged in.
     authorization_url, _ = flow.authorization_url(
         access_type="offline",
-        include_granted_scopes="true",
         prompt="consent",
     )
     return authorization_url
+
+
+_SCOPE_ERROR = (
+    "Google granted permissions other than gmail.send, so nothing was saved. "
+    "Remove this app's access in your Google account settings, then connect Gmail again."
+)
+
+
+def _granted_scopes(flow) -> set[str]:
+    """Scopes Google actually granted, from the token response."""
+    granted = (getattr(flow.oauth2session, "token", None) or {}).get("scope")
+    if granted is None:
+        # Per RFC 6749 section 5.1, an omitted scope means the requested scope was granted.
+        return set(SCOPES)
+    return set(granted.split() if isinstance(granted, str) else granted)
 
 
 def exchange_callback(code: str, state: str) -> dict:
@@ -91,7 +106,13 @@ def exchange_callback(code: str, state: str) -> dict:
         state=state,
     )
     flow.redirect_uri = settings.google_redirect_uri
-    flow.fetch_token(code=code)
+    try:
+        flow.fetch_token(code=code)
+    except Warning as exc:
+        # oauthlib raises a Warning when Google grants different scopes.
+        raise ValueError(_SCOPE_ERROR) from exc
+    if _granted_scopes(flow) != set(SCOPES):
+        raise ValueError(_SCOPE_ERROR)
 
     credentials = flow.credentials
 

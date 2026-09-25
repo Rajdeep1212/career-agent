@@ -65,8 +65,14 @@ Open `http://localhost:8010/app/`. Windows users may instead run
 
 | Setting | Purpose |
 | --- | --- |
+| `APP_ORIGIN` | The only browser origin allowed to change data; defaults to `http://localhost:8010`. |
+| `JOB_PROVIDERS` | Job providers to use (default `jsearch,adzuna,jooble`); a provider without its key is skipped. |
 | `RAPIDAPI_KEY` | Enables live JSearch requests. |
 | `RAPIDAPI_HOST` | JSearch RapidAPI host. |
+| `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` | Enable Adzuna (India). Jobs are labeled "Jobs by Adzuna" as its terms require. |
+| `JOOBLE_API_KEY`, `JOOBLE_HOST` | Enable Jooble; the key must match its country site (default `in.jooble.org`). |
+| `ADZUNA_DAILY_LIMIT`, `ADZUNA_MONTHLY_LIMIT`, `JOOBLE_KEY_LIMIT` | Free-plan limits (250/day and 2,500/month for Adzuna, 500 per key in total for Jooble). Requests are counted on this machine, and the dashboard warns before a search that would exceed them. |
+| `SEARCH_WARN_REQUESTS` | The dashboard asks before a search that will send at least this many provider requests (default 5), or more than a provider's remaining quota. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Enable Gmail OAuth. |
 | `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` | Enable LinkedIn OpenID Connect. |
 | `TOKEN_ENCRYPTION_KEY` | Encrypts locally stored OAuth tokens. |

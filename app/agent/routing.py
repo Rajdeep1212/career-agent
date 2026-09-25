@@ -44,7 +44,24 @@ def deterministic_action(message: str) -> str:
         return "search_jobs"
     if re.search(r"\b(?:save|track)\b.{0,30}\b(?:job|application)\b", value):
         return "save_application"
+    if _is_role_query(value):
+        return "search_jobs"
     return "career_advice"
+
+
+_ROLE_NOUN = re.compile(
+    r"\b(?:engineers?|developers?|analysts?|scientists?|designers?|interns?|internships?|trainees?|"
+    r"testers?|architects?|researchers?|consultants?|associates?|executives?|specialists?|"
+    r"administrators?|accountants?|recruiters?|writers?|managers?)\b"
+)
+_QUESTION = re.compile(
+    r"\?|^\s*(?:what|how|why|when|where|which|who|should|can|could|would|is|are|do|does|tell|explain|help)\b"
+)
+
+
+def _is_role_query(value: str) -> bool:
+    """A short role phrase such as "GenAI engineer fresher" is a search, not a question."""
+    return len(value.split()) <= 10 and not _QUESTION.search(value) and bool(_ROLE_NOUN.search(value))
 
 
 def is_ambiguous_followup(message: str, *, has_reference: bool = False) -> bool:

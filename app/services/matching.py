@@ -2,18 +2,26 @@
 import re
 from datetime import datetime, timezone
 from app.models.career import MatchResult
+from app.services.skills import KNOWN_SKILLS, contains_phrase
 
 STOP={'engineer','junior','senior','jobs','job','role','roles','and','the','of','in'}
+# Whole-token synonyms; substring replacement turned "Qatar" into "testingtar".
+_VOCABULARY={s.casefold() for s in KNOWN_SKILLS}
+SYNONYMS={'qa':'testing','tester':'testing','testers':'testing','analyst':'analysis','analysts':'analysis'}
 
 
 def words(text):
-    text=text.lower().replace('qa','testing').replace('tester','testing').replace('analyst','analysis')
-    return set(re.findall(r'[a-z0-9+#]+',text))-STOP
+    tokens=re.findall(r'[a-z0-9+#]+',text.lower())
+    return {SYNONYMS.get(token,token) for token in tokens}-STOP
 
 
 def match_job(profile, job, intent, eligibility):
     candidate={s.casefold():s for s in profile.skills}
     required={s.casefold():s for s in job.skills}
+    # A CV skill outside the shared vocabulary still counts when the listing names it.
+    posting=job.title+' '+job.description
+    required.update({key:value for key,value in candidate.items() if key not in required
+                     and key not in _VOCABULARY and len(key)>=3 and contains_phrase(posting,value)})
     matched=[candidate[s] for s in candidate if s in required]
     missing=[required[s] for s in required if s not in candidate]
     skill=round(35*len(matched)/len(required)) if required else 0
@@ -23,9 +31,9 @@ def match_job(profile, job, intent, eligibility):
     if not targets:
         role=min(15,5*len(matched))
     transfer=[]
-    if any(w in job.title.lower() for w in ('qa','test','quality')):
+    if title_words&{'testing','test','quality'}:
         transfer=[s for s in profile.skills if s.casefold() in ('python','postman','rest api','sql','api testing') and s not in matched]
-    elif any(w in job.title.lower() for w in ('analyst','analytics','business','operations')):
+    elif title_words&{'analysis','analytics','business','operations'}:
         transfer=[s for s in profile.skills if s.casefold() in ('python','sql','excel','power bi','tableau','communication') and s not in matched]
     transfer_score=min(5,len(transfer)*2)
     experience=10 if eligibility.experience_match=='match' else 5 if eligibility.experience_match=='possible' else 0

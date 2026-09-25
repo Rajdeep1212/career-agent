@@ -1,0 +1,682 @@
+{
+  "version": 1,
+  "description": "Shared skill vocabulary for CVs and job posts. Never edit a released version; add v2.json instead.",
+  "match_modes": {
+    "normal": "case-insensitive whole phrase",
+    "strict": "case-sensitive; not joined to &, /, - or an apostrophe (R&D is not R)",
+    "alias_only": "the bare name is too common a word; only aliases match free text"
+  },
+  "skills": [
+    {
+      "name": "Python",
+      "category": "technical"
+    },
+    {
+      "name": "C++",
+      "category": "technical"
+    },
+    {
+      "name": "C#",
+      "category": "technical"
+    },
+    {
+      "name": "Java",
+      "category": "technical"
+    },
+    {
+      "name": "JavaScript",
+      "category": "technical"
+    },
+    {
+      "name": "TypeScript",
+      "category": "technical"
+    },
+    {
+      "name": "SQL",
+      "category": "technical"
+    },
+    {
+      "name": "R",
+      "category": "technical",
+      "match": "strict"
+    },
+    {
+      "name": "PyTorch",
+      "category": "technical"
+    },
+    {
+      "name": "TensorFlow",
+      "category": "technical"
+    },
+    {
+      "name": "Keras",
+      "category": "technical"
+    },
+    {
+      "name": "scikit-learn",
+      "category": "technical",
+      "aliases": [
+        "sklearn",
+        "scikit learn"
+      ]
+    },
+    {
+      "name": "NumPy",
+      "category": "technical"
+    },
+    {
+      "name": "Pandas",
+      "category": "technical"
+    },
+    {
+      "name": "OpenCV",
+      "category": "technical"
+    },
+    {
+      "name": "Machine Learning",
+      "category": "technical"
+    },
+    {
+      "name": "Deep Learning",
+      "category": "technical"
+    },
+    {
+      "name": "NLP",
+      "category": "technical",
+      "aliases": [
+        "natural language processing"
+      ]
+    },
+    {
+      "name": "LLM",
+      "category": "technical",
+      "aliases": [
+        "LLMs",
+        "large language model",
+        "large language models"
+      ]
+    },
+    {
+      "name": "RAG",
+      "category": "technical",
+      "aliases": [
+        "retrieval-augmented generation",
+        "retrieval augmented generation"
+      ]
+    },
+    {
+      "name": "Prompt Engineering",
+      "category": "technical"
+    },
+    {
+      "name": "Hugging Face",
+      "category": "technical",
+      "aliases": [
+        "HuggingFace"
+      ]
+    },
+    {
+      "name": "Docker",
+      "category": "technical"
+    },
+    {
+      "name": "Kubernetes",
+      "category": "technical",
+      "aliases": [
+        "k8s"
+      ]
+    },
+    {
+      "name": "MLflow",
+      "category": "technical"
+    },
+    {
+      "name": "GCP",
+      "category": "technical",
+      "aliases": [
+        "Google Cloud"
+      ]
+    },
+    {
+      "name": "AWS",
+      "category": "technical",
+      "aliases": [
+        "Amazon Web Services"
+      ]
+    },
+    {
+      "name": "Azure",
+      "category": "technical",
+      "aliases": [
+        "Microsoft Azure"
+      ]
+    },
+    {
+      "name": "Git",
+      "category": "technical"
+    },
+    {
+      "name": "GitHub",
+      "category": "technical"
+    },
+    {
+      "name": "CI/CD",
+      "category": "technical"
+    },
+    {
+      "name": "Postman",
+      "category": "technical"
+    },
+    {
+      "name": "FastAPI",
+      "category": "technical"
+    },
+    {
+      "name": "Flask",
+      "category": "technical"
+    },
+    {
+      "name": "REST API",
+      "category": "technical",
+      "aliases": [
+        "REST APIs",
+        "RESTful API",
+        "RESTful APIs"
+      ]
+    },
+    {
+      "name": "React",
+      "category": "technical",
+      "aliases": [
+        "React.js",
+        "ReactJS"
+      ]
+    },
+    {
+      "name": "Node.js",
+      "category": "technical",
+      "aliases": [
+        "NodeJS"
+      ]
+    },
+    {
+      "name": "MySQL",
+      "category": "technical"
+    },
+    {
+      "name": "PostgreSQL",
+      "category": "technical",
+      "aliases": [
+        "Postgres"
+      ]
+    },
+    {
+      "name": "MongoDB",
+      "category": "technical"
+    },
+    {
+      "name": "HTML",
+      "category": "technical"
+    },
+    {
+      "name": "CSS",
+      "category": "technical"
+    },
+    {
+      "name": "Linux",
+      "category": "technical"
+    },
+    {
+      "name": "AutoCAD",
+      "category": "technical"
+    },
+    {
+      "name": "MATLAB",
+      "category": "technical"
+    },
+    {
+      "name": "SolidWorks",
+      "category": "technical"
+    },
+    {
+      "name": "Data Analysis",
+      "category": "technical"
+    },
+    {
+      "name": "Statistics",
+      "category": "technical"
+    },
+    {
+      "name": "Excel",
+      "category": "business",
+      "aliases": [
+        "MS Excel",
+        "Microsoft Excel"
+      ]
+    },
+    {
+      "name": "Advanced Excel",
+      "category": "business"
+    },
+    {
+      "name": "Power BI",
+      "category": "business",
+      "aliases": [
+        "PowerBI"
+      ]
+    },
+    {
+      "name": "Tableau",
+      "category": "business"
+    },
+    {
+      "name": "Financial Modeling",
+      "category": "business"
+    },
+    {
+      "name": "Financial Analysis",
+      "category": "business"
+    },
+    {
+      "name": "Financial Reporting",
+      "category": "business"
+    },
+    {
+      "name": "Accounting",
+      "category": "business"
+    },
+    {
+      "name": "Bookkeeping",
+      "category": "business"
+    },
+    {
+      "name": "Market Research",
+      "category": "business"
+    },
+    {
+      "name": "Business Analysis",
+      "category": "business"
+    },
+    {
+      "name": "Project Management",
+      "category": "business"
+    },
+    {
+      "name": "Product Management",
+      "category": "business"
+    },
+    {
+      "name": "Sales",
+      "category": "business"
+    },
+    {
+      "name": "Marketing",
+      "category": "business"
+    },
+    {
+      "name": "Digital Marketing",
+      "category": "business"
+    },
+    {
+      "name": "SEO",
+      "category": "business"
+    },
+    {
+      "name": "CRM",
+      "category": "business"
+    },
+    {
+      "name": "Salesforce",
+      "category": "business"
+    },
+    {
+      "name": "SAP",
+      "category": "business"
+    },
+    {
+      "name": "Operations",
+      "category": "business"
+    },
+    {
+      "name": "Supply Chain",
+      "category": "business"
+    },
+    {
+      "name": "Inventory Management",
+      "category": "business"
+    },
+    {
+      "name": "Recruitment",
+      "category": "business"
+    },
+    {
+      "name": "HR",
+      "category": "business"
+    },
+    {
+      "name": "Figma",
+      "category": "design"
+    },
+    {
+      "name": "Sketch",
+      "category": "design"
+    },
+    {
+      "name": "Adobe XD",
+      "category": "design"
+    },
+    {
+      "name": "Photoshop",
+      "category": "design"
+    },
+    {
+      "name": "Illustrator",
+      "category": "design"
+    },
+    {
+      "name": "InDesign",
+      "category": "design"
+    },
+    {
+      "name": "Canva",
+      "category": "design"
+    },
+    {
+      "name": "UI Design",
+      "category": "design"
+    },
+    {
+      "name": "UX Design",
+      "category": "design"
+    },
+    {
+      "name": "User Research",
+      "category": "design"
+    },
+    {
+      "name": "Wireframing",
+      "category": "design"
+    },
+    {
+      "name": "Prototyping",
+      "category": "design"
+    },
+    {
+      "name": "Typography",
+      "category": "design"
+    },
+    {
+      "name": "Graphic Design",
+      "category": "design"
+    },
+    {
+      "name": "Interaction Design",
+      "category": "design"
+    },
+    {
+      "name": "Visual Design",
+      "category": "design"
+    },
+    {
+      "name": "Communication",
+      "category": "transferable"
+    },
+    {
+      "name": "Teamwork",
+      "category": "transferable"
+    },
+    {
+      "name": "Leadership",
+      "category": "transferable"
+    },
+    {
+      "name": "Problem Solving",
+      "category": "transferable"
+    },
+    {
+      "name": "Critical Thinking",
+      "category": "transferable"
+    },
+    {
+      "name": "Stakeholder Management",
+      "category": "transferable"
+    },
+    {
+      "name": "Negotiation",
+      "category": "transferable"
+    },
+    {
+      "name": "Presentation",
+      "category": "transferable"
+    },
+    {
+      "name": "Public Speaking",
+      "category": "transferable"
+    },
+    {
+      "name": "Time Management",
+      "category": "transferable"
+    },
+    {
+      "name": "Collaboration",
+      "category": "transferable"
+    },
+    {
+      "name": "Customer Service",
+      "category": "transferable"
+    },
+    {
+      "name": "Writing",
+      "category": "transferable"
+    },
+    {
+      "name": "Research",
+      "category": "transferable"
+    },
+    {
+      "name": "LangChain",
+      "category": "technical"
+    },
+    {
+      "name": "LangGraph",
+      "category": "technical"
+    },
+    {
+      "name": "LlamaIndex",
+      "category": "technical",
+      "aliases": [
+        "Llama Index"
+      ]
+    },
+    {
+      "name": "Transformers",
+      "category": "technical",
+      "match": "strict"
+    },
+    {
+      "name": "Vector Database",
+      "category": "technical",
+      "aliases": [
+        "vector databases",
+        "vector DB",
+        "vector DBs",
+        "vector store",
+        "vector stores"
+      ]
+    },
+    {
+      "name": "FAISS",
+      "category": "technical"
+    },
+    {
+      "name": "ChromaDB",
+      "category": "technical",
+      "aliases": [
+        "Chroma DB"
+      ]
+    },
+    {
+      "name": "Pinecone",
+      "category": "technical"
+    },
+    {
+      "name": "Qdrant",
+      "category": "technical"
+    },
+    {
+      "name": "Weaviate",
+      "category": "technical"
+    },
+    {
+      "name": "Milvus",
+      "category": "technical"
+    },
+    {
+      "name": "pgvector",
+      "category": "technical"
+    },
+    {
+      "name": "Fine-tuning",
+      "category": "technical",
+      "aliases": [
+        "fine tuning",
+        "finetuning",
+        "fine-tune",
+        "fine tune"
+      ]
+    },
+    {
+      "name": "LoRA",
+      "category": "technical",
+      "aliases": [
+        "QLoRA"
+      ],
+      "match": "strict"
+    },
+    {
+      "name": "PEFT",
+      "category": "technical"
+    },
+    {
+      "name": "vLLM",
+      "category": "technical"
+    },
+    {
+      "name": "Ollama",
+      "category": "technical"
+    },
+    {
+      "name": "OpenAI API",
+      "category": "technical",
+      "aliases": [
+        "OpenAI"
+      ]
+    },
+    {
+      "name": "Generative AI",
+      "category": "technical",
+      "aliases": [
+        "GenAI",
+        "Gen AI"
+      ]
+    },
+    {
+      "name": "AI Agents",
+      "category": "technical",
+      "aliases": [
+        "agentic AI",
+        "LLM agents"
+      ]
+    },
+    {
+      "name": "Computer Vision",
+      "category": "technical"
+    },
+    {
+      "name": "MLOps",
+      "category": "technical"
+    },
+    {
+      "name": "XGBoost",
+      "category": "technical"
+    },
+    {
+      "name": "LightGBM",
+      "category": "technical"
+    },
+    {
+      "name": "Jupyter",
+      "category": "technical",
+      "aliases": [
+        "Jupyter Notebook"
+      ]
+    },
+    {
+      "name": "Airflow",
+      "category": "technical",
+      "aliases": [
+        "Apache Airflow"
+      ]
+    },
+    {
+      "name": "Spark",
+      "category": "technical",
+      "aliases": [
+        "PySpark",
+        "Apache Spark"
+      ],
+      "match": "strict"
+    },
+    {
+      "name": "ONNX",
+      "category": "technical"
+    },
+    {
+      "name": "Streamlit",
+      "category": "technical"
+    },
+    {
+      "name": "Gradio",
+      "category": "technical"
+    },
+    {
+      "name": "Django",
+      "category": "technical"
+    },
+    {
+      "name": "Redis",
+      "category": "technical"
+    },
+    {
+      "name": "Kafka",
+      "category": "technical",
+      "aliases": [
+        "Apache Kafka"
+      ]
+    },
+    {
+      "name": "Terraform",
+      "category": "technical"
+    },
+    {
+      "name": "GitHub Actions",
+      "category": "technical"
+    },
+    {
+      "name": "Selenium",
+      "category": "technical"
+    },
+    {
+      "name": "pytest",
+      "category": "technical"
+    },
+    {
+      "name": "Go",
+      "category": "technical",
+      "aliases": [
+        "Golang"
+      ],
+      "match": "alias_only"
+    }
+  ]
+}
