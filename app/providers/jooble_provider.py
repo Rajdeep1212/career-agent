@@ -22,10 +22,6 @@ _STATUS_REASONS = {
 }
 
 
-def attribution() -> dict:
-    return {"label": "Jobs via Jooble", "url": f"https://{settings.jooble_host}"}
-
-
 def normalize_item(item: dict) -> JobPosting:
     return build_posting(
         source="Jooble", title=item.get("title"), company=item.get("company"),

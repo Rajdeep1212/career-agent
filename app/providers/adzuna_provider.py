@@ -14,7 +14,6 @@ from app.models.schemas import JobPosting
 from app.providers.base import JobProvider, ProviderError
 from app.providers.common import build_posting, split_location
 
-ATTRIBUTION = {"label": "Jobs by Adzuna", "url": "https://www.adzuna.co.uk"}
 _BASE_URL = "https://api.adzuna.com/v1/api/jobs"
 _COUNTRY_NAMES = ("india", "in")
 _STATUS_REASONS = {

@@ -360,6 +360,15 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   assert.doesNotMatch(d.elements.get('searchApiStatusBox').innerHTML, /linkedin_jobs/);
   assert.equal(d.elements.get('providerPill').textContent, 'Search API: 1 of 2 providers');
 
+  // Jobs from aggregators carry the credit their terms require.
+  const markup = vm.runInContext(`jobCardsMarkup([
+    { id: '${'a'.repeat(64)}', title: 'Data Analyst', company: 'Example', source: 'Adzuna', application_url: 'https://www.adzuna.in/land/ad/1' },
+    { id: '${'b'.repeat(64)}', title: 'Data Analyst', company: 'Example', source: 'Jooble', application_url: 'https://in.jooble.org/desc/1' },
+    { id: '${'c'.repeat(64)}', title: 'Data Analyst', company: 'Example', source: 'JSearch/RapidAPI', application_url: 'https://example.com/jobs/1' }])`, d.context);
+  assert.match(markup, /<a href="https:\/\/www\.adzuna\.co\.uk"[^>]*>Jobs<\/a> by <a href="https:\/\/www\.adzuna\.co\.uk"[^>]*>Adzuna<\/a>/);
+  assert.match(markup, /Jobs via <a href="https:\/\/in\.jooble\.org"[^>]*>Jooble<\/a>/);
+  assert.equal((markup.match(/provider-credit/g) || []).length, 2);
+
   // A costly search asks first; cancelling sends nothing to /chat/run.
   const costly = { will_search: true, provider_requests: 8, warning: 'This search will send 8 requests to JSearch/RapidAPI.' };
   d = await dashboard({ configured: true, connected: false }, '', false, {
