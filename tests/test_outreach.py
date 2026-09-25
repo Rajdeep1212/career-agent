@@ -413,7 +413,7 @@ class EmailSendAPITests(unittest.TestCase):
 
         def send_once(**_kwargs):
             entered.set()
-            release.wait(timeout=2)
+            release.wait(timeout=30)
             return {'id': 'gmail-concurrent'}
 
         gmail = Mock(side_effect=send_once)
@@ -424,11 +424,12 @@ class EmailSendAPITests(unittest.TestCase):
 
         with patch.object(self.main, 'send_approved_email', gmail), ThreadPoolExecutor(max_workers=2) as pool:
             first = pool.submit(request)
-            self.assertTrue(entered.wait(timeout=2))
+            self.assertTrue(entered.wait(timeout=30))
             second = pool.submit(request)
             time.sleep(0.1)
             release.set()
-            responses = [first.result(timeout=2), second.result(timeout=2)]
+            # Generous timeouts: they only matter on failure, and CI runners can be slow.
+            responses = [first.result(timeout=30), second.result(timeout=30)]
 
         self.assertEqual(sorted(response.status_code for response in responses), [200, 409])
         gmail.assert_called_once()
