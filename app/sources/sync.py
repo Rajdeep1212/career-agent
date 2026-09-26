@@ -53,7 +53,7 @@ async def _smartrecruiters(company: CompanyEntry, fetcher: PoliteFetcher, known:
             requested += 1
             try:
                 jobs.append(await smartrecruiters.fetch_detail(company, fetcher, job))
-            except (SourceError, httpx.HTTPError):
+            except (SourceError, httpx.HTTPError, OSError):
                 failures += 1
                 jobs.append(job)
         else:
@@ -85,7 +85,7 @@ async def _check_missing(company: CompanyEntry, fetcher: PoliteFetcher, today: d
     for job in radar_store.missing_from_window(company.id)[:PAGE_CHECK_CAP]:
         try:
             reason = await sitemap.check_page(company, fetcher, job, today=today)
-        except (SourceError, RobotsDisallowed, httpx.HTTPError):
+        except (SourceError, RobotsDisallowed, httpx.HTTPError, OSError):
             failed += 1
             continue
         if reason:
@@ -120,7 +120,8 @@ async def sync_company(company: CompanyEntry, fetcher: PoliteFetcher, *, today: 
             notes.append(f"{failed_checks} job-page checks failed")
         if notes:
             outcome.status, outcome.note = "partial", "; ".join(notes)
-    except (SourceError, HostBlocked, RobotsDisallowed, httpx.HTTPError, ValueError) as exc:
+    # OSError covers TimeoutError (a slow board) and dropped connections: one company's error, not the run's.
+    except (SourceError, HostBlocked, RobotsDisallowed, httpx.HTTPError, ValueError, OSError) as exc:
         status = exc.http_status if isinstance(exc, SourceError) else None
         outcome = Outcome(company.id, "error", http_status=status, note=str(exc)[:300] or type(exc).__name__)
     if run_id is not None:

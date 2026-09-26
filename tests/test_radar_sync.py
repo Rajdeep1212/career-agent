@@ -119,6 +119,22 @@ class SyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(radar_store.runs(day=D1)[0]["error"], "Greenhouse board 'example' returned HTTP 503.")
         self.assertFalse(radar_store.ran_today("gh", today=D1))   # an error is retried the same day
 
+    async def test_timeouts_and_connection_errors_are_errors_for_that_company_only(self):
+        # Found in a live dry run: a slow board raised TimeoutError and aborted the whole sync.
+        for failure in (TimeoutError(), ConnectionResetError()):
+            with self.subTest(failure=type(failure).__name__):
+                outcomes = await self._run(FakeFetcher(routes(**{GH: failure})), D1, GREENHOUSE, LEVER_CO, force=True)
+                self.assertEqual(outcomes["gh"].status, "error")
+                self.assertIn(type(failure).__name__, outcomes["gh"].note)
+                self.assertEqual(outcomes["lv"].status, "ok")
+
+    async def test_a_failed_page_check_is_counted_not_raised(self):
+        await self._run(FakeFetcher(routes()), D1, WORKDAY)
+        fetcher = FakeFetcher(routes(**{WD + "/siteMap.xml": EMPTY_SITEMAP, WD_ML: TimeoutError()}))
+        outcome = (await self._run(fetcher, D2, WORKDAY))["wd"]
+        self.assertEqual(outcome.status, "partial")
+        self.assertIn("job-page checks failed", outcome.note)
+
     async def test_rate_limit_is_an_error_for_that_company(self):
         outcomes = await self._run(FakeFetcher(routes(**{GH: 429})), D1, GREENHOUSE)
         self.assertEqual(outcomes["gh"].status, "error")

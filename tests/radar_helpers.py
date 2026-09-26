@@ -33,5 +33,7 @@ class FakeFetcher:
             return Fetched(url, 404, "")
         if route == 429:
             raise HostBlocked("429")
+        if isinstance(route, BaseException):
+            raise route
         status, body = route if isinstance(route, tuple) else (200, route)
         return Fetched(url, status, body if isinstance(body, str) else json.dumps(body))
