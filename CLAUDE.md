@@ -57,6 +57,12 @@ only entries with `enabled` and `reviewed` true are synced, and undocumented end
 Evidence and run-log counts must come from parsed data (`len()` of the fetched list), never estimates.
 Tests use recorded fixtures; the sync never runs in DEMO_MODE.
 
+Alert emails (`app/sources/alerts/`) are read over IMAP from a dedicated inbox only, or from `.eml`
+files; the only mailbox change allowed is flagging processed messages `\Seen`. Their jobs, and jobs
+saved with the bookmarklet (`/capture`), live in `data/alerts.sqlite3` and are served by the local
+`alerts` provider with sources `LinkedIn alert`, `Naukri alert`, `Indeed alert` or `Saved by you`.
+LinkedIn, Naukri and Indeed pages are never fetched (`application_verifier.never_fetched`).
+
 ## Working rules
 
 - Run the full offline suite after every change: `python -m pytest` (or `python run_tests.py`),
