@@ -113,12 +113,27 @@ def _may_be_india(company: CompanyEntry, url: str) -> bool:
     return bool(company.india_pattern().search(slug.replace("-", " ")))
 
 
+# A JavaScript hex escape (backslash, x, two hex digits) not itself escaped: an even number of backslashes before it.
+_JS_HEX_ESCAPE = re.compile(r"(?<!\\)((?:\\\\)*)\\x([0-9a-fA-F]{2})")
+
+
+def _load_json_ld(text: str):
+    """JSON-LD as sent; some sites (Publicis Sapient) write '&' as a JavaScript hex escape, which JSON forbids."""
+    try:
+        return json.loads(text)
+    except ValueError:
+        repaired = _JS_HEX_ESCAPE.sub(lambda m: m.group(1) + "\\u00" + m.group(2), text)
+        if repaired == text:
+            raise
+        return json.loads(repaired)
+
+
 def job_posting_ld(html: str) -> dict | None:
     """The first schema.org JobPosting object on a page."""
     soup = BeautifulSoup(html, "html.parser")
     for script in soup.find_all("script", attrs={"type": "application/ld+json"}):
         try:
-            data = json.loads(script.string or script.get_text() or "")
+            data = _load_json_ld(script.string or script.get_text() or "")
         except ValueError:
             continue
         stack = data if isinstance(data, list) else [data]

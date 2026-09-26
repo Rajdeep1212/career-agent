@@ -103,5 +103,28 @@ class SitemapJsonLdTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(sitemap.job_posting_ld('<script type="application/ld+json">{broken</script>'))
 
 
+
+class JavaScriptEscapeTests(unittest.TestCase):
+    """Publicis Sapient writes '&' as \x26 in JSON-LD (a JavaScript escape, invalid JSON).
+
+    Found in a live check: such pages were skipped on every run, dropping real India roles.
+    """
+
+    PAGE = ('<script type="application/ld+json">{"@context": "https://schema.org", "@type": "JobPosting", '
+            '"title": "Senior Associate Finance", "description": "Controllership \x26ndash; R\x26D \\x26 literal", '
+            '"jobLocation": {"@type": "Place", "address": {"addressLocality": "Gurgaon", "addressCountry": "India"}}}</script>')
+
+    def test_hex_escapes_are_read_as_characters(self):
+        from app.sources.adapters.sitemap import job_posting_ld
+        ld = job_posting_ld(self.PAGE)
+        self.assertIsNotNone(ld)
+        self.assertEqual(ld["title"], "Senior Associate Finance")
+        self.assertEqual(ld["description"], "Controllership &ndash; R&D \x26 literal")   # an escaped backslash stays literal
+        self.assertEqual(ld["jobLocation"]["address"]["addressLocality"], "Gurgaon")
+
+    def test_other_invalid_json_is_still_ignored(self):
+        from app.sources.adapters.sitemap import job_posting_ld
+        self.assertIsNone(job_posting_ld('<script type="application/ld+json">{"@type": "JobPosting", "title": }</script>'))
+
 if __name__ == "__main__":
     unittest.main()
