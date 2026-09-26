@@ -1,0 +1,30 @@
+From: Naukri <jobalerts@naukri.com>
+To: alerts.inbox@example.com
+Subject: 2 new jobs matching your profile - Data Analyst
+Date: Fri, 25 Sep 2026 09:05:44 +0530
+Message-ID: <synthetic-naukri-0001@example.com>
+MIME-Version: 1.0
+Content-Type: text/html; charset="utf-8"
+
+<html><body>
+<div class="container">
+  <p>Recommended jobs based on your profile</p>
+  <div class="job">
+    <a href="https://www.naukri.com/job-listings-data-analyst-example-retail-pvt-ltd-pune-0-to-2-years-250926000123?src=jobalert&amp;sid=synthetic&amp;utm_source=alert">Data Analyst</a>
+    <div>Example Retail Pvt. Ltd.</div>
+    <div>0-2 Yrs</div>
+    <div>Pune</div>
+    <div>SQL, Excel, Power BI</div>
+    <a href="https://www.naukri.com/job-listings-data-analyst-example-retail-pvt-ltd-pune-0-to-2-years-250926000123?src=jobalert&amp;cta=apply">Apply</a>
+  </div>
+  <div class="job">
+    <a href="https://www.naukri.com/job-listings-python-developer-fresher-example-software-bengaluru-0-to-1-years-250926000456?src=jobalert">Python Developer - Fresher</a>
+    <div>Example Software</div>
+    <div>0-1 Yrs</div>
+    <div>Bengaluru</div>
+    <div>Python, Django, REST</div>
+  </div>
+  <p><a href="https://www.naukri.com/mnjuser/profile?src=jobalert">Update your profile</a> |
+     <a href="https://www.naukri.com/unsubscribe?token=synthetic">Unsubscribe</a></p>
+</div>
+</body></html>
