@@ -165,6 +165,24 @@ def _resolve_identities(jobs, diagnostics):
     return resolved
 
 
+def evaluate_job(profile, job, preferences, intent):
+    """Eligibility and heuristic match for one job, stored as a career job; returns (result, eligibility, match)."""
+    eligibility=evaluate_eligibility(profile,job,preferences,intent)
+    match=match_job(profile,job,intent,eligibility)
+    result={**job.model_dump(mode='json'), 'id':job_identity(job),
+        'eligibility':eligibility.model_dump(),'match':match.model_dump(),
+        'total_score':match.overall_score,'skill_score':match.skill_score,
+        'matched_skills':match.matched_skills,'transferable_skills':match.transferable_skills,
+        'missing_skills':match.missing_skills,'eligible':eligibility.eligible,
+        'eligibility_status':eligibility.status,'eligibility_summary':eligibility.summary,
+        'reasons':match.strengths+match.gaps,
+        'next_action':f'Check before applying: {eligibility.summary}' if eligibility.status=='uncertain' else
+                      'Review the active listing and apply manually.' if job.verification_state=='ACTIVE_VERIFIED' else
+                      'Check application availability and requirements before applying.'}
+    career_store.upsert_job(result)
+    return result,eligibility,match
+
+
 class CareerAgent:
     def __init__(self, providers=None):
         self.providers=providers
@@ -349,22 +367,10 @@ class CareerAgent:
             diagnostics[state.lower()]=counts[state]
         ranked=[]
         for job in checked:
-            eligibility=evaluate_eligibility(profile,job,preferences,intent)
-            match=match_job(profile,job,intent,eligibility)
+            result,eligibility,match=evaluate_job(profile,job,preferences,intent)
             job_family=family_for_title(job.title)
             off_role=bool(intent.roles_requested and match.role_score==0
                           and not (job_family and job_family['family'] in intent.role_families))
-            result={**job.model_dump(mode='json'), 'id':job_identity(job),
-                'eligibility':eligibility.model_dump(),'match':match.model_dump(),
-                'total_score':match.overall_score,'skill_score':match.skill_score,
-                'matched_skills':match.matched_skills,'transferable_skills':match.transferable_skills,
-                'missing_skills':match.missing_skills,'eligible':eligibility.eligible,
-                'eligibility_status':eligibility.status,'eligibility_summary':eligibility.summary,
-                'reasons':match.strengths+match.gaps,
-                'next_action':f'Check before applying: {eligibility.summary}' if eligibility.status=='uncertain' else
-                              'Review the active listing and apply manually.' if job.verification_state=='ACTIVE_VERIFIED' else
-                              'Check application availability and requirements before applying.'}
-            career_store.upsert_job(result)
             if not eligibility.eligible:
                 if job.verification_state!='CLOSED':diagnostics['eligibility_rejected']+=1
                 if len(diagnostics['filtered_examples'])<10:

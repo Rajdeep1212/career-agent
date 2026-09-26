@@ -1136,9 +1136,20 @@ $('syncRadarBtn').addEventListener('click', async () => {
   await refreshRadarStatus();
 });
 
+// The bookmarklet comes from this app, so its javascript: link is set directly (not through safeExternalUrl).
+async function loadBookmarklet() {
+  try {
+    const data = await api('/capture/bookmarklet');
+    if (typeof data?.bookmarklet === 'string' && data.bookmarklet.startsWith('javascript:')) {
+      $('bookmarkletLink').setAttribute('href', data.bookmarklet);
+    }
+  } catch { /* the link stays inert */ }
+}
+
 loadProfile();
 loadPreferences();
 refreshConnections();
+loadBookmarklet();
 refreshRadarStatus();
 loadNewToday();
 

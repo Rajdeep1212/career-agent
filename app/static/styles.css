@@ -599,3 +599,8 @@ button:disabled { cursor:not-allowed; opacity:.55; }
 .new-today summary { cursor:pointer; font-weight:600; }
 .new-today-list { list-style:none; padding:0; margin:8px 0 0; }
 .new-today-list li { border-top:1px solid var(--color-border, #d0d7de); padding:8px 0; }
+
+/* Bookmarklet capture page */
+.capture-page { max-width:720px; margin:24px auto; padding:0 16px; }
+.capture-page label { display:block; margin-top:10px; }
+.capture-page input, .capture-page textarea { width:100%; }

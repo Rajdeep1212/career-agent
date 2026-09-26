@@ -60,6 +60,16 @@ def _start_of_local_day(day: date) -> str:
     return datetime.combine(day, time.min).astimezone().astimezone(timezone.utc).isoformat()
 
 
+def saved_role_intent():
+    """(profile, preferences, intent) for jobs outside a search: the saved roles and saved locations."""
+    profile = analyze_candidate(load_profile())
+    preferences = preferences_for(profile)
+    roles = [role for role in profile.preferred_roles if role.strip()]
+    intent = SearchIntent(roles_requested=roles, role_families=[f for f in (_family(role) for role in roles) if f],
+                          locations=preferences.preferred_locations[:], locations_from_preferences=True)
+    return profile, preferences, intent
+
+
 def build_digest(*, today: date | None = None) -> Digest:
     today = today or date.today()
     digest = Digest(day=today.isoformat())
@@ -69,11 +79,8 @@ def build_digest(*, today: date | None = None) -> Digest:
     if not jobs:
         return digest
     digest.new_jobs = len(jobs)
-    profile = analyze_candidate(load_profile())
-    preferences = preferences_for(profile)
-    roles = [role for role in profile.preferred_roles if role.strip()]
-    intent = SearchIntent(roles_requested=roles, role_families=[f for f in (_family(role) for role in roles) if f],
-                          locations=preferences.preferred_locations[:], locations_from_preferences=True)
+    profile, preferences, intent = saved_role_intent()
+    roles = intent.roles_requested
     items = []
     for job in jobs:
         if roles and not any(_matches(job, role, _family(role), None) for role in roles):
