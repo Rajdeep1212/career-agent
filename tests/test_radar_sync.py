@@ -149,6 +149,7 @@ class SyncTests(unittest.IsolatedAsyncioTestCase):
 
     def test_cli_runs_the_daily_jsearch_query_after_the_companies(self):
         from app.sources import daily_jsearch
+        from app.sources import digest as digest_module
         calls = []
 
         async def fake_run(**kwargs):
@@ -159,13 +160,17 @@ class SyncTests(unittest.IsolatedAsyncioTestCase):
             calls.append("jsearch")
             return daily_jsearch.DailyOutcome("ok", query="ML Engineer", jobs=10)
 
-        with patch.object(sync, "run_sync", fake_run), patch.object(sync, "load_config", lambda: config(GREENHOUSE)),                 patch.object(sync, "run_daily_jsearch", fake_daily), patch("builtins.print") as printed:
+        patches = (patch.object(sync, "run_sync", fake_run), patch.object(sync, "load_config", lambda: config(GREENHOUSE)),
+                   patch.object(sync, "run_daily_jsearch", fake_daily), patch.object(sync, "write_digest", lambda d: "digest.html"),
+                   patch.object(sync, "build_digest", lambda: digest_module.Digest(day="2026-09-26", new_jobs=3)))
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patch("builtins.print") as printed:
             self.assertEqual(sync.main([]), 0)
             self.assertEqual(sync.main(["--no-jsearch"]), 0)
             self.assertEqual(sync.main(["--dry-run"]), 0)
         output = "\n".join(str(call.args[0]) for call in printed.call_args_list)
         self.assertEqual(calls, ["companies", "jsearch", "companies", "companies"])
         self.assertIn("JSearch daily query: ok, 10 jobs ('ML Engineer')", output)
+        self.assertIn("Digest: digest.html (0 eligible, 0 uncertain of 3 new)", output)
 
 
 if __name__ == "__main__":

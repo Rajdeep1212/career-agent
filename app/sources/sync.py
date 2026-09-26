@@ -17,6 +17,7 @@ import httpx
 from app.core.config import settings
 from app.models.schemas import JobPosting
 from app.sources.daily_jsearch import run_daily_jsearch
+from app.sources.digest import build_digest, write_digest
 from app.sources.adapters import FetchResult, SourceError, ashby, greenhouse, lever, sitemap, smartrecruiters
 from app.sources.fetcher import HostBlocked, PoliteFetcher, RobotsDisallowed
 from app.sources.registry import CompanyEntry, RadarConfig, RadarConfigError, load_config, syncable
@@ -186,6 +187,10 @@ def main(argv: list[str] | None = None) -> int:
         daily = asyncio.run(run_daily_jsearch(force=args.force))
         detail = f"{daily.jobs} jobs ('{daily.query}')" if daily.status == "ok" else daily.note
         print(f"JSearch daily query: {daily.status}, {detail}")
+    if not args.dry_run:
+        result = build_digest()
+        path = write_digest(result)
+        print(f"Digest: {path} ({len(result.eligible)} eligible, {len(result.uncertain)} uncertain of {result.new_jobs} new)")
     return 1 if outcomes and all(outcome.status == "error" for outcome in outcomes) else 0
 
 
