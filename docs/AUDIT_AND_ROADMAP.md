@@ -275,6 +275,27 @@ Effort figures assume one developer working about 20 hours a week. For every mil
 
 **M1 risks:** existing tests that encode the old substring behaviour. Update them deliberately and explain why in each commit.
 
+### M1C: Company Radar, index-first sourcing (done 2026-09-26)
+
+Built on branch `m1c-company-radar` (decisions in `docs/SOURCING_FEASIBILITY.md` §7 and §7.2 G):
+- Reviewed seed of 89 companies (78 syncable; Amazon, Capgemini, Dell and Oracle opt-in and disabled;
+  7 without a machine-readable source) in `app/core/radar/seed_v1.json`, copied to
+  `data/company_radar.json`.
+- Adapters: Greenhouse, Lever, Ashby, SmartRecruiters APIs; Workday, Phenom and custom sites via
+  robots-allowed sitemaps plus JobPosting JSON-LD. A polite fetcher (robots.txt, ≥1.5 s per host,
+  429 stop, conditional requests, clear User-Agent, `safe_http`).
+- `data/radar.sqlite3` (migrations with backup): first/last seen, source-based open/closed status,
+  per-company run logs with counts from parsed data.
+- `RadarProvider` is first in `JOB_PROVIDERS`; searches use it with 0 requests. Aggregator copies of
+  indexed jobs resolve to the official record (`sources[]`).
+- Aggregators only on a manual refresh; 12-hour result cache; one daily JSearch request in the sync;
+  quota use shown in Connections; `jsearch_probe` for the owner to confirm JSearch billing and syntax.
+- Daily digest (`data/digests/`), "New today" panel, "Sync now", 07:00 Windows task.
+
+Still open for M1D and later: degree requirements in eligibility (deferred from M1); Cognizant, HSBC,
+IBM and Voith need HTML or Avature/SuccessFactors parsing; extending the seed towards 100 companies
+the owner names.
+
 ### M2: Outcome data engine (about 1 week)
 
 - **Statuses:** `APPLIED → ONLINE_TEST | INTERVIEW | OFFER | REJECTED | WITHDRAWN`, plus derived states.
@@ -289,10 +310,10 @@ Effort figures assume one developer working about 20 hours a week. For every mil
 - **Evaluation:** the number of labeled applications; snapshot completeness (target 100% after M2); the funnel from applied to response.
 - **Risk:** you stop logging. Mitigate with the banner and one-click buttons.
 
-### M3: Sourcing, ghost and scam risk signals (1.5–2 weeks)
+### M3: Ghost and scam risk signals (1.5–2 weeks)
 
-- **Providers:** public posting APIs only (Greenhouse, Lever, Ashby, SmartRecruiters). They fill the empty slots in `providers/registry.py:17-22` and read a user-maintained `data/ats_companies.json`, cached for 6–12 hours. No Workday internals, no LinkedIn, no Indeed.
-- **Verification:** extract schema.org `JobPosting` JSON-LD (`datePosted`, `validThrough`); cross-check a JSearch listing against the company's own ATS board; expose the JSearch `date_posted` freshness option (D4).
+- **Sourcing** moved to M1C (Company Radar). M3 builds on its evidence: first/last seen dates,
+  source-based status and multi-source presence (`radar_job_sources`).
 - **Risk signals, not accusations.** Every job gets:
   ```text
   risk: { level: low|elevated|high, signals: [{id, category, evidence, reason, confidence}], version }

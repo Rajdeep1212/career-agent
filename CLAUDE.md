@@ -47,6 +47,16 @@ disqualifier in the listing or an explicit user constraint; ambiguous or missing
 `uncertain` and is shown, ranked below `eligible`. `eligible: bool` remains for compatibility and
 is False only when excluded. Search results carry `eligibility_status` and `eligibility_summary`.
 
+## Job sourcing
+
+The Company Radar index (`app/sources/`, `app/storage/radar_store.py`) is the primary source:
+official ATS APIs, and robots-allowed sitemaps with schema.org JobPosting data. Interactive search
+reads the index and cached results; aggregators (JSearch, Adzuna, Jooble) run only on a manual
+refresh. Seed files (`app/core/radar/seed_vN.json`) are versioned and never edited after release;
+only entries with `enabled` and `reviewed` true are synced, and undocumented endpoints stay opt-in.
+Evidence and run-log counts must come from parsed data (`len()` of the fetched list), never estimates.
+Tests use recorded fixtures; the sync never runs in DEMO_MODE.
+
 ## Working rules
 
 - Run the full offline suite after every change: `python -m pytest` (or `python run_tests.py`),

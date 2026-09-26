@@ -14,8 +14,13 @@ and a separate send action.
 
 ## Features
 
+- Company Radar: a daily index of official company job boards (Greenhouse,
+  Lever, Ashby, SmartRecruiters, Workday and other sitemaps with schema.org
+  job data). Searches read it with no API requests; job-site aggregators run
+  only on a manual refresh.
 - Deterministic search intent, bounded query planning, deduplication, listing
-  verification, eligibility checks, and explainable ranking.
+  verification, three-way eligibility (eligible / uncertain / excluded) with
+  quoted evidence, and explainable ranking.
 - Persistent profiles, preferences, search sessions, applications, contacts,
   and outreach linkage in local storage.
 - Application lifecycle tracking from `DISCOVERED` and `SAVED` through terminal
@@ -94,6 +99,46 @@ The browser can call `POST /chat/run` and `POST /chat/resume` with stable
 graph stores only bounded sanitized text and safe IDs. Outreach pauses once at
 the final editable draft; one confirmed resume approves it and enters the
 existing atomic Gmail send boundary.
+
+## Company Radar
+
+The Company Radar is a local index of jobs read from companies' own job boards,
+so a search needs no API quota and each job's open/closed status comes from
+its source.
+
+- **Companies** come from the reviewed seed in `app/core/radar/seed_v1.json`
+  (89 entries, each with the evidence it was verified with). On first use it is
+  copied to `data/company_radar.json`, which is yours to edit: set `enabled`,
+  or add companies. Only entries with `"enabled": true` and `"reviewed": true`
+  are synced. Undocumented endpoints (Amazon, Capgemini, Dell, Oracle) ship
+  disabled and are labeled unofficial if you enable them.
+- **Sync** reads each company's board at most once a day, politely: robots.txt
+  is honoured for sitemaps, each host gets at most one request per 1.5 s, a
+  host that answers HTTP 429 is skipped for the rest of the run, and requests
+  identify themselves with a clear User-Agent. Counts in the run log are taken
+  from the parsed data.
+
+  ```powershell
+  python -m app.sources.sync --dry-run            # print counts, save nothing
+  python -m app.sources.sync                      # sync, daily JSearch request, digest
+  python -m app.sources.sync --company databricks # one company
+  ```
+
+  "Sync now" in Connections runs the same cycle in the background.
+  `03_SCHEDULE_DAILY_SYNC.ps1` registers a Windows task that runs it every day
+  at 07:00 (`-Remove` deletes it); logs go to `data/logs/`.
+- **Status** is source-based: a job on an API board is open while it is listed
+  and closed after two syncs without it; a Workday or sitemap job is checked on
+  its page (`validThrough`), because some sitemaps list only recent postings.
+- **Digest**: each sync writes `data/digests/YYYY-MM-DD.html`, and the search
+  view shows "New today": jobs first seen today for your saved roles, eligible
+  first, then uncertain with the quoted reason.
+- **Aggregators** (JSearch, Adzuna, Jooble): once the index has jobs, searches
+  read the index, the sync's one daily JSearch request and results cached in
+  the last 12 hours, and send no requests. Tick "Refresh job sites" to query
+  them. Connections shows each provider's quota use. Run
+  `python -m app.sources.jsearch_probe` once with your key to check what a
+  JSearch page costs and whether OR queries work (5 requests).
 
 ## Demo mode and Docker
 
