@@ -296,6 +296,22 @@ Still open for M1D and later: degree requirements in eligibility (deferred from 
 IBM and Voith need HTML or Avature/SuccessFactors parsing; extending the seed towards 100 companies
 the owner names.
 
+### M1D: Alert emails and the save bookmarklet (built 2026-09-26)
+
+Built on branch `m1d-alerts` (decisions D3, D4):
+- LinkedIn, Naukri and Indeed alert parsing by link shape (not CSS), with synthetic fixtures.
+- IMAP on a dedicated inbox (app password from `.env`; `BODY.PEEK`, then `\Seen` only after storing;
+  never delete/move) and an `.eml` dropbox fallback; both run in the daily sync.
+- `data/alerts.sqlite3`: dedup by platform id and by company + title + city across platforms; links
+  to official Radar jobs through identity resolution.
+- `alerts` local provider; unmatched jobs shown as unverified with their source; LinkedIn, Naukri and
+  Indeed pages never fetched (also enforced in the verifier).
+- Bookmarklet: URL and title only, local form, same eligibility and matching pipeline.
+- Three-way eligibility (M1) is already done; degree requirements remain deferred.
+- Decisions (2026-09-26): processed alerts are only marked read (no archiving); saved non-LinkedIn/
+  Naukri/Indeed pages are checked once at save time; foundit, Wellfound, Shine and WorkMundi alert
+  parsing deferred indefinitely.
+
 ### M2: Outcome data engine (about 1 week)
 
 - **Statuses:** `APPLIED → ONLINE_TEST | INTERVIEW | OFFER | REJECTED | WITHDRAWN`, plus derived states.

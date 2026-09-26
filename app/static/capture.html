@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Save a job · Career Agent</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <main class="capture-page">
+    <div class="panel">
+      <h1>Save a job to Career Agent</h1>
+      <p class="muted">Only the page link and title came from the page you were viewing. Check the details, add the company and location, and paste the description if you like. Nothing is fetched from the job site.</p>
+      <form id="captureForm">
+        <label for="captureUrl">Job link</label>
+        <input id="captureUrl" type="url" maxlength="2000" required />
+        <label for="captureTitle">Job title</label>
+        <input id="captureTitle" maxlength="300" required />
+        <label for="captureCompany">Company</label>
+        <input id="captureCompany" maxlength="200" required />
+        <label for="captureLocation">Location</label>
+        <input id="captureLocation" maxlength="200" placeholder="e.g. Bengaluru, India or Remote" />
+        <label for="captureDescription">Description (optional; paste the requirements for a better eligibility check)</label>
+        <textarea id="captureDescription" rows="8" maxlength="20000"></textarea>
+        <div class="card-actions section-gap"><button id="captureSave" class="primary" type="submit">Save job</button></div>
+      </form>
+      <div id="captureStatus" class="status hidden" role="status" aria-live="polite"></div>
+      <p class="section-gap"><a href="/app/">Open the dashboard</a></p>
+    </div>
+  </main>
+  <script src="/static/capture.js"></script>
+</body>
+</html>

@@ -591,7 +591,10 @@ function providerCredit(job) {
 
 // Company Radar jobs come from the company's own board; other listings of the same job are merged into sources[].
 function sourceLine(job) {
-  const official = job?.source === 'Company Radar' ? "From the company's official job board" : '';
+  const alert = /^(LinkedIn|Naukri|Indeed) alert$/.exec(job?.source || '');
+  const official = job?.source === 'Company Radar' ? "From the company's official job board"
+    : alert ? `From your ${alert[1]} job-alert email (not verified: ${alert[1]} pages are never opened automatically)`
+    : job?.source === 'Saved by you' ? 'Saved by you with the bookmarklet' : '';
   const others = [...new Set((job?.sources || []).map(ref => ref?.source).filter(Boolean))];
   const also = others.length ? `Also listed on ${others.map(name => PROVIDER_CREDITS[name]
     ? `${escapeHtml(name)} (${PROVIDER_CREDITS[name](PROVIDER_SITES[name])})` : escapeHtml(name)).join(', ')}` : '';
@@ -1088,7 +1091,7 @@ function newTodayItem(item, tier) {
   const title = url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title)}</a>` : escapeHtml(item.title);
   const [label, tone] = ELIGIBILITY_LABELS[tier];
   return `<li><strong>${title}</strong> <span class="tag ${tone}">${label}</span> <span class="muted">heuristic fit ${escapeHtml(item.score)}/100</span>
-    <div>${escapeHtml(item.company)} · ${escapeHtml(item.location)}</div><div class="muted">${escapeHtml(item.summary)}</div></li>`;
+    <div>${escapeHtml(item.company)} · ${escapeHtml(item.location)}${/ alert$/.test(item.source || '') ? ` · from your ${escapeHtml(item.source)} email (not verified)` : ''}</div><div class="muted">${escapeHtml(item.summary)}</div></li>`;
 }
 
 async function loadNewToday() {
@@ -1133,9 +1136,20 @@ $('syncRadarBtn').addEventListener('click', async () => {
   await refreshRadarStatus();
 });
 
+// The bookmarklet comes from this app, so its javascript: link is set directly (not through safeExternalUrl).
+async function loadBookmarklet() {
+  try {
+    const data = await api('/capture/bookmarklet');
+    if (typeof data?.bookmarklet === 'string' && data.bookmarklet.startsWith('javascript:')) {
+      $('bookmarkletLink').setAttribute('href', data.bookmarklet);
+    }
+  } catch { /* the link stays inert */ }
+}
+
 loadProfile();
 loadPreferences();
 refreshConnections();
+loadBookmarklet();
 refreshRadarStatus();
 loadNewToday();
 

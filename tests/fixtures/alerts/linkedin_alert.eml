@@ -1,0 +1,61 @@
+From: LinkedIn Job Alerts <jobalerts-noreply@linkedin.com>
+To: alerts.inbox@example.com
+Subject: "machine learning engineer": 3 new jobs in Bengaluru
+Date: Fri, 25 Sep 2026 07:32:10 +0000
+Message-ID: <synthetic-linkedin-0001@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="LI-BOUNDARY"
+
+--LI-BOUNDARY
+Content-Type: text/plain; charset="utf-8"
+
+Your job alert for machine learning engineer in Bengaluru
+
+Machine Learning Engineer
+Example Analytics
+Bengaluru, Karnataka, India
+View job: https://www.linkedin.com/comm/jobs/view/4012345678/?trackingId=abc%3D%3D&refId=xyz
+
+--LI-BOUNDARY
+Content-Type: text/html; charset="utf-8"
+
+<html><body>
+<table role="presentation" width="100%">
+  <tr><td><h2>Your job alert for machine learning engineer in Bengaluru</h2></td></tr>
+  <tr><td>
+    <table role="presentation"><tr>
+      <td><a href="https://www.linkedin.com/comm/jobs/view/4012345678/?trackingId=abc%3D%3D&amp;refId=xyz&amp;lipi=urn%3Ali"><img src="https://media.licdn.com/logo1.png" alt="Example Analytics logo"></a></td>
+      <td>
+        <a href="https://www.linkedin.com/comm/jobs/view/4012345678/?trackingId=abc%3D%3D&amp;refId=xyz">Machine Learning Engineer</a>
+        <p>Example Analytics &middot; Bengaluru, Karnataka, India</p>
+        <p>Actively recruiting</p>
+        <a href="https://www.linkedin.com/comm/jobs/view/4012345678/?trackingId=abc%3D%3D">View job</a>
+      </td>
+    </tr></table>
+  </td></tr>
+  <tr><td>
+    <table role="presentation"><tr>
+      <td>
+        <a href="https://www.linkedin.com/comm/jobs/view/4023456789/?trackingId=def%3D%3D&amp;refId=uvw">Graduate Engineer Trainee - AI/ML</a>
+        <p>Example Retrieval Co &middot; Hyderabad, Telangana, India (Hybrid)</p>
+        <a href="https://www.linkedin.com/comm/jobs/view/4023456789/?trackingId=def%3D%3D">View job</a>
+      </td>
+    </tr></table>
+  </td></tr>
+  <tr><td>
+    <table role="presentation"><tr>
+      <td>
+        <a href="https://www.linkedin.com/comm/jobs/view/4034567890/?trackingId=ghi%3D%3D">Data Scientist</a>
+        <p>Example Health AI &middot; India (Remote)</p>
+        <a href="https://www.linkedin.com/comm/jobs/view/4034567890/?trackingId=ghi%3D%3D">View job</a>
+      </td>
+    </tr></table>
+  </td></tr>
+  <tr><td>
+    <a href="https://www.linkedin.com/comm/jobs/search?keywords=machine+learning+engineer">See all jobs</a>
+    &nbsp;<a href="https://www.linkedin.com/comm/psettings/email-unsubscribe?token=synthetic">Unsubscribe</a>
+  </td></tr>
+</table>
+</body></html>
+
+--LI-BOUNDARY--

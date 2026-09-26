@@ -22,7 +22,7 @@ from app.services.role_discovery import expand_roles, family_for_title
 from app.services.search_planner import plan_search_queries
 from app.services.job_identity import deduplicate_jobs, job_identity, resolve_with_index
 from app.sources.registry import alias_map, read_config
-from app.services.application_verifier import verify_application
+from app.services.application_verifier import never_fetched, verify_application
 from app.services.eligibility import evaluate_eligibility
 from app.services.matching import match_job
 from app.storage import career_store, history, radar_store, search_cache
@@ -135,8 +135,8 @@ DAILY_MAX_AGE_DAYS=3
 
 
 def _index_ready(local):
-    """A local index with jobs: aggregators then run only on a manual refresh."""
-    return any(bool(getattr(p,'configured',lambda:True)()) for p in local)
+    """The Company Radar index has jobs: aggregators then run only on a manual refresh."""
+    return any(p.name==RADAR_SOURCE and bool(getattr(p,'configured',lambda:True)()) for p in local)
 
 
 def _cached(key):
@@ -163,6 +163,24 @@ def _resolve_identities(jobs, diagnostics):
         return jobs
     diagnostics['matched_official']=len(matches)
     return resolved
+
+
+def evaluate_job(profile, job, preferences, intent):
+    """Eligibility and heuristic match for one job, stored as a career job; returns (result, eligibility, match)."""
+    eligibility=evaluate_eligibility(profile,job,preferences,intent)
+    match=match_job(profile,job,intent,eligibility)
+    result={**job.model_dump(mode='json'), 'id':job_identity(job),
+        'eligibility':eligibility.model_dump(),'match':match.model_dump(),
+        'total_score':match.overall_score,'skill_score':match.skill_score,
+        'matched_skills':match.matched_skills,'transferable_skills':match.transferable_skills,
+        'missing_skills':match.missing_skills,'eligible':eligibility.eligible,
+        'eligibility_status':eligibility.status,'eligibility_summary':eligibility.summary,
+        'reasons':match.strengths+match.gaps,
+        'next_action':f'Check before applying: {eligibility.summary}' if eligibility.status=='uncertain' else
+                      'Review the active listing and apply manually.' if job.verification_state=='ACTIVE_VERIFIED' else
+                      'Check application availability and requirements before applying.'}
+    career_store.upsert_job(result)
+    return result,eligibility,match
 
 
 class CareerAgent:
@@ -334,8 +352,10 @@ class CareerAgent:
                 return await verify_application(job)
         budget=preferences.verification_limit
         preverified=[job for job in unseen if _preverified(job)]
-        to_check=[job for job in unseen if not _preverified(job)]
-        checked=list(await asyncio.gather(*(verify(job) for job in to_check[:budget])))
+        # LinkedIn/Naukri/Indeed links are never fetched: their check sends nothing and uses no budget.
+        offline=[job for job in unseen if not _preverified(job) and never_fetched(job)]
+        to_check=[job for job in unseen if not _preverified(job) and not never_fetched(job)]
+        checked=list(await asyncio.gather(*(verify(job) for job in offline+to_check[:budget])))
         for job in to_check[budget:]:
             job.verification_state='UNVERIFIED';job.application_status='unverified'
             job.verification_reason='Not checked: this search reached the configured verification budget.'
@@ -347,22 +367,10 @@ class CareerAgent:
             diagnostics[state.lower()]=counts[state]
         ranked=[]
         for job in checked:
-            eligibility=evaluate_eligibility(profile,job,preferences,intent)
-            match=match_job(profile,job,intent,eligibility)
+            result,eligibility,match=evaluate_job(profile,job,preferences,intent)
             job_family=family_for_title(job.title)
             off_role=bool(intent.roles_requested and match.role_score==0
                           and not (job_family and job_family['family'] in intent.role_families))
-            result={**job.model_dump(mode='json'), 'id':job_identity(job),
-                'eligibility':eligibility.model_dump(),'match':match.model_dump(),
-                'total_score':match.overall_score,'skill_score':match.skill_score,
-                'matched_skills':match.matched_skills,'transferable_skills':match.transferable_skills,
-                'missing_skills':match.missing_skills,'eligible':eligibility.eligible,
-                'eligibility_status':eligibility.status,'eligibility_summary':eligibility.summary,
-                'reasons':match.strengths+match.gaps,
-                'next_action':f'Check before applying: {eligibility.summary}' if eligibility.status=='uncertain' else
-                              'Review the active listing and apply manually.' if job.verification_state=='ACTIVE_VERIFIED' else
-                              'Check application availability and requirements before applying.'}
-            career_store.upsert_job(result)
             if not eligibility.eligible:
                 if job.verification_state!='CLOSED':diagnostics['eligibility_rejected']+=1
                 if len(diagnostics['filtered_examples'])<10:

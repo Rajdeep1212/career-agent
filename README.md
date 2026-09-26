@@ -73,7 +73,7 @@ Open `http://localhost:8010/app/`. Windows users may instead run
 | Setting | Purpose |
 | --- | --- |
 | `APP_ORIGIN` | The only browser origin allowed to change data; defaults to `http://localhost:8010`. |
-| `JOB_PROVIDERS` | Job providers to use (default `radar,jsearch,adzuna,jooble`); `radar` is the local Company Radar index (used once it has data), and a provider without its key is skipped. |
+| `JOB_PROVIDERS` | Job providers to use (default `radar,alerts,jsearch,adzuna,jooble`); `radar` is the local Company Radar index (used once it has data), `alerts` your alert-email and saved jobs, and a provider without its key is skipped. |
 | `RAPIDAPI_KEY` | Enables live JSearch requests. |
 | `RAPIDAPI_HOST` | JSearch RapidAPI host. |
 | `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` | Enable Adzuna (India). Jobs are labeled "Jobs by Adzuna" as its terms require. |
@@ -139,6 +139,35 @@ its source.
   them. Connections shows each provider's quota use. Run
   `python -m app.sources.jsearch_probe` once with your key to check what a
   JSearch page costs and whether OR queries work (5 requests).
+
+## Job-alert emails and the save bookmarklet
+
+LinkedIn, Naukri and Indeed alert emails can feed Career Agent without the app
+ever visiting those sites: only the email is read, and the job links it
+contains are stored and shown (the pages behind them are never fetched).
+
+1. Use a **dedicated** Gmail account that only receives your forwarded alerts
+   (a Gmail filter in your main account forwards them). Never your main account.
+2. In that account: turn on 2-Step Verification, create an app password, and
+   enable IMAP in Gmail settings.
+3. In `.env`: `ALERTS_IMAP_HOST=imap.gmail.com`, `ALERTS_IMAP_USER=` the
+   dedicated address, `ALERTS_IMAP_APP_PASSWORD=` the app password.
+4. Check it: `python -m app.sources.alerts --dry-run` prints the jobs it would
+   store and changes nothing (the mailbox is opened read-only).
+
+The daily sync then reads unread alerts from the last 14 days, stores the jobs,
+and marks those emails read (the only change it makes to the mailbox; nothing
+is deleted or moved). Without IMAP settings, drop `.eml` files into
+`data/alert_dropbox/` instead; processed files move to `processed/`.
+
+Jobs that match an official Company Radar job show its official link and
+status; the rest are labeled "From your LinkedIn job-alert email (not
+verified)". The same job from two platforms is stored once.
+
+**Save to Career Agent**: in Connections, drag the bookmarklet to your
+bookmarks bar. On any job page it opens a local form with the page's link and
+title (nothing else is read from the page); add the company and save. The job
+gets the same eligibility and matching as search results.
 
 ## Demo mode and Docker
 

@@ -438,6 +438,29 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   await d.elements.get('syncRadarBtn').handlers.click();
   assert.equal(d.calls.filter(([path, method]) => path === '/radar/sync' && method === 'POST').length, 1);
 
+  // Alert-email and saved jobs are labeled with their honest source.
+  const alertCard = vm.runInContext(`jobCardsMarkup([
+    { id: '${'1'.repeat(64)}', title: 'A', company: 'X', source: 'LinkedIn alert', application_url: 'https://www.linkedin.com/jobs/view/1/' },
+    { id: '${'2'.repeat(64)}', title: 'B', company: 'Y', source: 'Saved by you', application_url: 'https://careers.example.com/jobs/2' }])`, d.context);
+  assert.match(alertCard, /From your LinkedIn job-alert email \(not verified: LinkedIn pages are never opened automatically\)/);
+  assert.match(alertCard, /Saved by you with the bookmarklet/);
+
+  // The bookmarklet link is set from the app; the capture form pre-fills URL and a cleaned title.
+  d = await dashboard({ configured: true, connected: false }, '', false, {
+    '/capture/bookmarklet': { bookmarklet: "javascript:(()=>{window.open(\"http://localhost:8010/capture?url=\"+encodeURIComponent(location.href))})()" }
+  });
+  await vm.runInContext('loadBookmarklet()', d.context);
+  assert.match(d.elements.get('bookmarkletLink').attributes.href, /^javascript:.*\/capture\?url=/);
+  const captureScript = fs.readFileSync(path.join(root, 'app', 'static', 'capture.js'), 'utf8');
+  const fields = {};
+  for (const id of ['captureUrl', 'captureTitle', 'captureCompany', 'captureLocation', 'captureDescription', 'captureSave', 'captureStatus']) fields[id] = { value: '' };
+  const captureContext = vm.createContext({ document: { getElementById: id => fields[id] }, URLSearchParams, location: { search: '' }, fetch: async () => ({}) });
+  vm.runInContext(captureScript, captureContext);
+  vm.runInContext(`prefill('?url=${encodeURIComponent('https://www.linkedin.com/jobs/view/1/')}&title=${encodeURIComponent('Data Analyst - Example Retail | LinkedIn')}')`, captureContext);
+  assert.equal(fields.captureUrl.value, 'https://www.linkedin.com/jobs/view/1/');
+  assert.equal(fields.captureTitle.value, 'Data Analyst - Example Retail');
+  assert.equal(vm.runInContext("cleanTitle('Python Developer - Naukri.com')", captureContext), 'Python Developer');
+
   // A costly search asks first; cancelling sends nothing to /chat/run.
   const costly = { will_search: true, provider_requests: 8, warning: 'This search will send 8 requests to JSearch/RapidAPI.' };
   d = await dashboard({ configured: true, connected: false }, '', false, {

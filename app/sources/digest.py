@@ -18,7 +18,7 @@ from app.providers.radar_provider import _family, _matches
 from app.services.candidate_intelligence import analyze_candidate
 from app.services.eligibility import evaluate_eligibility
 from app.services.matching import match_job
-from app.storage import radar_store
+from app.storage import alert_store, radar_store
 from app.storage.preference_store import preferences_for
 from app.storage.profile_store import load_profile
 
@@ -35,6 +35,7 @@ class DigestItem:
     status: str
     summary: str
     score: int
+    source: str = "Company Radar"
 
 
 @dataclass
@@ -59,18 +60,27 @@ def _start_of_local_day(day: date) -> str:
     return datetime.combine(day, time.min).astimezone().astimezone(timezone.utc).isoformat()
 
 
-def build_digest(*, today: date | None = None) -> Digest:
-    today = today or date.today()
-    digest = Digest(day=today.isoformat())
-    if not radar_store.DB_PATH.exists():
-        return digest
-    jobs = radar_store.new_since(_start_of_local_day(today))
-    digest.new_jobs = len(jobs)
+def saved_role_intent():
+    """(profile, preferences, intent) for jobs outside a search: the saved roles and saved locations."""
     profile = analyze_candidate(load_profile())
     preferences = preferences_for(profile)
     roles = [role for role in profile.preferred_roles if role.strip()]
     intent = SearchIntent(roles_requested=roles, role_families=[f for f in (_family(role) for role in roles) if f],
                           locations=preferences.preferred_locations[:], locations_from_preferences=True)
+    return profile, preferences, intent
+
+
+def build_digest(*, today: date | None = None) -> Digest:
+    today = today or date.today()
+    digest = Digest(day=today.isoformat())
+    since = _start_of_local_day(today)
+    # Official Radar jobs, plus new alert-email and saved jobs that matched no official job.
+    jobs = (radar_store.new_since(since) if radar_store.DB_PATH.exists() else []) + alert_store.new_since(since)
+    if not jobs:
+        return digest
+    digest.new_jobs = len(jobs)
+    profile, preferences, intent = saved_role_intent()
+    roles = intent.roles_requested
     items = []
     for job in jobs:
         if roles and not any(_matches(job, role, _family(role), None) for role in roles):
@@ -83,7 +93,8 @@ def build_digest(*, today: date | None = None) -> Digest:
         match = match_job(profile, job, intent, eligibility)
         items.append(DigestItem(title=job.title, company=job.company, location=job.location,
                                 url=str(job.application_url) if job.application_url else None, posted=job.posted_date,
-                                status=eligibility.status, summary=eligibility.summary, score=match.overall_score))
+                                status=eligibility.status, summary=eligibility.summary, score=match.overall_score,
+                                source=job.source or "Unknown"))
     items.sort(key=lambda item: -item.score)
     digest.eligible = [item for item in items if item.status == "eligible"][:MAX_PER_TIER]
     digest.uncertain = [item for item in items if item.status == "uncertain"][:MAX_PER_TIER]
@@ -98,7 +109,9 @@ def _rows(items: list[DigestItem]) -> str:
         title = html.escape(item.title)
         link = f'<a href="{html.escape(item.url)}" rel="noopener noreferrer">{title}</a>' if item.url else title
         rows.append(f"<li><div class=\"head\">{link} <span class=\"score\">heuristic fit {item.score}/100</span></div>"
-                    f"<div>{html.escape(item.company)} · {html.escape(item.location)}</div>"
+                    f"<div>{html.escape(item.company)} · {html.escape(item.location)}"
+                    + (f" · from your {html.escape(item.source)} email (not verified)" if item.source.endswith(" alert") else "")
+                    + (" · saved by you" if item.source == "Saved by you" else "") + "</div>"
                     f"<div class=\"why\">{html.escape(item.summary)}</div></li>")
     return "<ul>" + "".join(rows) + "</ul>"
 
@@ -115,7 +128,7 @@ a {{ color:var(--accent); }} ul {{ list-style:none; padding:0; }} li {{ border-t
 .head {{ font-weight:600; }} .score, .muted, .why {{ color:var(--muted); font-size:13px; font-weight:400; }}
 </style></head><body>
 <h1>New today · {html.escape(digest.day)}</h1>
-<p class="muted">{digest.new_jobs} new jobs in your Company Radar index; {digest.off_role} outside your saved roles and
+<p class="muted">{digest.new_jobs} new jobs from your Company Radar index and alert emails; {digest.off_role} outside your saved roles and
 {digest.excluded} excluded by an explicit disqualifier are not listed. Scores are heuristic fit (L0), not predictions.</p>
 <h2>Eligible ({len(digest.eligible)})</h2>{_rows(digest.eligible)}
 <h2>Uncertain ({len(digest.uncertain)}): check before applying</h2>{_rows(digest.uncertain)}

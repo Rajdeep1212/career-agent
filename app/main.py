@@ -1,4 +1,3 @@
-import hashlib
 import re
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -8,11 +7,13 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
+from app.core.static_assets import STATIC_DIR, asset_version, versioned_html  # noqa: F401 (asset_version re-exported)
 from app.core.origin_security import has_exact_local_origin
 from app.api.linkedin import router as linkedin_router
 from app.api.career import router as career_router
 from app.api.chat import router as chat_router
 from app.api.radar import router as radar_router
+from app.api.capture import router as capture_router
 from app.core.oauth_logging import install_oauth_log_filter
 from app.core.preferences import DEFAULT_JOB_PREFERENCES
 from app.models.schemas import (
@@ -77,6 +78,7 @@ else:
 app.include_router(career_router)
 app.include_router(chat_router)
 app.include_router(radar_router)
+app.include_router(capture_router)
 career_agent = CareerAgent()
 
 
@@ -104,12 +106,8 @@ def _upload_baseline() -> CandidateProfile:
         return CandidateProfile()
 
 
-STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
-def asset_version(name: str) -> str:
-    """Short content hash of a dashboard asset, used as a cache-busting query."""
-    return hashlib.sha256((STATIC_DIR / name).read_bytes()).hexdigest()[:12]
 
 
 @app.middleware("http")
@@ -133,11 +131,8 @@ def dashboard(request: Request):
     # visitors (e.g. http://127.0.0.1:8010) to that origin first.
     if request.url.hostname in ("127.0.0.1", "::1") and str(request.base_url).rstrip("/") != settings.app_origin:
         return RedirectResponse(settings.app_origin + "/app/", status_code=303)
-    html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     # Versioned asset URLs: an updated app.js/styles.css is never served from a stale browser cache.
-    for name in ("app.js", "styles.css"):
-        html = html.replace(f'/static/{name}"', f'/static/{name}?v={asset_version(name)}"')
-    return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
+    return HTMLResponse(versioned_html("index.html", ("app.js", "styles.css")), headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/connections/search/status")
