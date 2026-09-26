@@ -418,6 +418,26 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   assert.equal(vm.runInContext(`describeEvidence({ outcome: 'excluded', reason: 'Requires at least 5 years; your limit is 1.', quote: '5+ years experience required' })`, d.context),
     "excluded: quoted '5+ years experience required' (Requires at least 5 years; your limit is 1.)");
 
+  // Company Radar: New today lists eligible before uncertain; Sync now posts once; status shows the last sync.
+  d = await dashboard({ configured: true, connected: false }, '', false, {
+    '/radar/new-today': { day: '2026-09-26', new_jobs: 9, off_role: 5, excluded: 2,
+      eligible: [{ title: 'ML Engineer <b>', company: 'Acme', location: 'Pune', url: 'https://acme.example/jobs/1', status: 'eligible', summary: "eligible: quoted 'Freshers welcome'", score: 40 }],
+      uncertain: [{ title: 'Data Scientist', company: 'Beta', location: 'Bengaluru', url: 'javascript:alert(1)', status: 'uncertain', summary: "uncertain: quoted '1-2 years preferred'", score: 30 }] },
+    '/radar/status': { companies: 78, last_sync: { finished_at: '2026-09-26T01:40:00+00:00', companies: 70, active_jobs: 3120 }, manual_sync: { running: false } },
+    '/radar/sync': { started: true }
+  });
+  await vm.runInContext('loadNewToday()', d.context);
+  assert.equal(d.elements.get('newTodaySummary').textContent, 'New today: 1 eligible, 1 uncertain (of 9 new jobs)');
+  const today = d.elements.get('newTodayList').innerHTML;
+  assert.ok(today.indexOf('ML Engineer &lt;b&gt;') < today.indexOf('Data Scientist'));
+  assert.doesNotMatch(today, /javascript:/);
+  assert.equal(d.elements.get('newTodayPanel').classList.contains('hidden'), false);
+  await vm.runInContext('refreshRadarStatus()', d.context);
+  assert.match(d.elements.get('radarStatusBox').innerHTML, /Last synced 26 Sep 2026/);
+  assert.match(d.elements.get('radarStatusBox').innerHTML, /3120 open jobs/);
+  await d.elements.get('syncRadarBtn').handlers.click();
+  assert.equal(d.calls.filter(([path, method]) => path === '/radar/sync' && method === 'POST').length, 1);
+
   // A costly search asks first; cancelling sends nothing to /chat/run.
   const costly = { will_search: true, provider_requests: 8, warning: 'This search will send 8 requests to JSearch/RapidAPI.' };
   d = await dashboard({ configured: true, connected: false }, '', false, {

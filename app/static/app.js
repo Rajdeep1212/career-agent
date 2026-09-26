@@ -1082,9 +1082,62 @@ $("disconnectLinkedIn").addEventListener("click", async () => {
   }
 });
 
+// Company Radar: today's new jobs in the search view, sync status and "Sync now" in Connections.
+function newTodayItem(item, tier) {
+  const url = safeExternalUrl(item.url);
+  const title = url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title)}</a>` : escapeHtml(item.title);
+  const [label, tone] = ELIGIBILITY_LABELS[tier];
+  return `<li><strong>${title}</strong> <span class="tag ${tone}">${label}</span> <span class="muted">heuristic fit ${escapeHtml(item.score)}/100</span>
+    <div>${escapeHtml(item.company)} · ${escapeHtml(item.location)}</div><div class="muted">${escapeHtml(item.summary)}</div></li>`;
+}
+
+async function loadNewToday() {
+  let digest;
+  try { digest = await api('/radar/new-today'); } catch { return; }
+  const eligible = digest?.eligible || [], uncertain = digest?.uncertain || [];
+  if (!eligible.length && !uncertain.length) { $('newTodayPanel').classList.add('hidden'); return; }
+  $('newTodaySummary').textContent = `New today: ${eligible.length} eligible, ${uncertain.length} uncertain (of ${digest.new_jobs} new jobs)`;
+  $('newTodayList').innerHTML = `<ul class="new-today-list">${eligible.map(item => newTodayItem(item, 'eligible')).join('')}${uncertain.map(item => newTodayItem(item, 'uncertain')).join('')}</ul>`;
+  $('newTodayPanel').classList.remove('hidden');
+}
+
+let radarPoll = null;
+
+async function refreshRadarStatus() {
+  let status;
+  try { status = await api('/radar/status'); } catch { $('radarStatusBox').textContent = 'Company Radar status is unavailable.'; return; }
+  const last = status?.last_sync;
+  const manual = status?.manual_sync || {};
+  $('radarStatusBox').innerHTML = `<strong>${last ? `Last synced ${escapeHtml(formatDate(last.finished_at))}` : 'Not synced yet'}</strong>
+    <p>${escapeHtml(status?.companies ?? 0)} reviewed companies${last ? `; ${escapeHtml(last.active_jobs)} open jobs in the index` : ''}.</p>`;
+  $('syncRadarBtn').disabled = Boolean(manual.running);
+  if (manual.running) {
+    showStatus($('radarSyncStatus'), 'Sync running: official boards are read one host at a time, so this can take a few minutes.');
+    if (!radarPoll) radarPoll = setTimeout(() => { radarPoll = null; refreshRadarStatus(); }, 3000);
+  } else if (manual.error) {
+    showStatus($('radarSyncStatus'), `Sync failed (${manual.error}). Run python -m app.sources.sync for details.`, 'error');
+  } else if (manual.result) {
+    const r = manual.result;
+    showStatus($('radarSyncStatus'), `Sync finished: ${r.ok ?? 0} companies ok, ${r.error ?? 0} errors, ${r.new ?? 0} new jobs, ${r.eligible ?? 0} eligible today.`, 'success');
+    await loadNewToday();
+  }
+}
+
+$('syncRadarBtn').addEventListener('click', async () => {
+  $('syncRadarBtn').disabled = true;
+  try {
+    await api('/radar/sync', { method: 'POST' });
+  } catch (error) {
+    showStatus($('radarSyncStatus'), error.message, 'error');
+  }
+  await refreshRadarStatus();
+});
+
 loadProfile();
 loadPreferences();
 refreshConnections();
+refreshRadarStatus();
+loadNewToday();
 
 const params = new URLSearchParams(location.search);
 if (params.get("gmail") === "connected") {

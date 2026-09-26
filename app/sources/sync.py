@@ -153,6 +153,18 @@ async def run_sync(*, company_ids: list[str] | None = None, dry_run: bool = Fals
     return outcomes
 
 
+async def run_cycle(*, force: bool = False) -> dict:
+    """The full daily cycle (companies, daily JSearch request, digest) with counts, for 'Sync now'."""
+    fetcher = PoliteFetcher(max_bytes=MAX_BYTES)
+    outcomes = await run_sync(force=force, fetcher=fetcher)
+    daily = await run_daily_jsearch(force=force)
+    result = build_digest()
+    write_digest(result)
+    return {"companies": len(outcomes), **{status: sum(o.status == status for o in outcomes) for status in ("ok", "partial", "error", "skipped")},
+            "requests": fetcher.requests, "new": sum(o.new or 0 for o in outcomes), "closed": sum(o.closed or 0 for o in outcomes),
+            "jsearch": daily.status, "jsearch_jobs": daily.jobs, "eligible": len(result.eligible), "uncertain": len(result.uncertain)}
+
+
 def _print(outcomes: list[Outcome], requests: int, dry_run: bool) -> None:
     print(f"{'company':28} {'status':8} {'fetched':>7} {'india':>6} {'new':>5} {'closed':>6}  note")
     for outcome in outcomes:

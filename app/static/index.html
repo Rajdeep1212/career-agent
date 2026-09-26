@@ -50,6 +50,11 @@
               <h2 id="conversationHeading">Career Agent</h2>
               <p>Search jobs, analyze roles, track applications, or ask about your career.</p>
             </div>
+            <details id="newTodayPanel" class="new-today hidden">
+              <summary id="newTodaySummary">New today</summary>
+              <p class="muted">Jobs first seen today on the official boards in your Company Radar, for your saved roles. Eligible first, then uncertain; scores are heuristic fit (L0).</p>
+              <div id="newTodayList"></div>
+            </details>
             <div id="chatReplayStatus" class="inline-notice hidden" role="status">This turn was already processed.</div>
             <div id="searchStatus" class="status hidden" role="status" aria-live="polite"></div>
             <div id="conversation" class="conversation" role="log" aria-live="polite" aria-relevant="additions text"></div>
@@ -187,8 +192,16 @@
           </div>
 
           <div class="panel">
+            <h2>Company Radar</h2>
+            <p>A daily index of official company job boards. Searches read it with no API requests.</p>
+            <div id="radarStatusBox" class="connection-box"></div>
+            <div class="card-actions section-gap"><button id="syncRadarBtn" class="secondary">Sync now</button></div>
+            <div id="radarSyncStatus" class="status hidden" role="status" aria-live="polite"></div>
+          </div>
+
+          <div class="panel">
             <h2>Job Search API</h2>
-            <p>Real search currently uses the JSearch provider through RapidAPI.</p>
+            <p>Job-site aggregators (JSearch, Adzuna, Jooble) are queried only when you tick "Refresh job sites".</p>
             <div id="searchApiStatusBox" class="connection-box"></div>
           </div>
 
