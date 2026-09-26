@@ -129,8 +129,10 @@ class CareerAgent:
             groups = (preferences.preferred_locations, explicit) if prioritize_saved else (
                 explicit, preferences.preferred_locations)
             intent.locations = _distinct_locations(*groups)
+            intent.locations_from_preferences = False
         elif not previous and not intent.locations:
             intent.locations=preferences.preferred_locations[:]
+            intent.locations_from_preferences=bool(intent.locations)
         profile_key=hashlib.sha256(profile.model_dump_json().encode()).hexdigest()
         reuse=bool(intent.filter_only and previous and previous['response'].get('_profile_key')==profile_key)
         return profile,preferences,previous,intent,profile_key,reuse

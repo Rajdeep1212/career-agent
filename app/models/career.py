@@ -9,6 +9,8 @@ class SearchIntent(BaseModel):
     keywords: list[str] = Field(default_factory=list)
     locations: list[str] = Field(default_factory=list)
     excluded_locations: list[str] = Field(default_factory=list)
+    # True when locations were filled from saved preferences rather than the request.
+    locations_from_preferences: bool = False
     remote_allowed: bool = True
     hybrid_allowed: bool = True
     onsite_allowed: bool = True

@@ -84,5 +84,36 @@ class TransparencyTests(unittest.TestCase):
         self.assertIn("Internships were excluded.", result.summary)
 
 
+
+class LocationTests(unittest.TestCase):
+    def _at(self, location, *, requested=("Bengaluru",), from_preferences=False, work_mode="unknown"):
+        intent = SearchIntent(locations=list(requested), locations_from_preferences=from_preferences)
+        posting = JobPosting(company="Example", title="ML Engineer", location=location, work_mode=work_mode,
+                             description="Freshers welcome.")
+        return evaluate_eligibility(FRESHER, posting, JobSearchPreferences(), intent)
+
+    def test_city_aliases_match(self):
+        self.assertEqual(self._at("Bangalore, Karnataka, India").status, "eligible")
+        self.assertEqual(self._at("Gurgaon, Haryana, India", requested=("Gurugram",)).status, "eligible")
+        self.assertEqual(self._at("Bombay, India", requested=("Mumbai",)).status, "eligible")
+
+    def test_country_only_listing_is_uncertain(self):
+        result = self._at("India")
+        self.assertEqual(result.status, "uncertain")
+        self.assertIn("quoted 'India'", result.summary)
+
+    def test_explicitly_requested_city_excludes_other_cities(self):
+        result = self._at("Hyderabad, Telangana, India")
+        self.assertEqual(result.status, "excluded")
+        self.assertIn("quoted 'Hyderabad, Telangana, India'", result.summary)
+
+    def test_saved_locations_only_make_other_cities_uncertain(self):
+        result = self._at("Hyderabad, Telangana, India", from_preferences=True)
+        self.assertEqual(result.status, "uncertain")
+        self.assertIn("saved locations", result.summary)
+
+    def test_remote_jobs_ignore_location(self):
+        self.assertEqual(self._at("Hyderabad, India", work_mode="remote").status, "eligible")
+
 if __name__ == "__main__":
     unittest.main()

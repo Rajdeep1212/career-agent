@@ -133,15 +133,41 @@ def _work_mode(job, preferences, intent, decisions):
         decisions.add('excluded', f'Work mode "{job.work_mode}" is excluded by your settings.', quote or f'work mode: {job.work_mode}')
 
 
+# Common alternate names for Indian cities; either form matches the other.
+_CITY_ALIASES = [
+    {"bengaluru", "bangalore"}, {"gurugram", "gurgaon"}, {"mumbai", "bombay"}, {"kolkata", "calcutta"},
+    {"chennai", "madras"}, {"kochi", "cochin"}, {"thiruvananthapuram", "trivandrum"}, {"mysuru", "mysore"},
+    {"puducherry", "pondicherry"}, {"vadodara", "baroda"}, {"prayagraj", "allahabad"}, {"new delhi", "delhi"},
+]
+_COUNTRY_ONLY = re.compile(r"^(?:india|in|pan[- ]india|anywhere in india|multiple locations(?:,? india)?|various locations(?:,? india)?)$", re.I)
+
+
+def _names(place: str) -> set[str]:
+    place = place.casefold().strip()
+    return next((group for group in _CITY_ALIASES if place in group), {place})
+
+
+def _location_matches(job_location: str, requested: str) -> bool:
+    location = job_location.casefold()
+    return any(name in location for name in _names(requested))
+
+
 def _location(job, intent, decisions, warnings):
-    location = job.location.casefold()
-    if any(place.casefold() in location for place in intent.excluded_locations):
-        decisions.add('excluded', 'The location is one you excluded.', job.location)
-    if intent.locations and job.work_mode != 'remote' and not any(place.casefold() in location for place in intent.locations):
-        if location in ('unknown', 'not specified'):
-            warnings.append('Location is not specified.')
-        else:
-            decisions.add('excluded', 'The location does not match the requested locations.', job.location)
+    location = job.location.strip()
+    if any(_location_matches(location, place) for place in intent.excluded_locations):
+        decisions.add('excluded', 'The location is one you excluded.', location)
+    if not intent.locations or job.work_mode == 'remote':
+        return
+    if any(_location_matches(location, place) for place in intent.locations):
+        return
+    if location.casefold() in ('unknown', 'not specified', ''):
+        warnings.append('Location is not specified.')
+    elif _COUNTRY_ONLY.match(location):
+        decisions.add('uncertain', 'The listing names only the country; the city may still match.', location)
+    elif intent.locations_from_preferences:
+        decisions.add('uncertain', 'The location is outside your saved locations.', location)
+    else:
+        decisions.add('excluded', 'The location does not match the requested locations.', location)
 
 
 def _employment(job, intent, decisions):
