@@ -96,6 +96,7 @@ class CareerGraphRuntime:
                 include_seen=bool(state.get("include_seen")),
                 session_id=state.get("career_session_id"),
                 strict_mode=state.get("strict_mode"),
+                refresh=bool(state.get("refresh")),
             )
             ids = [item["id"] for item in result.get("results", []) if item.get("id")][:50]
             return {
@@ -284,6 +285,7 @@ class CareerGraphRuntime:
                 "draft_id": request.draft_id,
                 "include_seen": request.include_seen,
                 "strict_mode": request.strict_mode,
+                "refresh": request.refresh,
             }
             self.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
             async with AsyncSqliteSaver.from_conn_string(str(self.checkpoint_path)) as saver:

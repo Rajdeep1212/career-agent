@@ -94,6 +94,13 @@ class JobSearchPreferencesUpdate(BaseModel):
     verification_limit: int | None = Field(default=None, ge=1, le=50)
 
 
+class JobSourceRef(BaseModel):
+    """Another listing of the same job, e.g. an aggregator copy of an official posting."""
+    source: str
+    url: str | None = None
+    source_job_id: str | None = None
+
+
 class JobPosting(BaseModel):
     company: str
     title: str
@@ -119,6 +126,7 @@ class JobPosting(BaseModel):
     verification_state: VerificationState = "UNVERIFIED"
     verification_reason: str = "Not checked yet."
     verification_checked_at: str | None = None
+    sources: list[JobSourceRef] = Field(default_factory=list)  # other listings merged into this one
 
 
 
@@ -188,6 +196,7 @@ class AgentSearchRequest(BaseModel):
     include_seen: bool = False
     session_id: str | None = None
     strict_mode: bool | None = None
+    refresh: bool = False
 
 
 class SearchPreviewRequest(BaseModel):
@@ -195,6 +204,7 @@ class SearchPreviewRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     career_session_id: str | None = Field(default=None, max_length=128)
     strict_mode: bool | None = None
+    refresh: bool = False
 
 
 class PrepareJobEmailRequest(BaseModel):

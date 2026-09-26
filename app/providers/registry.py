@@ -3,9 +3,10 @@ from app.demo import DemoJobProvider
 from app.providers.adzuna_provider import AdzunaProvider
 from app.providers.jooble_provider import JoobleProvider
 from app.providers.jsearch_provider import JSearchProvider
+from app.providers.radar_provider import RadarProvider
 
-PROVIDERS = {'jsearch': JSearchProvider, 'adzuna': AdzunaProvider, 'jooble': JoobleProvider, 'demo': DemoJobProvider}
-REQUIREMENTS = {'demo': 'nothing (synthetic demo data)', 'jsearch': 'RAPIDAPI_KEY', 'adzuna': 'ADZUNA_APP_ID and ADZUNA_APP_KEY', 'jooble': 'JOOBLE_API_KEY'}
+PROVIDERS = {'radar': RadarProvider, 'jsearch': JSearchProvider, 'adzuna': AdzunaProvider, 'jooble': JoobleProvider, 'demo': DemoJobProvider}
+REQUIREMENTS = {'demo': 'nothing (synthetic demo data)', 'radar': 'a synced index (python -m app.sources.sync)', 'jsearch': 'RAPIDAPI_KEY', 'adzuna': 'ADZUNA_APP_ID and ADZUNA_APP_KEY', 'jooble': 'JOOBLE_API_KEY'}
 
 
 def register_provider(name, factory):
@@ -28,16 +29,23 @@ def get_providers():
 
 
 NOT_INSTALLED = (
-    ('greenhouse', 'Connector not installed'), ('lever', 'Connector not installed'),
-    ('smartrecruiters', 'Connector not installed'), ('company_careers', 'Connector not installed'),
     ('linkedin_jobs', 'Current LinkedIn scopes allow identity only, not job/member search'),
 )
 
 
+def _usage(name):
+    """Quota use such as '37/200 this month', for configured providers that track it."""
+    factory = PROVIDERS[name]
+    if not callable(getattr(factory, 'usage_text', None)) or not _configured(factory):
+        return None
+    return factory().usage_text()
+
+
 def provider_status():
-    """Configuration only (never secret values), for the Connections view."""
+    """Configuration and quota use only (never secret values), for the Connections view."""
     return [*[{'id': name, 'name': getattr(PROVIDERS[name], 'name', name), 'installed': True,
-               'configured': _configured(PROVIDERS[name]), 'requires': REQUIREMENTS.get(name, 'provider credentials')}
+               'configured': _configured(PROVIDERS[name]), 'requires': REQUIREMENTS.get(name, 'provider credentials'),
+               **({'usage': usage} if (usage := _usage(name)) else {})}
               for name in _names() if name in PROVIDERS],
             *[{'id': name, 'name': name, 'installed': False, 'configured': False, 'reason': reason}
               for name, reason in NOT_INSTALLED]]

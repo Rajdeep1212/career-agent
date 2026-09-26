@@ -146,6 +146,17 @@ class SafeHTTPTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.text, "hello")
         self.assertEqual(self.resolver.await_count, 1)
 
+    async def test_extra_headers_are_sent_but_cannot_override_host_or_encoding(self):
+        def handler(request):
+            self.assertEqual(request.headers["user-agent"], "CareerAgent/test")
+            self.assertEqual(request.headers["if-none-match"], '"v1"')
+            self.assertEqual(request.headers["host"], "example.com")
+            self.assertEqual(request.headers["accept-encoding"], "identity")
+            return httpx.Response(200, text="ok")
+        with self.transport(handler):
+            await self.safe.safe_get("https://example.com/jobs/1", headers={
+                "User-Agent": "CareerAgent/test", "If-None-Match": '"v1"', "Host": "evil.example", "Accept-Encoding": "gzip"})
+
     async def test_redirect_to_private_host_is_blocked(self):
         with self.transport(lambda request: httpx.Response(302, headers={"location": "http://169.254.169.254/latest/meta-data"})), self.assertRaises(self.safe.UnsafeURLError):
             await self.safe.safe_get("https://example.com/jobs/1")

@@ -62,6 +62,8 @@ class ChatRunRequest(_RequestIdentity):
     notes: str | None = Field(default=None, max_length=20000)
     include_seen: bool = False
     strict_mode: bool | None = None
+    # Query job-site aggregators (uses API quota); otherwise the local index and cache only.
+    refresh: bool = False
 
 
 class ChatResumeRequest(_RequestIdentity):

@@ -1,0 +1,58 @@
+{
+  "jobs": [
+    {
+      "id": 7001,
+      "title": "Machine Learning Engineer, New Grad",
+      "absolute_url": "https://job-boards.greenhouse.io/example/jobs/7001",
+      "location": {
+        "name": "Bengaluru, Karnataka, India"
+      },
+      "updated_at": "2026-09-24T10:00:00-04:00",
+      "first_published": "2026-09-23T09:00:00-04:00",
+      "content": "&lt;p&gt;Freshers welcome. Build RAG pipelines with &lt;b&gt;Python&lt;/b&gt;, LangChain and FAISS.&lt;/p&gt;",
+      "departments": [
+        {
+          "name": "AI"
+        }
+      ],
+      "offices": [
+        {
+          "name": "Bengaluru"
+        }
+      ]
+    },
+    {
+      "id": 7002,
+      "title": "Senior Backend Engineer",
+      "absolute_url": "https://job-boards.greenhouse.io/example/jobs/7002",
+      "location": {
+        "name": "Hyderabad, India"
+      },
+      "updated_at": "2026-09-20T10:00:00Z",
+      "content": "&lt;p&gt;5+ years experience required.&lt;/p&gt;"
+    },
+    {
+      "id": 7003,
+      "title": "Account Executive",
+      "absolute_url": "https://job-boards.greenhouse.io/example/jobs/7003",
+      "location": {
+        "name": "San Francisco, CA"
+      },
+      "updated_at": "2026-09-21T10:00:00Z",
+      "content": "&lt;p&gt;Sales role.&lt;/p&gt;"
+    },
+    {
+      "id": 7004,
+      "title": "Data Analyst",
+      "absolute_url": "https://job-boards.greenhouse.io/example/jobs/7004",
+      "location": {
+        "name": "Indianapolis, Indiana"
+      },
+      "updated_at": "2026-09-22T10:00:00Z",
+      "content": "&lt;p&gt;SQL.&lt;/p&gt;"
+    }
+  ],
+  "meta": {
+    "total": 4
+  }
+}

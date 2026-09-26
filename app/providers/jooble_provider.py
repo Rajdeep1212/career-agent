@@ -49,6 +49,10 @@ class JoobleProvider(JobProvider):
         return {"remaining": max(0, settings.jooble_key_limit - used["total"]), "limit": settings.jooble_key_limit,
                 "window": "for this key", "reset_at": None, "counted_locally": True}
 
+    def usage_text(self) -> str:
+        used = provider_usage.usage("jooble", settings.jooble_api_key or "")["total"]
+        return f"{used}/{settings.jooble_key_limit} for this key (counted on this machine)"
+
     async def search(self, query: str, page: int = 1) -> list[JobPosting]:
         return await self._search(query, "", page)
 

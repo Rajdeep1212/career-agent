@@ -33,13 +33,19 @@ class Settings(BaseSettings):
     # A Jooble key works only on the country site it was issued for (India: in.jooble.org).
     jooble_host: str = "in.jooble.org"
     # Published free-plan limits, counted locally because these APIs do not report usage.
+    jsearch_monthly_limit: int = Field(default=200, ge=1)
+    # The Radar sync's one daily JSearch request: empty query = saved roles joined with OR.
+    jsearch_daily_query: str = ""
+    jsearch_daily_date_posted: str = Field(default="3days", pattern=r"^(?:all|today|3days|week|month)$")
     adzuna_daily_limit: int = Field(default=250, ge=1)
     adzuna_monthly_limit: int = Field(default=2500, ge=1)
     jooble_key_limit: int = Field(default=500, ge=1)
     # Comma-separated; providers without credentials are skipped.
-    job_providers: str = "jsearch,adzuna,jooble"
+    job_providers: str = "radar,jsearch,adzuna,jooble"
     search_country: str = "in"
     verification_concurrency: int = 4
+    # Aggregator results are reused for this many hours (0 disables the cache).
+    search_cache_hours: float = Field(default=12.0, ge=0, le=168)
     # Ask before a dashboard search that will send at least this many provider requests.
     search_warn_requests: int = Field(default=5, ge=1, le=50)
 

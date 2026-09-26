@@ -1,0 +1,39 @@
+{
+  "offset": 0,
+  "limit": 2,
+  "totalFound": 3,
+  "content": [
+    {
+      "id": "744000001",
+      "name": "Graduate Engineer Trainee - AI",
+      "uuid": "uuid-1",
+      "releasedDate": "2026-09-21T08:00:00.000Z",
+      "location": {
+        "city": "Bengaluru",
+        "region": "KA",
+        "country": "in",
+        "remote": false
+      },
+      "typeOfEmployment": {
+        "label": "Full-time"
+      },
+      "ref": "https://api.smartrecruiters.com/v1/companies/Example/postings/744000001"
+    },
+    {
+      "id": "744000002",
+      "name": "Data Engineer",
+      "uuid": "uuid-2",
+      "releasedDate": "2026-09-22T08:00:00.000Z",
+      "location": {
+        "city": "Pune",
+        "region": "KA",
+        "country": "in",
+        "remote": false
+      },
+      "typeOfEmployment": {
+        "label": "Full-time"
+      },
+      "ref": "https://api.smartrecruiters.com/v1/companies/Example/postings/744000002"
+    }
+  ]
+}

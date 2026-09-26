@@ -1,0 +1,30 @@
+{
+  "id": "744000001",
+  "name": "Graduate Engineer Trainee - AI",
+  "postingUrl": "https://jobs.smartrecruiters.com/Example/744000001-graduate-engineer-trainee-ai",
+  "applyUrl": "https://jobs.smartrecruiters.com/Example/744000001-graduate-engineer-trainee-ai?oga=true",
+  "releasedDate": "2026-09-21T08:00:00.000Z",
+  "location": {
+    "city": "Bengaluru",
+    "country": "in"
+  },
+  "typeOfEmployment": {
+    "label": "Full-time"
+  },
+  "jobAd": {
+    "sections": {
+      "companyDescription": {
+        "title": "Company",
+        "text": "<p>Example builds sensors.</p>"
+      },
+      "jobDescription": {
+        "title": "Job",
+        "text": "<p>2025 graduates eligible. Python, PyTorch and computer vision.</p>"
+      },
+      "qualifications": {
+        "title": "Qualifications",
+        "text": "<ul><li>B.Tech in CS or ECE</li></ul>"
+      }
+    }
+  }
+}

@@ -1,0 +1,2225 @@
+{
+  "version": 1,
+  "description": "Reviewed Company Radar seed. Never edit a released version; add seed_vN.json instead. Evidence counts are len() results from the verification probes on the listed dates.",
+  "companies": [
+    {
+      "id": "accenture",
+      "name": "Accenture",
+      "aliases": [],
+      "tags": [
+        "it_services"
+      ],
+      "careers_url": "https://accenture.wd103.myworkdayjobs.com/AccentureCareers",
+      "source": {
+        "type": "workday",
+        "host": "accenture.wd103.myworkdayjobs.com",
+        "sites": [
+          "AccentureCareers"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 9,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "google",
+      "name": "Google",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://www.google.com/about/careers/applications/jobs/results/?location=India",
+      "source": {
+        "type": "none"
+      },
+      "evidence": {
+        "method": "manual",
+        "checked_at": "2026-09-25",
+        "total": null,
+        "india": null,
+        "note": "No public feed or job sitemap found; Google's jobs reach JSearch through Google for Jobs."
+      },
+      "enabled": false,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "amazon",
+      "name": "Amazon",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://www.amazon.jobs/en/search?country=IND",
+      "source": {
+        "type": "undocumented_json",
+        "endpoint": "https://www.amazon.jobs/en/search.json",
+        "params": {
+          "normalized_country_code[]": "IND",
+          "result_limit": "100",
+          "sort": "recent"
+        }
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-25",
+        "total": 2354,
+        "india": 2354,
+        "note": "Undocumented endpoint; opt-in only (decision G)."
+      },
+      "enabled": false,
+      "reviewed": true,
+      "unofficial": true
+    },
+    {
+      "id": "boeing",
+      "name": "Boeing",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://boeing.wd1.myworkdayjobs.com/EXTERNAL_CAREERS",
+      "source": {
+        "type": "workday",
+        "host": "boeing.wd1.myworkdayjobs.com",
+        "sites": [
+          "EXTERNAL_CAREERS",
+          "INTERN"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 2,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "bosch",
+      "name": "Bosch",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://jobs.smartrecruiters.com/BoschGroup",
+      "source": {
+        "type": "smartrecruiters",
+        "company": "BoschGroup"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-25",
+        "total": null,
+        "india": 502,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "capgemini",
+      "name": "Capgemini",
+      "aliases": [],
+      "tags": [
+        "it_services"
+      ],
+      "careers_url": "https://www.capgemini.com/in-en/careers/join-capgemini/job-search/",
+      "source": {
+        "type": "undocumented_json",
+        "endpoint": "https://cg-jobstream-api.azurewebsites.net/api/job-search",
+        "params": {
+          "country_code": "in-en"
+        }
+      },
+      "evidence": {
+        "method": "manual",
+        "checked_at": "2026-09-25",
+        "total": null,
+        "india": null,
+        "note": "Endpoint seen in the careers page; parameters unverified. Opt-in only."
+      },
+      "enabled": false,
+      "reviewed": true,
+      "unofficial": true
+    },
+    {
+      "id": "cisco",
+      "name": "Cisco",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://cisco.wd5.myworkdayjobs.com/Cisco_Careers",
+      "source": {
+        "type": "workday",
+        "host": "cisco.wd5.myworkdayjobs.com",
+        "sites": [
+          "Cisco_Careers"
+        ],
+        "sitemap_capped": false
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 1327,
+        "india": 291,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "coca-cola",
+      "name": "Coca-Cola",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://coke.wd1.myworkdayjobs.com/coca-cola-careers",
+      "source": {
+        "type": "workday",
+        "host": "coke.wd1.myworkdayjobs.com",
+        "sites": [
+          "coca-cola-careers",
+          "coca_cola_college"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 4,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "cognizant",
+      "name": "Cognizant",
+      "aliases": [],
+      "tags": [
+        "it_services"
+      ],
+      "careers_url": "https://careers.cognizant.com/india-en/jobs/",
+      "source": {
+        "type": "none"
+      },
+      "evidence": {
+        "method": "manual",
+        "checked_at": "2026-09-25",
+        "total": null,
+        "india": 2290,
+        "note": "Sitemap lists ~2,290 India job URLs but job pages carry no JSON-LD; needs an HTML parser."
+      },
+      "enabled": false,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "comcast",
+      "name": "Comcast",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://comcast.wd115.myworkdayjobs.com/Comcast_Careers",
+      "source": {
+        "type": "workday",
+        "host": "comcast.wd115.myworkdayjobs.com",
+        "sites": [
+          "Comcast_Careers"
+        ],
+        "sitemap_capped": false
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 655,
+        "india": 30,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "dell",
+      "name": "Dell",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://jobs.dell.com/",
+      "source": {
+        "type": "undocumented_json",
+        "endpoint": "https://enterpriseplatform.dell.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions",
+        "params": {}
+      },
+      "evidence": {
+        "method": "manual",
+        "checked_at": "2026-09-25",
+        "total": null,
+        "india": null,
+        "note": "Oracle Recruiting Cloud REST; undocumented. Opt-in only."
+      },
+      "enabled": false,
+      "reviewed": true,
+      "unofficial": true
+    },
+    {
+      "id": "gartner",
+      "name": "Gartner",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://gartner.wd5.myworkdayjobs.com/EXT",
+      "source": {
+        "type": "workday",
+        "host": "gartner.wd5.myworkdayjobs.com",
+        "sites": [
+          "EXT"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 11,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "hsbc",
+      "name": "HSBC",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://mycareer.hsbc.com/en_GB/external/SearchJobs",
+      "source": {
+        "type": "none"
+      },
+      "evidence": {
+        "method": "manual",
+        "checked_at": "2026-09-25",
+        "total": null,
+        "india": null,
+        "note": "Avature; the sampled sitemap had no job URLs."
+      },
+      "enabled": false,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "ibm",
+      "name": "IBM",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://www.ibm.com/careers/search",
+      "source": {
+        "type": "none"
+      },
+      "evidence": {
+        "method": "manual",
+        "checked_at": "2026-09-25",
+        "total": null,
+        "india": null,
+        "note": "Avature-backed; job sitemap not parseable yet."
+      },
+      "enabled": false,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "infosys",
+      "name": "Infosys",
+      "aliases": [],
+      "tags": [
+        "it_services"
+      ],
+      "careers_url": "https://career.infosys.com/joblist",
+      "source": {
+        "type": "none"
+      },
+      "evidence": {
+        "method": "manual",
+        "checked_at": "2026-09-25",
+        "total": null,
+        "india": null,
+        "note": "Single-page app; no feed found."
+      },
+      "enabled": false,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "maersk",
+      "name": "Maersk",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://maersk.wd3.myworkdayjobs.com/Maersk_Careers",
+      "source": {
+        "type": "workday",
+        "host": "maersk.wd3.myworkdayjobs.com",
+        "sites": [
+          "Maersk_Careers"
+        ],
+        "sitemap_capped": false
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 1382,
+        "india": 253,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "nvidia",
+      "name": "NVIDIA",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite",
+      "source": {
+        "type": "workday",
+        "host": "nvidia.wd5.myworkdayjobs.com",
+        "sites": [
+          "NVIDIAExternalCareerSite"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 2,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "oracle",
+      "name": "Oracle",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://careers.oracle.com/jobs/",
+      "source": {
+        "type": "undocumented_json",
+        "endpoint": "https://eeho.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions",
+        "params": {
+          "onlyData": "true",
+          "expand": "requisitionList",
+          "finder": "findReqs;siteNumber=CX_45001,location=India"
+        }
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-25",
+        "total": null,
+        "india": null,
+        "note": "Oracle Recruiting Cloud REST; undocumented. Opt-in only."
+      },
+      "enabled": false,
+      "reviewed": true,
+      "unofficial": true
+    },
+    {
+      "id": "pg",
+      "name": "P&G",
+      "aliases": [
+        "Procter & Gamble",
+        "Procter and Gamble"
+      ],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://www.pgcareers.com/in/en",
+      "source": {
+        "type": "sitemap_jsonld",
+        "sitemaps": [
+          "https://www.pgcareers.com/in/en/sitemap_index.xml"
+        ],
+        "job_url_pattern": "/job/"
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-25",
+        "total": 500,
+        "india": null,
+        "note": "Phenom; India sitemap also lists non-India jobs, so the India filter applies to JSON-LD locations."
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "salesforce",
+      "name": "Salesforce",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://salesforce.wd12.myworkdayjobs.com/External_Career_Site",
+      "source": {
+        "type": "workday",
+        "host": "salesforce.wd12.myworkdayjobs.com",
+        "sites": [
+          "External_Career_Site",
+          "Futureforce_NewGradRoles"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 4,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "publicis-sapient",
+      "name": "Publicis Sapient",
+      "aliases": [],
+      "tags": [
+        "it_services"
+      ],
+      "careers_url": "https://careers.publicissapient.com/job-search",
+      "source": {
+        "type": "sitemap_jsonld",
+        "sitemaps": [
+          "https://careers.publicissapient.com/careersJobDetailSitemap.xml"
+        ],
+        "job_url_pattern": "/job-details/"
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-25",
+        "total": 377,
+        "india": 50,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "voith",
+      "name": "Voith",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://jobs.voith.com/",
+      "source": {
+        "type": "none"
+      },
+      "evidence": {
+        "method": "manual",
+        "checked_at": "2026-09-25",
+        "total": null,
+        "india": null,
+        "note": "SAP SuccessFactors; feed unverified."
+      },
+      "enabled": false,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "walmart",
+      "name": "Walmart",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://careers.walmart.com/",
+      "source": {
+        "type": "none"
+      },
+      "evidence": {
+        "method": "manual",
+        "checked_at": "2026-09-25",
+        "total": null,
+        "india": null,
+        "note": "Sitemap lists US jobs only; robots.txt disallows /api; no India Workday tenant found."
+      },
+      "enabled": false,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "databricks",
+      "name": "Databricks",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://job-boards.greenhouse.io/databricks",
+      "source": {
+        "type": "greenhouse",
+        "board": "databricks"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-25",
+        "total": 884,
+        "india": 97,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "mongodb",
+      "name": "MongoDB",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://job-boards.greenhouse.io/mongodb",
+      "source": {
+        "type": "greenhouse",
+        "board": "mongodb"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-25",
+        "total": 401,
+        "india": 77,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "rubrik",
+      "name": "Rubrik",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://job-boards.greenhouse.io/rubrik",
+      "source": {
+        "type": "greenhouse",
+        "board": "rubrik"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-25",
+        "total": 140,
+        "india": 33,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "razorpay",
+      "name": "Razorpay",
+      "aliases": [],
+      "tags": [
+        "india_product"
+      ],
+      "careers_url": "https://job-boards.greenhouse.io/razorpaysoftwareprivatelimited",
+      "source": {
+        "type": "greenhouse",
+        "board": "razorpaysoftwareprivatelimited"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-25",
+        "total": 25,
+        "india": 20,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "hackerrank",
+      "name": "HackerRank",
+      "aliases": [],
+      "tags": [
+        "india_product"
+      ],
+      "careers_url": "https://job-boards.greenhouse.io/hackerrank",
+      "source": {
+        "type": "greenhouse",
+        "board": "hackerrank"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-25",
+        "total": 27,
+        "india": 17,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "elastic",
+      "name": "Elastic",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://job-boards.greenhouse.io/elastic",
+      "source": {
+        "type": "greenhouse",
+        "board": "elastic"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-25",
+        "total": 386,
+        "india": 15,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "druva",
+      "name": "Druva",
+      "aliases": [],
+      "tags": [
+        "india_product"
+      ],
+      "careers_url": "https://job-boards.greenhouse.io/druva",
+      "source": {
+        "type": "greenhouse",
+        "board": "druva"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-25",
+        "total": 35,
+        "india": 12,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "groww",
+      "name": "Groww",
+      "aliases": [],
+      "tags": [
+        "india_product"
+      ],
+      "careers_url": "https://job-boards.greenhouse.io/groww",
+      "source": {
+        "type": "greenhouse",
+        "board": "groww"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-25",
+        "total": 7,
+        "india": 7,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "okta",
+      "name": "Okta",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://job-boards.greenhouse.io/okta",
+      "source": {
+        "type": "greenhouse",
+        "board": "okta"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-26",
+        "total": 333,
+        "india": 98,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "zscaler",
+      "name": "Zscaler",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://job-boards.greenhouse.io/zscaler",
+      "source": {
+        "type": "greenhouse",
+        "board": "zscaler"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-26",
+        "total": 380,
+        "india": 71,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "highradius",
+      "name": "HighRadius",
+      "aliases": [],
+      "tags": [
+        "india_product"
+      ],
+      "careers_url": "https://job-boards.greenhouse.io/highradius",
+      "source": {
+        "type": "greenhouse",
+        "board": "highradius"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-26",
+        "total": 83,
+        "india": 57,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "stripe",
+      "name": "Stripe",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://job-boards.greenhouse.io/stripe",
+      "source": {
+        "type": "greenhouse",
+        "board": "stripe"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-26",
+        "total": 703,
+        "india": 42,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "inmobi",
+      "name": "InMobi",
+      "aliases": [],
+      "tags": [
+        "india_product"
+      ],
+      "careers_url": "https://job-boards.greenhouse.io/inmobi",
+      "source": {
+        "type": "greenhouse",
+        "board": "inmobi"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-26",
+        "total": 71,
+        "india": 36,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "pubmatic",
+      "name": "PubMatic",
+      "aliases": [],
+      "tags": [
+        "india_product"
+      ],
+      "careers_url": "https://job-boards.greenhouse.io/pubmatic",
+      "source": {
+        "type": "greenhouse",
+        "board": "pubmatic"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-26",
+        "total": 80,
+        "india": 35,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "sigmoid",
+      "name": "Sigmoid",
+      "aliases": [],
+      "tags": [
+        "it_services"
+      ],
+      "careers_url": "https://job-boards.greenhouse.io/sigmoid",
+      "source": {
+        "type": "greenhouse",
+        "board": "sigmoid"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-26",
+        "total": 36,
+        "india": 30,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "gitlab",
+      "name": "GitLab",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://job-boards.greenhouse.io/gitlab",
+      "source": {
+        "type": "greenhouse",
+        "board": "gitlab"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-26",
+        "total": 198,
+        "india": 29,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "zenoti",
+      "name": "Zenoti",
+      "aliases": [],
+      "tags": [
+        "india_product"
+      ],
+      "careers_url": "https://job-boards.greenhouse.io/zenoti",
+      "source": {
+        "type": "greenhouse",
+        "board": "zenoti"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-26",
+        "total": 49,
+        "india": 24,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "netskope",
+      "name": "Netskope",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://job-boards.greenhouse.io/netskope",
+      "source": {
+        "type": "greenhouse",
+        "board": "netskope"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-26",
+        "total": 148,
+        "india": 23,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "twilio",
+      "name": "Twilio",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://job-boards.greenhouse.io/twilio",
+      "source": {
+        "type": "greenhouse",
+        "board": "twilio"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-26",
+        "total": 138,
+        "india": 14,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "coinbase",
+      "name": "Coinbase",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://job-boards.greenhouse.io/coinbase",
+      "source": {
+        "type": "greenhouse",
+        "board": "coinbase"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-26",
+        "total": 210,
+        "india": 11,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "datadog",
+      "name": "Datadog",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://job-boards.greenhouse.io/datadog",
+      "source": {
+        "type": "greenhouse",
+        "board": "datadog"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-26",
+        "total": 449,
+        "india": 10,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "observeai",
+      "name": "Observe.AI",
+      "aliases": [],
+      "tags": [
+        "ai_startup"
+      ],
+      "careers_url": "https://job-boards.greenhouse.io/observeai",
+      "source": {
+        "type": "greenhouse",
+        "board": "observeai"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-26",
+        "total": 15,
+        "india": 7,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "thoughtworks",
+      "name": "Thoughtworks",
+      "aliases": [],
+      "tags": [
+        "it_services"
+      ],
+      "careers_url": "https://job-boards.greenhouse.io/thoughtworks",
+      "source": {
+        "type": "greenhouse",
+        "board": "thoughtworks"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-26",
+        "total": 35,
+        "india": 3,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "paytm",
+      "name": "Paytm",
+      "aliases": [],
+      "tags": [
+        "india_product"
+      ],
+      "careers_url": "https://jobs.lever.co/paytm",
+      "source": {
+        "type": "lever",
+        "site": "paytm",
+        "region": "global"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-25",
+        "total": 174,
+        "india": 138,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "meesho",
+      "name": "Meesho",
+      "aliases": [],
+      "tags": [
+        "india_product"
+      ],
+      "careers_url": "https://jobs.lever.co/meesho",
+      "source": {
+        "type": "lever",
+        "site": "meesho",
+        "region": "global"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-25",
+        "total": 54,
+        "india": 53,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "zeta",
+      "name": "Zeta",
+      "aliases": [],
+      "tags": [
+        "india_product"
+      ],
+      "careers_url": "https://jobs.lever.co/zeta",
+      "source": {
+        "type": "lever",
+        "site": "zeta",
+        "region": "global"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-25",
+        "total": 22,
+        "india": 20,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "cred",
+      "name": "CRED",
+      "aliases": [],
+      "tags": [
+        "india_product"
+      ],
+      "careers_url": "https://jobs.lever.co/cred",
+      "source": {
+        "type": "lever",
+        "site": "cred",
+        "region": "global"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-25",
+        "total": 12,
+        "india": 11,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "sarvam",
+      "name": "Sarvam AI",
+      "aliases": [],
+      "tags": [
+        "ai_startup"
+      ],
+      "careers_url": "https://jobs.ashbyhq.com/sarvam",
+      "source": {
+        "type": "ashby",
+        "board": "sarvam"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-25",
+        "total": 61,
+        "india": 61,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "openai",
+      "name": "OpenAI",
+      "aliases": [],
+      "tags": [
+        "ai_startup"
+      ],
+      "careers_url": "https://jobs.ashbyhq.com/openai",
+      "source": {
+        "type": "ashby",
+        "board": "openai"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-25",
+        "total": 830,
+        "india": 10,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "atlan",
+      "name": "Atlan",
+      "aliases": [],
+      "tags": [
+        "india_product"
+      ],
+      "careers_url": "https://jobs.ashbyhq.com/atlan",
+      "source": {
+        "type": "ashby",
+        "board": "atlan"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-25",
+        "total": 8,
+        "india": 6,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "composio",
+      "name": "Composio",
+      "aliases": [],
+      "tags": [
+        "ai_startup"
+      ],
+      "careers_url": "https://jobs.ashbyhq.com/composio",
+      "source": {
+        "type": "ashby",
+        "board": "composio"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-25",
+        "total": 28,
+        "india": 2,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "ema",
+      "name": "Ema",
+      "aliases": [],
+      "tags": [
+        "ai_startup"
+      ],
+      "careers_url": "https://jobs.ashbyhq.com/ema",
+      "source": {
+        "type": "ashby",
+        "board": "ema"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-26",
+        "total": 40,
+        "india": 16,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "bureau",
+      "name": "Bureau",
+      "aliases": [],
+      "tags": [
+        "ai_startup"
+      ],
+      "careers_url": "https://jobs.ashbyhq.com/bureau",
+      "source": {
+        "type": "ashby",
+        "board": "bureau"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-26",
+        "total": 16,
+        "india": 16,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "smallest",
+      "name": "Smallest.ai",
+      "aliases": [],
+      "tags": [
+        "ai_startup"
+      ],
+      "careers_url": "https://jobs.ashbyhq.com/smallest",
+      "source": {
+        "type": "ashby",
+        "board": "smallest"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-26",
+        "total": 1,
+        "india": 1,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "servicenow",
+      "name": "ServiceNow",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://jobs.smartrecruiters.com/ServiceNow",
+      "source": {
+        "type": "smartrecruiters",
+        "company": "ServiceNow"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-26",
+        "total": null,
+        "india": 68,
+        "note": "SmartRecruiters probe queried country=in, so total = India count."
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "sutherland",
+      "name": "Sutherland",
+      "aliases": [],
+      "tags": [
+        "it_services"
+      ],
+      "careers_url": "https://jobs.smartrecruiters.com/Sutherland",
+      "source": {
+        "type": "smartrecruiters",
+        "company": "Sutherland"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-26",
+        "total": null,
+        "india": 60,
+        "note": "SmartRecruiters probe queried country=in, so total = India count."
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "continental",
+      "name": "Continental",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://jobs.smartrecruiters.com/Continental",
+      "source": {
+        "type": "smartrecruiters",
+        "company": "Continental"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-26",
+        "total": null,
+        "india": 50,
+        "note": "SmartRecruiters probe queried country=in, so total = India count."
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "freshworks",
+      "name": "Freshworks",
+      "aliases": [],
+      "tags": [
+        "india_product"
+      ],
+      "careers_url": "https://jobs.smartrecruiters.com/Freshworks",
+      "source": {
+        "type": "smartrecruiters",
+        "company": "Freshworks"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-26",
+        "total": null,
+        "india": 30,
+        "note": "SmartRecruiters probe queried country=in, so total = India count."
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "abbvie",
+      "name": "AbbVie",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://jobs.smartrecruiters.com/AbbVie",
+      "source": {
+        "type": "smartrecruiters",
+        "company": "AbbVie"
+      },
+      "evidence": {
+        "method": "api_probe",
+        "checked_at": "2026-09-26",
+        "total": null,
+        "india": 21,
+        "note": "SmartRecruiters probe queried country=in, so total = India count."
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "barclays",
+      "name": "Barclays",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://barclays.wd3.myworkdayjobs.com/External_Career_Site_Barclays",
+      "source": {
+        "type": "workday",
+        "host": "barclays.wd3.myworkdayjobs.com",
+        "sites": [
+          "External_Career_Site_Barclays"
+        ],
+        "sitemap_capped": false
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 803,
+        "india": 335,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "micron",
+      "name": "Micron",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://micron.wd1.myworkdayjobs.com/External",
+      "source": {
+        "type": "workday",
+        "host": "micron.wd1.myworkdayjobs.com",
+        "sites": [
+          "External"
+        ],
+        "sitemap_capped": false
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 3064,
+        "india": 317,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "ge-vernova",
+      "name": "GE Vernova",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://gevernova.wd5.myworkdayjobs.com/Vernova_ExternalSite",
+      "source": {
+        "type": "workday",
+        "host": "gevernova.wd5.myworkdayjobs.com",
+        "sites": [
+          "Vernova_ExternalSite"
+        ],
+        "sitemap_capped": false
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 2269,
+        "india": 274,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "johnson-controls",
+      "name": "Johnson Controls",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://jci.wd5.myworkdayjobs.com/JCI",
+      "source": {
+        "type": "workday",
+        "host": "jci.wd5.myworkdayjobs.com",
+        "sites": [
+          "JCI"
+        ],
+        "sitemap_capped": false
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 2654,
+        "india": 151,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "broadcom",
+      "name": "Broadcom",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://broadcom.wd1.myworkdayjobs.com/External_Career",
+      "source": {
+        "type": "workday",
+        "host": "broadcom.wd1.myworkdayjobs.com",
+        "sites": [
+          "External_Career"
+        ],
+        "sitemap_capped": false
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 376,
+        "india": 76,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "state-street",
+      "name": "State Street",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://statestreet.wd1.myworkdayjobs.com/Global",
+      "source": {
+        "type": "workday",
+        "host": "statestreet.wd1.myworkdayjobs.com",
+        "sites": [
+          "Global"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 63,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "blackrock",
+      "name": "BlackRock",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://blackrock.wd1.myworkdayjobs.com/BlackRock_Professional",
+      "source": {
+        "type": "workday",
+        "host": "blackrock.wd1.myworkdayjobs.com",
+        "sites": [
+          "BlackRock_Professional"
+        ],
+        "sitemap_capped": false
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 322,
+        "india": 58,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "deutsche-bank",
+      "name": "Deutsche Bank",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://db.wd3.myworkdayjobs.com/DBWebsite",
+      "source": {
+        "type": "workday",
+        "host": "db.wd3.myworkdayjobs.com",
+        "sites": [
+          "DBWebsite"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 26,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "hpe",
+      "name": "Hewlett Packard Enterprise",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://hpe.wd5.myworkdayjobs.com/Jobsathpe",
+      "source": {
+        "type": "workday",
+        "host": "hpe.wd5.myworkdayjobs.com",
+        "sites": [
+          "Jobsathpe"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 22,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "shell",
+      "name": "Shell",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://shell.wd3.myworkdayjobs.com/ShellCareers",
+      "source": {
+        "type": "workday",
+        "host": "shell.wd3.myworkdayjobs.com",
+        "sites": [
+          "ShellCareers"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 22,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "adobe",
+      "name": "Adobe",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://adobe.wd5.myworkdayjobs.com/external_experienced",
+      "source": {
+        "type": "workday",
+        "host": "adobe.wd5.myworkdayjobs.com",
+        "sites": [
+          "external_experienced"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 17,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "analog-devices",
+      "name": "Analog Devices",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://analogdevices.wd1.myworkdayjobs.com/External",
+      "source": {
+        "type": "workday",
+        "host": "analogdevices.wd1.myworkdayjobs.com",
+        "sites": [
+          "External"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 17,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "thomson-reuters",
+      "name": "Thomson Reuters",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://thomsonreuters.wd5.myworkdayjobs.com/External_Career_Site",
+      "source": {
+        "type": "workday",
+        "host": "thomsonreuters.wd5.myworkdayjobs.com",
+        "sites": [
+          "External_Career_Site"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 17,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "visa",
+      "name": "Visa",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://visa.wd5.myworkdayjobs.com/Visa",
+      "source": {
+        "type": "workday",
+        "host": "visa.wd5.myworkdayjobs.com",
+        "sites": [
+          "Visa",
+          "Visa_Early_Careers"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 14,
+        "note": "India count is for the first listed site's sitemap."
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "lseg",
+      "name": "LSEG",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://lseg.wd3.myworkdayjobs.com/Careers",
+      "source": {
+        "type": "workday",
+        "host": "lseg.wd3.myworkdayjobs.com",
+        "sites": [
+          "Careers",
+          "Graduate_Careers"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 14,
+        "note": "India count is for the first listed site's sitemap."
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "philips",
+      "name": "Philips",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://philips.wd3.myworkdayjobs.com/jobs-and-careers",
+      "source": {
+        "type": "workday",
+        "host": "philips.wd3.myworkdayjobs.com",
+        "sites": [
+          "jobs-and-careers"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 12,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "crowdstrike",
+      "name": "CrowdStrike",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://crowdstrike.wd5.myworkdayjobs.com/crowdstrikecareers",
+      "source": {
+        "type": "workday",
+        "host": "crowdstrike.wd5.myworkdayjobs.com",
+        "sites": [
+          "crowdstrikecareers"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 11,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "cadence",
+      "name": "Cadence",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://cadence.wd1.myworkdayjobs.com/External_Careers",
+      "source": {
+        "type": "workday",
+        "host": "cadence.wd1.myworkdayjobs.com",
+        "sites": [
+          "External_Careers",
+          "Univ_Careers"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 10,
+        "note": "India count is for the first listed site's sitemap."
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "vanguard",
+      "name": "Vanguard",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://vanguard.wd5.myworkdayjobs.com/vanguard_external",
+      "source": {
+        "type": "workday",
+        "host": "vanguard.wd5.myworkdayjobs.com",
+        "sites": [
+          "vanguard_external"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 10,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "nxp",
+      "name": "NXP",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://nxp.wd3.myworkdayjobs.com/careers",
+      "source": {
+        "type": "workday",
+        "host": "nxp.wd3.myworkdayjobs.com",
+        "sites": [
+          "careers"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 9,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "mastercard",
+      "name": "Mastercard",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://mastercard.wd1.myworkdayjobs.com/CorporateCareers",
+      "source": {
+        "type": "workday",
+        "host": "mastercard.wd1.myworkdayjobs.com",
+        "sites": [
+          "CorporateCareers",
+          "Campus"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 8,
+        "note": "India count is for the first listed site's sitemap."
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "hp",
+      "name": "HP",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://hp.wd5.myworkdayjobs.com/ExternalCareerSite",
+      "source": {
+        "type": "workday",
+        "host": "hp.wd5.myworkdayjobs.com",
+        "sites": [
+          "ExternalCareerSite"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 8,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "applied-materials",
+      "name": "Applied Materials",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://amat.wd1.myworkdayjobs.com/External",
+      "source": {
+        "type": "workday",
+        "host": "amat.wd1.myworkdayjobs.com",
+        "sites": [
+          "External"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 7,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "workday",
+      "name": "Workday",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://workday.wd5.myworkdayjobs.com/Workday",
+      "source": {
+        "type": "workday",
+        "host": "workday.wd5.myworkdayjobs.com",
+        "sites": [
+          "Workday",
+          "Workday_Early_Career"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 5,
+        "note": "India count is for the first listed site's sitemap."
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "carrier",
+      "name": "Carrier",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://carrier.wd5.myworkdayjobs.com/jobs",
+      "source": {
+        "type": "workday",
+        "host": "carrier.wd5.myworkdayjobs.com",
+        "sites": [
+          "jobs"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 3,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "target",
+      "name": "Target",
+      "aliases": [],
+      "tags": [
+        "gcc"
+      ],
+      "careers_url": "https://target.wd5.myworkdayjobs.com/targetcareers",
+      "source": {
+        "type": "workday",
+        "host": "target.wd5.myworkdayjobs.com",
+        "sites": [
+          "targetcareers"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 2,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    },
+    {
+      "id": "intel",
+      "name": "Intel",
+      "aliases": [],
+      "tags": [
+        "big_tech"
+      ],
+      "careers_url": "https://intel.wd1.myworkdayjobs.com/External",
+      "source": {
+        "type": "workday",
+        "host": "intel.wd1.myworkdayjobs.com",
+        "sites": [
+          "External"
+        ],
+        "sitemap_capped": true
+      },
+      "evidence": {
+        "method": "robots_sitemap",
+        "checked_at": "2026-09-26",
+        "total": 100,
+        "india": 1,
+        "note": ""
+      },
+      "enabled": true,
+      "reviewed": true,
+      "unofficial": false
+    }
+  ]
+}

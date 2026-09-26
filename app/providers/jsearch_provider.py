@@ -9,6 +9,7 @@ from app.providers.base import JobProvider, ProviderError
 from urllib.parse import urlsplit
 from app.services.job_requirements import extract_requirements
 from app.services.skills import extract_skills
+from app.storage import provider_usage
 
 
 FRESHER_TERMS = [
@@ -152,24 +153,47 @@ class JSearchProvider(JobProvider):
         return bool(settings.rapidapi_key)
 
     def quota(self) -> dict | None:
-        """Quota reported by RapidAPI on the last response in this process, if any."""
+        """Quota reported by RapidAPI on the last response in this process, else counted locally this month."""
         quota = last_quota()
-        return {**quota, "window": None, "counted_locally": False} if quota else None
+        if quota and quota.get("remaining") is not None:
+            return {**quota, "window": None, "counted_locally": False}
+        used = provider_usage.usage("jsearch", settings.rapidapi_key or "")["month"]
+        now = datetime.now(timezone.utc)
+        reset = (now.replace(day=1, hour=0, minute=0, second=0, microsecond=0) + timedelta(days=32)).replace(day=1)
+        return {"remaining": max(0, settings.jsearch_monthly_limit - used), "limit": settings.jsearch_monthly_limit,
+                "window": "this month (UTC)", "reset_at": reset.isoformat(), "counted_locally": True}
+
+    def usage_text(self) -> str:
+        quota = self.quota() or {}
+        limit = quota.get("limit") or settings.jsearch_monthly_limit
+        used = limit - (quota.get("remaining") or 0)
+        origin = "counted on this machine" if quota.get("counted_locally") else "reported by RapidAPI"
+        return f"{used}/{limit} this month ({origin})"
 
     async def search(self, query: str, page: int = 1) -> list[JobPosting]:
+        response = await self.request({"query": query[:180], "num_pages": 1, "date_posted": "all"})
+        return parse_jobs(response)
+
+    async def search_recent(self, query: str, *, date_posted: str = "3days") -> list[JobPosting]:
+        """One page of recent postings (the Radar sync's daily query)."""
+        response = await self.request({"query": query[:180], "num_pages": 1, "date_posted": date_posted})
+        return parse_jobs(response)
+
+    async def request(self, params: dict) -> httpx.Response:
+        """One counted /search-v2 request; raises ProviderError with a safe reason on failure."""
         if not settings.rapidapi_key:
             raise ProviderError("JSearch is not configured. Add credentials in the local .env.")
         # Fixed credential destination: never send an API key to a configurable arbitrary host.
         if settings.rapidapi_host != "jsearch.p.rapidapi.com":
             raise ProviderError("JSearch host must be jsearch.p.rapidapi.com.")
+        provider_usage.record("jsearch", settings.rapidapi_key)
         headers = {"X-RapidAPI-Key": settings.rapidapi_key,
                    "X-RapidAPI-Host": "jsearch.p.rapidapi.com", "Accept": "application/json"}
         try:
             async with httpx.AsyncClient(timeout=settings.request_timeout_seconds, verify=True,
                                          follow_redirects=False, trust_env=False) as client:
                 response = await client.get("https://jsearch.p.rapidapi.com/search-v2", headers=headers,
-                    params={"query": query[:180], "num_pages": 1, "country": settings.search_country,
-                            "language": "en", "date_posted": "all"})
+                                            params={"country": settings.search_country, "language": "en", **params})
         except httpx.TimeoutException:
             raise ProviderError("JSearch request timed out.", reason="timed out") from None
         except httpx.HTTPError:
@@ -181,19 +205,23 @@ class JSearchProvider(JobProvider):
             reset = f"; resets {format_reset(quota['reset_at'])}" if quota["reset_at"] else ""
             raise ProviderError(f"JSearch request failed (HTTP {response.status_code}: {reason}{reset}).",
                                 status_code=response.status_code, reason=reason, **quota)
+        return response
+
+
+def parse_jobs(response: httpx.Response) -> list[JobPosting]:
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = None
+    if not isinstance(payload, dict):
+        raise ProviderError("JSearch returned an invalid response.", status_code=response.status_code,
+                            reason="invalid response")
+    results = []
+    for item in _extract_items(payload):
+        if not isinstance(item, dict):
+            continue
         try:
-            payload = response.json()
-        except ValueError:
-            payload = None
-        if not isinstance(payload, dict):
-            raise ProviderError("JSearch returned an invalid response.", status_code=response.status_code,
-                                reason="invalid response")
-        results = []
-        for item in _extract_items(payload):
-            if not isinstance(item, dict):
-                continue
-            try:
-                results.append(normalize_item(item))
-            except (ValueError, TypeError):
-                continue
-        return results
+            results.append(normalize_item(item))
+        except (ValueError, TypeError):
+            continue
+    return results

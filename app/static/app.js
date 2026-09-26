@@ -433,7 +433,8 @@ async function confirmSearchCost(message) {
   let preview = null;
   try {
     preview = await api('/agent/search/preview', jsonOptions('POST', {
-      message, career_session_id: searchSessionId, strict_mode: $('strictSearch').checked
+      message, career_session_id: searchSessionId, strict_mode: $('strictSearch').checked,
+      refresh: $('refreshProviders').checked
     }));
   } catch {
     return true;
@@ -478,11 +479,14 @@ async function runChat(message, extra = {}) {
     draft_id: pendingDraftId,
     include_seen: $('includeSeen').checked,
     strict_mode: $('strictSearch').checked,
+    refresh: $('refreshProviders').checked,
     ...extra
   };
   try {
     const response = await api('/chat/run', jsonOptions('POST', payload));
     pendingTurn = null;
+    // A refresh is a one-off manual action; the next search reads the index again.
+    $('refreshProviders').checked = false;
     await handleChatResponse(response);
     $('searchQuery').value = '';
     showStatus($('searchStatus'), response.replayed ? 'This turn was already processed safely.' : 'Request completed.', 'success');
@@ -582,7 +586,17 @@ const PROVIDER_SITES = { Adzuna: 'https://www.adzuna.co.uk', Jooble: 'https://in
 
 function providerCredit(job) {
   const credit = PROVIDER_CREDITS[job?.source];
-  return credit ? `<span class="provider-credit">${credit(PROVIDER_SITES[job.source])}</span>` : '';
+  return (credit ? `<span class="provider-credit">${credit(PROVIDER_SITES[job.source])}</span>` : '') + sourceLine(job);
+}
+
+// Company Radar jobs come from the company's own board; other listings of the same job are merged into sources[].
+function sourceLine(job) {
+  const official = job?.source === 'Company Radar' ? "From the company's official job board" : '';
+  const others = [...new Set((job?.sources || []).map(ref => ref?.source).filter(Boolean))];
+  const also = others.length ? `Also listed on ${others.map(name => PROVIDER_CREDITS[name]
+    ? `${escapeHtml(name)} (${PROVIDER_CREDITS[name](PROVIDER_SITES[name])})` : escapeHtml(name)).join(', ')}` : '';
+  const text = [official, also].filter(Boolean).join(' · ');
+  return text ? `<span class="source-line">${text}</span>` : '';
 }
 
 // Three-way eligibility (a heuristic, claim level L0). Older stored results only have `eligible`.
@@ -1033,7 +1047,7 @@ async function refreshExistingConnections() {
     const search = await api("/connections/search/status");
     const installed = (search.providers || []).filter(provider => provider.installed);
     const ready = installed.filter(provider => provider.configured);
-    const list = installed.map(provider => `<li>${escapeHtml(provider.name)}: ${provider.configured ? "configured" : `skipped (add ${escapeHtml(provider.requires)} to .env)`}</li>`).join("");
+    const list = installed.map(provider => `<li>${escapeHtml(provider.name)}: ${provider.configured ? "configured" : `skipped (add ${escapeHtml(provider.requires)} to .env)`}${provider.usage ? ` · ${escapeHtml(provider.usage)}` : ""}</li>`).join("");
     $("searchApiStatusBox").innerHTML = `
       <strong>${search.configured ? "Connected" : "Not configured"}</strong>
       <p>${search.configured ? "Searches use every configured provider. A provider without its key is skipped." : "Add at least one job provider key (JSearch, Adzuna or Jooble) to the local .env to enable job search."}</p>
@@ -1068,9 +1082,62 @@ $("disconnectLinkedIn").addEventListener("click", async () => {
   }
 });
 
+// Company Radar: today's new jobs in the search view, sync status and "Sync now" in Connections.
+function newTodayItem(item, tier) {
+  const url = safeExternalUrl(item.url);
+  const title = url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title)}</a>` : escapeHtml(item.title);
+  const [label, tone] = ELIGIBILITY_LABELS[tier];
+  return `<li><strong>${title}</strong> <span class="tag ${tone}">${label}</span> <span class="muted">heuristic fit ${escapeHtml(item.score)}/100</span>
+    <div>${escapeHtml(item.company)} · ${escapeHtml(item.location)}</div><div class="muted">${escapeHtml(item.summary)}</div></li>`;
+}
+
+async function loadNewToday() {
+  let digest;
+  try { digest = await api('/radar/new-today'); } catch { return; }
+  const eligible = digest?.eligible || [], uncertain = digest?.uncertain || [];
+  if (!eligible.length && !uncertain.length) { $('newTodayPanel').classList.add('hidden'); return; }
+  $('newTodaySummary').textContent = `New today: ${eligible.length} eligible, ${uncertain.length} uncertain (of ${digest.new_jobs} new jobs)`;
+  $('newTodayList').innerHTML = `<ul class="new-today-list">${eligible.map(item => newTodayItem(item, 'eligible')).join('')}${uncertain.map(item => newTodayItem(item, 'uncertain')).join('')}</ul>`;
+  $('newTodayPanel').classList.remove('hidden');
+}
+
+let radarPoll = null;
+
+async function refreshRadarStatus() {
+  let status;
+  try { status = await api('/radar/status'); } catch { $('radarStatusBox').textContent = 'Company Radar status is unavailable.'; return; }
+  const last = status?.last_sync;
+  const manual = status?.manual_sync || {};
+  $('radarStatusBox').innerHTML = `<strong>${last ? `Last synced ${escapeHtml(formatDate(last.finished_at))}` : 'Not synced yet'}</strong>
+    <p>${escapeHtml(status?.companies ?? 0)} reviewed companies${last ? `; ${escapeHtml(last.active_jobs)} open jobs in the index` : ''}.</p>`;
+  $('syncRadarBtn').disabled = Boolean(manual.running);
+  if (manual.running) {
+    showStatus($('radarSyncStatus'), 'Sync running: official boards are read one host at a time, so this can take a few minutes.');
+    if (!radarPoll) radarPoll = setTimeout(() => { radarPoll = null; refreshRadarStatus(); }, 3000);
+  } else if (manual.error) {
+    showStatus($('radarSyncStatus'), `Sync failed (${manual.error}). Run python -m app.sources.sync for details.`, 'error');
+  } else if (manual.result) {
+    const r = manual.result;
+    showStatus($('radarSyncStatus'), `Sync finished: ${r.ok ?? 0} companies ok, ${r.error ?? 0} errors, ${r.new ?? 0} new jobs, ${r.eligible ?? 0} eligible today.`, 'success');
+    await loadNewToday();
+  }
+}
+
+$('syncRadarBtn').addEventListener('click', async () => {
+  $('syncRadarBtn').disabled = true;
+  try {
+    await api('/radar/sync', { method: 'POST' });
+  } catch (error) {
+    showStatus($('radarSyncStatus'), error.message, 'error');
+  }
+  await refreshRadarStatus();
+});
+
 loadProfile();
 loadPreferences();
 refreshConnections();
+refreshRadarStatus();
+loadNewToday();
 
 const params = new URLSearchParams(location.search);
 if (params.get("gmail") === "connected") {

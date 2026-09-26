@@ -68,19 +68,26 @@ async def _destination(url: str) -> tuple[httpx.URL, str, str]:
         raise UnsafeURLError("Invalid destination URL.") from exc
 
 
-async def safe_get(url: str, *, timeout: float = 15.0, max_redirects: int = 4, max_bytes: int = 1_000_000) -> httpx.Response:
+async def safe_get(url: str, *, timeout: float = 15.0, max_redirects: int = 4, max_bytes: int = 1_000_000,
+                   headers: dict[str, str] | None = None) -> httpx.Response:
     """Fetch a public page; total deadline includes DNS, redirects and reading.
 
     No environment proxies, cookies shared across hops, TLS bypass, automatic
     redirects or unbounded response buffering are allowed. Compressed responses
     are rejected because hostile expansion would undermine the body-size limit.
+    `headers` may set User-Agent, Accept and conditional-request headers; Host
+    and Accept-Encoding stay fixed.
     """
+    extra = {name: value for name, value in (headers or {}).items() if name.lower() not in ("host", "accept-encoding")}
+
     async def fetch() -> httpx.Response:
         current = url
         for hop in range(max_redirects + 1):
             pinned, authority, tls_host = await _destination(current)
+            request_headers = {"Host": authority, "User-Agent": "JobAgent/0.3", "Accept": "text/html,application/xhtml+xml,text/plain",
+                               "Accept-Encoding": "identity", **extra}
             async with httpx.AsyncClient(timeout=timeout, verify=True, trust_env=False, follow_redirects=False) as client:
-                async with client.stream("GET", pinned, headers={"Host": authority, "User-Agent": "JobAgent/0.3", "Accept": "text/html,application/xhtml+xml,text/plain", "Accept-Encoding": "identity"}, extensions={"sni_hostname": tls_host}) as response:
+                async with client.stream("GET", pinned, headers=request_headers, extensions={"sni_hostname": tls_host}) as response:
                     if response.status_code in {301, 302, 303, 307, 308}:
                         target = response.headers.get("location")
                         if not target or hop == max_redirects:

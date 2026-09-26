@@ -72,6 +72,11 @@ class AdzunaProvider(JobProvider):
         return {"remaining": max(0, monthly), "limit": settings.adzuna_monthly_limit, "window": "this month (UTC)",
                 "reset_at": _next_utc("month"), "counted_locally": True}
 
+    def usage_text(self) -> str:
+        used = provider_usage.usage("adzuna", settings.adzuna_app_key or "")
+        return (f"{used['today']}/{settings.adzuna_daily_limit} today, "
+                f"{used['month']}/{settings.adzuna_monthly_limit} this month (counted on this machine)")
+
     async def search(self, query: str, page: int = 1) -> list[JobPosting]:
         return await self._search(query, "", page)
 

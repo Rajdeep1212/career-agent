@@ -36,6 +36,7 @@ with TestClient(app, base_url=settings.app_origin) as client:
     draft = client.post("/email/drafts", json={"recipient": "someone@example.com", "subject": "Hi", "body": "Hello"}, headers=origin).json()
     client.post(f"/email/drafts/{draft['id']}/approve", headers=origin)
     out["send_route"] = client.post(f"/email/drafts/{draft['id']}/send", headers=origin).status_code
+    out["radar_sync"] = client.post("/radar/sync", headers=origin).status_code
 from app.services.email_send_boundary import send_draft_once
 try:
     send_draft_once(draft["id"])
@@ -102,6 +103,7 @@ class DemoModeIsolationTests(unittest.TestCase):
         self.assertEqual(out["errors"], [])
         self.assertEqual(out["states"], ["UNVERIFIED"])
         self.assertEqual(out["send_route"], 404)
+        self.assertEqual(out["radar_sync"], 404)
         self.assertEqual(out["direct_send"], "DraftNotClaimableError")
         self.assertIn("disabled in demo mode", out["outbound"])
 
