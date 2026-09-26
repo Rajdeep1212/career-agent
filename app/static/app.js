@@ -433,7 +433,8 @@ async function confirmSearchCost(message) {
   let preview = null;
   try {
     preview = await api('/agent/search/preview', jsonOptions('POST', {
-      message, career_session_id: searchSessionId, strict_mode: $('strictSearch').checked
+      message, career_session_id: searchSessionId, strict_mode: $('strictSearch').checked,
+      refresh: $('refreshProviders').checked
     }));
   } catch {
     return true;
@@ -478,11 +479,14 @@ async function runChat(message, extra = {}) {
     draft_id: pendingDraftId,
     include_seen: $('includeSeen').checked,
     strict_mode: $('strictSearch').checked,
+    refresh: $('refreshProviders').checked,
     ...extra
   };
   try {
     const response = await api('/chat/run', jsonOptions('POST', payload));
     pendingTurn = null;
+    // A refresh is a one-off manual action; the next search reads the index again.
+    $('refreshProviders').checked = false;
     await handleChatResponse(response);
     $('searchQuery').value = '';
     showStatus($('searchStatus'), response.replayed ? 'This turn was already processed safely.' : 'Request completed.', 'success');

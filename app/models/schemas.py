@@ -196,6 +196,7 @@ class AgentSearchRequest(BaseModel):
     include_seen: bool = False
     session_id: str | None = None
     strict_mode: bool | None = None
+    refresh: bool = False
 
 
 class SearchPreviewRequest(BaseModel):
@@ -203,6 +204,7 @@ class SearchPreviewRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     career_session_id: str | None = Field(default=None, max_length=128)
     strict_mode: bool | None = None
+    refresh: bool = False
 
 
 class PrepareJobEmailRequest(BaseModel):

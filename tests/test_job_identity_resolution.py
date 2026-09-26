@@ -126,7 +126,9 @@ class SearchIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_search_merges_aggregator_copies_and_records_presence(self):
         with patch("app.services.career_agent.verify_application", side_effect=_unchanged), \
                 patch("app.services.career_agent.read_config", lambda: load_seed()):
-            response = await CareerAgent([RadarProvider(), FixtureProvider()]).search("software engineer fresher", include_seen=True)
+            # Aggregators run next to a filled index only on a manual refresh.
+            response = await CareerAgent([RadarProvider(), FixtureProvider()]).search("software engineer fresher", include_seen=True,
+                                                                                     refresh=True)
         self.assertEqual(response["diagnostics"]["matched_official"], 1)
         databricks = [result for result in response["results"] if result["company"] == "Databricks"]
         self.assertEqual(len(databricks), 1)

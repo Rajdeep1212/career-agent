@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     job_providers: str = "radar,jsearch,adzuna,jooble"
     search_country: str = "in"
     verification_concurrency: int = 4
+    # Aggregator results are reused for this many hours (0 disables the cache).
+    search_cache_hours: float = Field(default=12.0, ge=0, le=168)
     # Ask before a dashboard search that will send at least this many provider requests.
     search_warn_requests: int = Field(default=5, ge=1, le=50)
 

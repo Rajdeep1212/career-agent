@@ -17,6 +17,7 @@ class CareerGraphState(TypedDict, total=False):
     draft_id: int | None
     include_seen: bool
     strict_mode: bool | None
+    refresh: bool
     advisory_roles: list[str]
     model_explanation: str | None
     confirmed: bool

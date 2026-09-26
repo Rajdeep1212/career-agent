@@ -38,6 +38,7 @@ class CareerAgentAPITests(unittest.TestCase):
             include_seen=True,
             session_id="session-123",
             strict_mode=False,
+            refresh=False,
         )
 
     def test_unknown_session_is_a_client_error(self):

@@ -434,8 +434,12 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   assert.equal(d.elements.get('searchSubmit').disabled, false);
   assert.equal(d.calls.find(([path]) => path === '/agent/search/preview')[2].message, 'Find python developer jobs');
   d.context.window.confirm = () => true;
+  d.elements.get('refreshProviders').checked = true;
   await d.elements.get('searchForm').handlers.submit({ preventDefault() {} });
   assert.equal(d.calls.filter(([path]) => path === '/chat/run').length, 1);
+  // Refresh is sent once, then cleared so the next search reads the index again.
+  assert.equal(d.calls.find(([path]) => path === '/chat/run')[2].refresh, true);
+  assert.equal(d.elements.get('refreshProviders').checked, false);
 
   // A preview failure never blocks the request.
   d = await dashboard({ configured: true, connected: false }, '', false, {

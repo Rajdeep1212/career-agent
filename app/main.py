@@ -291,6 +291,7 @@ async def agent_search(request: AgentSearchRequest):
             include_seen=request.include_seen,
             session_id=request.session_id,
             strict_mode=request.strict_mode,
+            refresh=request.refresh,
         )
         return {
             "agent_action": "search_verify_rank",
@@ -310,7 +311,7 @@ def preview_search(payload: SearchPreviewRequest, request: Request):
         return {"will_search": False}
     try:
         plan = career_agent.plan(payload.message, session_id=payload.career_session_id,
-                                 strict_mode=payload.strict_mode)
+                                 strict_mode=payload.strict_mode, refresh=payload.refresh)
     except ValueError:
         # An unknown session is reported by the search itself.
         return {"will_search": False}
