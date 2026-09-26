@@ -1,0 +1,58 @@
+[
+  {
+    "id": "a1b2c3d4-0001",
+    "text": "Software Engineer I (Backend)",
+    "country": "IN",
+    "workplaceType": "hybrid",
+    "categories": {
+      "location": "Bangalore",
+      "commitment": "Full-time",
+      "team": "Engineering",
+      "allLocations": [
+        "Bangalore"
+      ]
+    },
+    "descriptionPlain": "Recent graduates welcome. Python, FastAPI and PostgreSQL.",
+    "lists": [
+      {
+        "text": "Requirements",
+        "content": "<li>0-1 years of experience</li><li>Git</li>"
+      }
+    ],
+    "additionalPlain": "",
+    "hostedUrl": "https://jobs.lever.co/example/a1b2c3d4-0001",
+    "applyUrl": "https://jobs.lever.co/example/a1b2c3d4-0001/apply",
+    "createdAt": 1758800000000
+  },
+  {
+    "id": "a1b2c3d4-0002",
+    "text": "Product Designer",
+    "country": "US",
+    "workplaceType": "remote",
+    "categories": {
+      "location": "Remote - US",
+      "commitment": "Full-time",
+      "allLocations": [
+        "Remote - US"
+      ]
+    },
+    "descriptionPlain": "Figma.",
+    "lists": [],
+    "hostedUrl": "https://jobs.lever.co/example/a1b2c3d4-0002",
+    "createdAt": 1758700000000
+  },
+  {
+    "id": "a1b2c3d4-0003",
+    "text": "Data Scientist",
+    "country": null,
+    "workplaceType": "onsite",
+    "categories": {
+      "location": "Pune, India",
+      "commitment": "Full-time"
+    },
+    "descriptionPlain": "2+ years experience required.",
+    "lists": [],
+    "hostedUrl": "https://jobs.lever.co/example/a1b2c3d4-0003",
+    "createdAt": 1758600000000
+  }
+]
