@@ -1,0 +1,23 @@
+{
+  "offset": 2,
+  "limit": 2,
+  "totalFound": 3,
+  "content": [
+    {
+      "id": "744000003",
+      "name": "Embedded Software Intern",
+      "uuid": "uuid-3",
+      "releasedDate": "2026-09-23T08:00:00.000Z",
+      "location": {
+        "city": "Coimbatore",
+        "region": "KA",
+        "country": "in",
+        "remote": false
+      },
+      "typeOfEmployment": {
+        "label": "Internship"
+      },
+      "ref": "https://api.smartrecruiters.com/v1/companies/Example/postings/744000003"
+    }
+  ]
+}
