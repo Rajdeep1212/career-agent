@@ -11,7 +11,8 @@ from datetime import datetime, timezone
 from app.models.career import EligibilityEvidence, EligibilityResult, EligibilityStatus, SearchIntent
 from app.services.job_requirements import experience_clauses, graduation_year_clauses, quote_around
 
-_FRESHER = re.compile(r"\bfreshers?\b|\brecent graduat\w*|\bgraduate trainee\b|\bentry[- ]level\b|\bno (?:prior )?experience\b", re.I)
+_FRESHER = re.compile(r"\bfreshers?\b|\brecent graduat\w*|\bgraduate trainee\b|\bentry[- ]level\b|\bno (?:prior )?experience\b"
+                      r"|\bintern(?:ship)?s?\b", re.I)
 _SENIOR_TITLE = re.compile(r"\b(?:senior|sr\.?|principal|staff|director|head of|vp|vice president|architect)\b", re.I)
 _LEAD_TITLE = re.compile(r"\blead\b", re.I)
 # A minimum this far above the candidate's limit is a clear disqualifier; closer is uncertain.

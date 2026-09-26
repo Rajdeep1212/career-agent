@@ -65,6 +65,11 @@ class EligibleTests(unittest.TestCase):
         self.assertEqual(result.status, "eligible")
         self.assertIn("Graduation year 2025 is accepted.", result.positive_signals)
 
+    def test_internship_is_entry_level_evidence(self):
+        result = _check("Six-month internship working on computer vision.", title="AI/ML Intern")
+        self.assertEqual(result.status, "eligible")
+        self.assertIn("quoted 'AI/ML Intern'", result.summary)
+
     def test_range_within_limit(self):
         result = _check("Experience: 0-1 years. Python and REST APIs.")
         self.assertEqual(result.status, "eligible")
