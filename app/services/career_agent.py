@@ -37,10 +37,11 @@ def _summary(diagnostics):
     d=diagnostics
     return (f"{d['provider_results']} provider results, {d['unique_jobs']} unique jobs; "
             f"{d['already_seen']} already seen, {d['closed']} closed, "
-            f"{d['eligibility_rejected']} rejected by eligibility, "
+            f"{d['eligibility_rejected']} excluded by explicit disqualifiers, "
             f"{d.get('intent_rejected',0)} outside requested roles, "
             f"{d.get('below_match_threshold',0)} below the match threshold. "
-            f"{d['final_recommendations']} recommendations. "
+            f"{d['final_recommendations']} recommendations "
+            f"({d.get('eligible_results',0)} eligible, {d.get('uncertain_results',0)} uncertain, shown after eligible). "
             + (f"Provider errors: {'; '.join(d['errors'][:3])}." if d['errors'] else
                "Broaden the role/location filters or include seen jobs if needed." if not d['final_recommendations'] else
                "Review evidence and application status before applying."))
@@ -77,6 +78,19 @@ def search_cost_warning(plan):
         text+=' (counted on this machine)' if quota.get('counted_locally') else ''
         parts.append(text+'.')
     return ' '.join(parts) or None
+
+
+_TIERS={'eligible':0,'uncertain':1}
+
+
+def _rank_key(result):
+    """Eligible before uncertain; higher heuristic score first within each tier."""
+    return (_TIERS.get(result.get('eligibility_status','eligible'),1), -result['total_score'])
+
+
+def _tier_counts(results):
+    statuses=[r.get('eligibility_status','eligible') for r in results]
+    return dict(eligible_results=statuses.count('eligible'),uncertain_results=statuses.count('uncertain'))
 
 
 _PROFILE_LOCATION_REFERENCE = re.compile(
@@ -164,6 +178,7 @@ class CareerAgent:
             ranked=response.get('_ranked_candidates',response.get('results',[]))
             response['results']=[r for r in ranked if r['total_score']>=intent.minimum_match_score][:50]
             response['result_count']=len(response['results'])
+            response['diagnostics'].update(_tier_counts(response['results']))
             response['intent']=intent.model_dump()
             d=response['diagnostics']
             d.update(reused_results=True,generated_queries=0,provider_requests=0,
@@ -249,21 +264,25 @@ class CareerAgent:
                 'total_score':match.overall_score,'skill_score':match.skill_score,
                 'matched_skills':match.matched_skills,'transferable_skills':match.transferable_skills,
                 'missing_skills':match.missing_skills,'eligible':eligibility.eligible,
+                'eligibility_status':eligibility.status,'eligibility_summary':eligibility.summary,
                 'reasons':match.strengths+match.gaps,
-                'next_action':'Review the active listing and apply manually.' if job.verification_state=='ACTIVE_VERIFIED' else
+                'next_action':f'Check before applying: {eligibility.summary}' if eligibility.status=='uncertain' else
+                              'Review the active listing and apply manually.' if job.verification_state=='ACTIVE_VERIFIED' else
                               'Check application availability and requirements before applying.'}
             career_store.upsert_job(result)
             if not eligibility.eligible:
                 if job.verification_state!='CLOSED':diagnostics['eligibility_rejected']+=1
                 if len(diagnostics['filtered_examples'])<10:
-                    diagnostics['filtered_examples'].append({'title':job.title,'reasons':eligibility.hard_rejections})
+                    diagnostics['filtered_examples'].append({'title':job.title,'reasons':eligibility.hard_rejections,
+                                                             'summary':eligibility.summary})
                 continue
             if off_role:
                 diagnostics['intent_rejected']+=1
                 continue
             ranked.append(result)
-        ranked.sort(key=lambda r:r['total_score'],reverse=True)
+        ranked.sort(key=_rank_key)
         results=[r for r in ranked if r['total_score']>=intent.minimum_match_score][:50]
+        diagnostics.update(_tier_counts(results))
         diagnostics.update(ranked_results=len(ranked),final_recommendations=len(results),
             below_match_threshold=sum(r['total_score']<intent.minimum_match_score for r in ranked),
             latency_ms=round((time.monotonic()-started)*1000))
