@@ -373,6 +373,12 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
 
   // Dates are readable: relative for recent posts, "24 Sep 2026" otherwise; unknown text is kept.
   const daysAgo = n => new Date(Date.now() - n * 86400000).toISOString();
+  const merged = vm.runInContext(`jobCardsMarkup([
+    { id: '${'e'.repeat(64)}', title: 'ML Engineer', company: 'Example', source: 'Company Radar', official_application: true,
+      sources: [{ source: 'JSearch/RapidAPI' }, { source: 'Adzuna' }, { source: 'Adzuna' }] }
+  ])`, d.context);
+  assert.match(merged, /From the company's official job board · Also listed on JSearch\/RapidAPI, Adzuna \(<a href="https:\/\/www\.adzuna\.co\.uk"/);
+  assert.equal((merged.match(/Also listed on/g) || []).length, 1);
   const label = value => vm.runInContext(`postedLabel(${JSON.stringify(value)})`, d.context);
   assert.equal(label(daysAgo(0)).startsWith('Posted today'), true);
   assert.equal(label(daysAgo(1)).startsWith('Posted yesterday'), true);

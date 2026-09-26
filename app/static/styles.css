@@ -592,3 +592,4 @@ button:disabled { cursor:not-allowed; opacity:.55; }
   min-height: 23px;
   font-size: 0.85rem;
 }
+.source-line { display:block; color:var(--muted); font-size:12px; margin-top:3px; }

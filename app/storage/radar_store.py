@@ -181,6 +181,33 @@ def mark_closed(company_id: str, source_job_id: str, reason: str, *, today: date
                      (reason, _now(), today.isoformat(), _key(company_id, source_job_id)))
 
 
+def index_entries() -> list[tuple[str, JobPosting]]:
+    """Every indexed job (active and closed) with its index key, for identity resolution."""
+    with _connect() as conn:
+        rows = conn.execute("SELECT * FROM radar_jobs ORDER BY first_seen_at DESC").fetchall()
+    return [(row["key"], _job_from_row(row)) for row in rows]
+
+
+def record_sources(matches: list[tuple[str, JobPosting]]) -> None:
+    """Remember which other sources list an indexed job (multi-source presence, used later for ranking)."""
+    if not matches:
+        return
+    now = _now()
+    with _connect() as conn:
+        for key, job in matches:
+            external = str(job.source_job_id or job.application_url or "")
+            conn.execute("""INSERT INTO radar_job_sources (radar_key, source, external_id, url, first_seen_at, last_seen_at)
+                            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(radar_key, source, external_id) DO UPDATE SET
+                            url=excluded.url, last_seen_at=excluded.last_seen_at""",
+                         (key, job.source or "Unknown", external, str(job.application_url) if job.application_url else None, now, now))
+
+
+def job_sources(key: str) -> list[dict]:
+    with _connect() as conn:
+        return [dict(row) for row in conn.execute("SELECT * FROM radar_job_sources WHERE radar_key=? ORDER BY source",
+                                                   (key,)).fetchall()]
+
+
 def has_jobs() -> bool:
     """Whether the index holds any active job; never creates the database."""
     if not DB_PATH.exists():

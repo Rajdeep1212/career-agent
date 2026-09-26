@@ -582,7 +582,17 @@ const PROVIDER_SITES = { Adzuna: 'https://www.adzuna.co.uk', Jooble: 'https://in
 
 function providerCredit(job) {
   const credit = PROVIDER_CREDITS[job?.source];
-  return credit ? `<span class="provider-credit">${credit(PROVIDER_SITES[job.source])}</span>` : '';
+  return (credit ? `<span class="provider-credit">${credit(PROVIDER_SITES[job.source])}</span>` : '') + sourceLine(job);
+}
+
+// Company Radar jobs come from the company's own board; other listings of the same job are merged into sources[].
+function sourceLine(job) {
+  const official = job?.source === 'Company Radar' ? "From the company's official job board" : '';
+  const others = [...new Set((job?.sources || []).map(ref => ref?.source).filter(Boolean))];
+  const also = others.length ? `Also listed on ${others.map(name => PROVIDER_CREDITS[name]
+    ? `${escapeHtml(name)} (${PROVIDER_CREDITS[name](PROVIDER_SITES[name])})` : escapeHtml(name)).join(', ')}` : '';
+  const text = [official, also].filter(Boolean).join(' · ');
+  return text ? `<span class="source-line">${text}</span>` : '';
 }
 
 // Three-way eligibility (a heuristic, claim level L0). Older stored results only have `eligible`.

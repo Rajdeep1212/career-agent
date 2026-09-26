@@ -125,6 +125,22 @@ def load_config() -> RadarConfig:
         raise RadarConfigError(f"{CONFIG_PATH.name} could not be read; fix or delete it to re-create it from the seed.") from exc
 
 
+def read_config() -> RadarConfig:
+    """The user's config if it exists, else the seed; never writes a file."""
+    return load_config() if CONFIG_PATH.exists() else load_seed()
+
+
+def alias_map(config: RadarConfig) -> dict[str, str]:
+    """company_key() of every name and alias -> company_key() of the canonical name."""
+    from app.services.job_identity import company_key
+    aliases: dict[str, str] = {}
+    for company in config.companies:
+        canonical = company_key(company.name)
+        for name in [company.name, *company.aliases]:
+            aliases.setdefault(company_key(name), canonical)
+    return aliases
+
+
 def syncable(config: RadarConfig) -> list[CompanyEntry]:
     return [company for company in config.companies
             if company.enabled and company.reviewed and company.source.type != "none"]

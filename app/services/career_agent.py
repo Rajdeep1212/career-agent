@@ -19,11 +19,12 @@ from app.services.candidate_intelligence import analyze_candidate
 from app.services.search_intent import interpret_search_request
 from app.services.role_discovery import expand_roles, family_for_title
 from app.services.search_planner import plan_search_queries
-from app.services.job_identity import deduplicate_jobs, job_identity
+from app.services.job_identity import deduplicate_jobs, job_identity, resolve_with_index
+from app.sources.registry import alias_map, read_config
 from app.services.application_verifier import verify_application
 from app.services.eligibility import evaluate_eligibility
 from app.services.matching import match_job
-from app.storage import career_store, history
+from app.storage import career_store, history, radar_store
 from app.storage.profile_store import load_profile
 from app.storage.preference_store import preferences_for
 
@@ -131,6 +132,20 @@ def _preverified(job):
     return job.source==RADAR_SOURCE and job.verification_state in ('ACTIVE_VERIFIED','CLOSED')
 
 
+def _resolve_identities(jobs, diagnostics):
+    """Fold aggregator copies of indexed official jobs into the official record (URL, status, sources[])."""
+    if not jobs or not radar_store.has_jobs():
+        return jobs
+    try:
+        resolved,matches=resolve_with_index(jobs,radar_store.index_entries(),alias_map(read_config()))
+        radar_store.record_sources(matches)
+    except Exception:
+        logger.exception('identity resolution against the Company Radar index failed')
+        return jobs
+    diagnostics['matched_official']=len(matches)
+    return resolved
+
+
 class CareerAgent:
     def __init__(self, providers=None):
         self.providers=providers
@@ -207,7 +222,7 @@ class CareerAgent:
             unique_jobs=0,already_seen=0,active_verified=0,likely_active=0,unverified=0,closed=0,
             eligibility_rejected=0,intent_rejected=0,ranked_results=0,final_recommendations=0,
             below_match_threshold=0,provider_counts={},errors=[],provider_errors=[],skipped_requests=0,
-            filtered_examples=[],reused_results=False)
+            filtered_examples=[],reused_results=False,matched_official=0)
         blocked=set()
         jobs=[]
         if not providers:diagnostics['errors'].append('No configured provider is available.')
@@ -257,7 +272,7 @@ class CareerAgent:
             except Exception:
                 message=f'{name}: request unavailable; check provider configuration/access/quota.'
                 if message not in diagnostics['errors']:diagnostics['errors'].append(message)
-        unique=deduplicate_jobs(jobs)
+        unique=deduplicate_jobs(_resolve_identities(jobs,diagnostics))
         diagnostics['unique_jobs']=len(unique)
         unseen=[]
         for job in unique:
