@@ -1,0 +1,77 @@
+{
+  "apiVersion": "1",
+  "jobs": [
+    {
+      "id": "11111111-aaaa",
+      "title": "Applied AI Engineer",
+      "location": "Bengaluru",
+      "isListed": true,
+      "isRemote": false,
+      "workplaceType": "OnSite",
+      "employmentType": "FullTime",
+      "publishedAt": "2026-09-24T06:00:00.000+00:00",
+      "address": {
+        "postalAddress": {
+          "addressLocality": "Bengaluru",
+          "addressRegion": "Karnataka",
+          "addressCountry": "India"
+        }
+      },
+      "secondaryLocations": [],
+      "jobUrl": "https://jobs.ashbyhq.com/example/11111111-aaaa",
+      "applyUrl": "https://jobs.ashbyhq.com/example/11111111-aaaa/application",
+      "descriptionPlain": "Entry-level role. Fine-tuning LLMs with PyTorch; build evals."
+    },
+    {
+      "id": "11111111-bbbb",
+      "title": "Research Scientist",
+      "location": "San Francisco",
+      "isListed": true,
+      "isRemote": false,
+      "workplaceType": "Hybrid",
+      "employmentType": "FullTime",
+      "publishedAt": "2026-09-20T06:00:00.000+00:00",
+      "address": {
+        "postalAddress": {
+          "addressLocality": "San Francisco",
+          "addressCountry": "United States"
+        }
+      },
+      "secondaryLocations": [
+        {
+          "location": "Hyderabad",
+          "address": {
+            "postalAddress": {
+              "addressCountry": "India"
+            }
+          }
+        }
+      ],
+      "jobUrl": "https://jobs.ashbyhq.com/example/11111111-bbbb",
+      "descriptionPlain": "PhD preferred."
+    },
+    {
+      "id": "11111111-cccc",
+      "title": "Recruiter",
+      "location": "London",
+      "isListed": true,
+      "workplaceType": "OnSite",
+      "address": {
+        "postalAddress": {
+          "addressCountry": "United Kingdom"
+        }
+      },
+      "jobUrl": "https://jobs.ashbyhq.com/example/11111111-cccc",
+      "descriptionPlain": "Hiring."
+    },
+    {
+      "id": "11111111-dddd",
+      "title": "Unlisted ML Role",
+      "location": "Bengaluru",
+      "isListed": false,
+      "workplaceType": "Remote",
+      "jobUrl": "https://jobs.ashbyhq.com/example/11111111-dddd",
+      "descriptionPlain": "Internal."
+    }
+  ]
+}
