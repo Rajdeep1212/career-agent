@@ -90,6 +90,33 @@ class TransparencyTests(unittest.TestCase):
 
 
 
+class BatchYearTests(unittest.TestCase):
+    """A batch/graduate year excludes only with restrictive wording next to it."""
+
+    def test_non_restrictive_year_mention_does_not_exclude(self):
+        for text in ("Example Labs was founded in 2015 by IIT graduates. Freshers welcome.",
+                     "Our 2022 graduates now lead product teams. Freshers welcome."):
+            with self.subTest(text=text):
+                result = _check(text)
+                self.assertEqual(result.status, "eligible")
+                self.assertEqual(result.graduation_match, "unknown")
+                self.assertFalse(any("graduation" in reason.lower() for reason in result.hard_rejections + result.warnings))
+
+    def test_restrictive_wording_still_excludes(self):
+        for text, quote in (("Open to 2023 and 2024 pass-outs only.", "Open to 2023 and 2024 pass-outs only"),
+                            ("Only 2023 graduates are eligible.", "Only 2023 graduates are eligible"),
+                            ("Hiring from the batch of 2024.", "Hiring from the batch of 2024"),
+                            ("2026 batch only.", "2026 batch only")):
+            with self.subTest(text=text):
+                result = _check(text)
+                self.assertEqual(result.status, "excluded")
+                self.assertIn(f"quoted '{quote}'", result.summary)
+
+    def test_a_mention_that_includes_the_candidate_year_is_still_positive(self):
+        result = _check("2025/2026 graduates. Python and SQL.")
+        self.assertEqual(result.status, "eligible")
+        self.assertEqual(result.graduation_match, "match")
+
 class LocationTests(unittest.TestCase):
     def _at(self, location, *, requested=("Bengaluru",), from_preferences=False, work_mode="unknown"):
         intent = SearchIntent(locations=list(requested), locations_from_preferences=from_preferences)

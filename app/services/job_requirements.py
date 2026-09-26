@@ -68,14 +68,31 @@ def experience_clauses(text: str) -> list[ExperienceClause]:
     return clauses
 
 
-def graduation_year_clauses(text: str) -> list[tuple[list[int], str]]:
-    """(years, quoted sentence) for sentences that restrict graduation batches."""
+# Wording that makes a year a batch restriction rather than a passing mention
+# ("founded in 2015 by IIT graduates"): it must sit within a few words of the year.
+_RESTRICTIVE = re.compile(r"\bonly\b|\beligib(?:le|ility)\b|\bpass(?:ed)?[ -]?outs?\b|\bpassed out\b|\bbatch(?:es)? of\b", re.I)
+_RESTRICTIVE_WINDOW = 30
+
+
+@dataclass(frozen=True)
+class GraduationYearClause:
+    years: list[int]
+    quote: str
+    restrictive: bool
+
+
+def graduation_year_clauses(text: str) -> list[GraduationYearClause]:
+    """Years in sentences about graduates/batches, and whether the wording restricts to them."""
     found = []
     for sentence in re.split(r'[.!;\n]', text):
-        if re.search(r'graduat|batch|cohort|pass(?:ed)?[ -]?out', sentence, re.I):
-            years = sorted({int(y) for y in re.findall(r'\b(?:19|20)\d{2}\b', sentence)})
-            if years:
-                found.append((years, " ".join(sentence.split())))
+        if not re.search(r'graduat|batch|cohort|pass(?:ed)?[ -]?out', sentence, re.I):
+            continue
+        matches = list(re.finditer(r'\b(?:19|20)\d{2}\b', sentence))
+        if not matches:
+            continue
+        restrictive = any(_RESTRICTIVE.search(sentence[max(0, m.start() - _RESTRICTIVE_WINDOW):m.end() + _RESTRICTIVE_WINDOW])
+                          for m in matches)
+        found.append(GraduationYearClause(sorted({int(m.group()) for m in matches}), " ".join(sentence.split()), restrictive))
     return found
 
 
@@ -83,5 +100,5 @@ def extract_requirements(text: str):
     """(minimum, maximum, graduation years) from firm requirements; soft wording is ignored."""
     firm = [(clause.minimum, clause.maximum) for clause in experience_clauses(text) if not clause.soft]
     minimum, maximum = max(firm, key=lambda pair: (pair[0], pair[1] if pair[1] is not None else float('inf')), default=(0, None))
-    years = sorted({year for clause_years, _ in graduation_year_clauses(text) for year in clause_years})
+    years = sorted({year for clause in graduation_year_clauses(text) for year in clause.years})
     return minimum, maximum, years

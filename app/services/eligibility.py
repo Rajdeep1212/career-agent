@@ -59,23 +59,30 @@ def _application_status(job, preferences, intent, decisions, warnings):
 
 
 def _graduation(profile, job, preferences, intent, text, decisions, result) -> bool:
-    """Returns True when the listing's batch list includes the candidate's year."""
+    """Returns True when a batch mention includes the candidate's year.
+
+    A year that excludes needs restrictive wording beside it ("pass-outs only",
+    "eligible", "batch of"); a passing mention such as "founded in 2015 by IIT
+    graduates" is ignored unless it names the candidate's year.
+    """
     clauses = graduation_year_clauses(text)
-    years = job.graduation_years or sorted({year for clause_years, _ in clauses for year in clause_years})
-    quote = next((sentence for _, sentence in clauses), None)
+    years = job.graduation_years or sorted({year for clause in clauses for year in clause.years})
+    restrictive = [clause for clause in clauses if clause.restrictive]
     year = intent.graduation_year or preferences.required_graduation_year or profile.graduation_year
     matched = False
-    if years and year:
-        matched = year in years
-        result.graduation_match = 'match' if matched else 'mismatch'
-        if matched:
-            decisions.add('eligible', f'Graduation year {year} is accepted.', quote)
-        else:
-            decisions.add('excluded', f'Accepts graduation years {years}; your year is {year}.', quote)
-    elif years:
-        decisions.add('uncertain', 'The listing names graduation batches, but your graduation year is unknown.', quote)
-    if years and preferences.exclude_batch_years and set(years).issubset(preferences.exclude_batch_years):
-        decisions.add('excluded', 'The listing is restricted to batches you excluded.', quote)
+    if years and year and year in years:
+        matched = True
+        result.graduation_match = 'match'
+        quote = next((clause.quote for clause in clauses if year in clause.years), None)
+        decisions.add('eligible', f'Graduation year {year} is accepted.', quote)
+    elif restrictive and year:
+        result.graduation_match = 'mismatch'
+        allowed = sorted({y for clause in restrictive for y in clause.years})
+        decisions.add('excluded', f'Accepts graduation years {allowed}; your year is {year}.', restrictive[0].quote)
+    elif restrictive:
+        decisions.add('uncertain', 'The listing restricts graduation batches, but your graduation year is unknown.', restrictive[0].quote)
+    if restrictive and preferences.exclude_batch_years and set(y for c in restrictive for y in c.years).issubset(preferences.exclude_batch_years):
+        decisions.add('excluded', 'The listing is restricted to batches you excluded.', restrictive[0].quote)
     return matched
 
 
