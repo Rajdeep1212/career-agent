@@ -147,6 +147,26 @@ class SyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("1 companies: 1 ok", output)
         self.assertIn("dry run", output)
 
+    def test_cli_runs_the_daily_jsearch_query_after_the_companies(self):
+        from app.sources import daily_jsearch
+        calls = []
+
+        async def fake_run(**kwargs):
+            calls.append("companies")
+            return [sync.Outcome("gh", "ok", fetched=4, india=2, listed=2, new=2, closed=0)]
+
+        async def fake_daily(**kwargs):
+            calls.append("jsearch")
+            return daily_jsearch.DailyOutcome("ok", query="ML Engineer", jobs=10)
+
+        with patch.object(sync, "run_sync", fake_run), patch.object(sync, "load_config", lambda: config(GREENHOUSE)),                 patch.object(sync, "run_daily_jsearch", fake_daily), patch("builtins.print") as printed:
+            self.assertEqual(sync.main([]), 0)
+            self.assertEqual(sync.main(["--no-jsearch"]), 0)
+            self.assertEqual(sync.main(["--dry-run"]), 0)
+        output = "\n".join(str(call.args[0]) for call in printed.call_args_list)
+        self.assertEqual(calls, ["companies", "jsearch", "companies", "companies"])
+        self.assertIn("JSearch daily query: ok, 10 jobs ('ML Engineer')", output)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -115,6 +115,19 @@ class RefreshGatingTests(_Isolated):
         self.assertEqual(second["diagnostics"]["cache_hits"],
                          first["diagnostics"]["provider_requests"] + first["diagnostics"]["cache_hits"])
 
+    async def test_the_daily_jsearch_batch_is_read_at_no_cost(self):
+        _fill_index(12)
+        remote = CountingProvider()
+        remote.name = "JSearch/RapidAPI"
+        today = datetime.now(timezone.utc).date().isoformat()
+        search_cache.put(search_cache.daily_key("JSearch/RapidAPI", today), "JSearch/RapidAPI", "ML Engineer",
+                         [JobPosting(company="Daily Co", title="Machine Learning Engineer", location="Bengaluru, India",
+                                     description="Freshers welcome.", application_url="https://daily.example/1")])
+        response = await self._search(remote)
+        self.assertEqual(remote.calls, 0)
+        self.assertEqual(response["diagnostics"]["daily_results"], 1)
+        self.assertIn("Daily Co", [result["company"] for result in response["results"]])
+
     async def test_preview_counts_only_requests_that_would_be_sent(self):
         _fill_index(12)
         agent = CareerAgent([RadarProvider(), CountingProvider()])

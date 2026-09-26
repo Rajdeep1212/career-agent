@@ -16,6 +16,7 @@ import httpx
 
 from app.core.config import settings
 from app.models.schemas import JobPosting
+from app.sources.daily_jsearch import run_daily_jsearch
 from app.sources.adapters import FetchResult, SourceError, ashby, greenhouse, lever, sitemap, smartrecruiters
 from app.sources.fetcher import HostBlocked, PoliteFetcher, RobotsDisallowed
 from app.sources.registry import CompanyEntry, RadarConfig, RadarConfigError, load_config, syncable
@@ -167,6 +168,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--company", action="append", dest="companies", metavar="ID", help="only this company id (repeatable)")
     parser.add_argument("--dry-run", action="store_true", help="fetch and print counts without saving anything")
     parser.add_argument("--force", action="store_true", help="sync companies already synced today")
+    parser.add_argument("--no-jsearch", action="store_true", help="skip the one daily JSearch request")
     args = parser.parse_args(argv)
     if settings.demo_mode:
         print("DEMO_MODE is on: the Company Radar sync never runs in the demo.")
@@ -180,6 +182,10 @@ def main(argv: list[str] | None = None) -> int:
     outcomes = asyncio.run(run_sync(company_ids=args.companies, dry_run=args.dry_run, force=args.force,
                                     fetcher=fetcher, config=config))
     _print(outcomes, fetcher.requests, args.dry_run)
+    if not args.dry_run and not args.no_jsearch:
+        daily = asyncio.run(run_daily_jsearch(force=args.force))
+        detail = f"{daily.jobs} jobs ('{daily.query}')" if daily.status == "ok" else daily.note
+        print(f"JSearch daily query: {daily.status}, {detail}")
     return 1 if outcomes and all(outcome.status == "error" for outcome in outcomes) else 0
 
 

@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     jooble_host: str = "in.jooble.org"
     # Published free-plan limits, counted locally because these APIs do not report usage.
     jsearch_monthly_limit: int = Field(default=200, ge=1)
+    # The Radar sync's one daily JSearch request: empty query = saved roles joined with OR.
+    jsearch_daily_query: str = ""
+    jsearch_daily_date_posted: str = Field(default="3days", pattern=r"^(?:all|today|3days|week|month)$")
     adzuna_daily_limit: int = Field(default=250, ge=1)
     adzuna_monthly_limit: int = Field(default=2500, ge=1)
     jooble_key_limit: int = Field(default=500, ge=1)

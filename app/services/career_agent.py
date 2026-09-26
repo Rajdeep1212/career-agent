@@ -7,12 +7,13 @@ import re
 import time
 import uuid
 from collections import Counter
+from datetime import date, datetime, timezone
 
 from app.core.config import settings
 from app.models.career import SearchIntent
 from app.models.schemas import JobPosting
 from app.providers.base import ProviderError
-from app.providers.jsearch_provider import format_reset
+from app.providers.jsearch_provider import JSearchProvider, format_reset
 from app.providers.registry import get_providers
 from app.sources.adapters import RADAR_SOURCE
 from app.services.candidate_intelligence import analyze_candidate
@@ -127,6 +128,10 @@ def _split(providers):
     """(local index providers, remote providers): local ones send no requests and skip the round-robin."""
     local=[p for p in providers if getattr(p,'local',False)]
     return local,[p for p in providers if not getattr(p,'local',False)]
+
+
+JSEARCH_NAME=JSearchProvider.name
+DAILY_MAX_AGE_DAYS=3
 
 
 def _index_ready(local):
@@ -256,6 +261,15 @@ class CareerAgent:
             diagnostics['provider_results']+=len(found)
             diagnostics['provider_counts'][provider.name]=diagnostics['provider_counts'].get(provider.name,0)+len(found)
             jobs.extend(job.model_copy(deep=True) for job in found)
+        # The sync's daily JSearch batch costs nothing more to read.
+        daily_provider=next((p for p in remote if p.name==JSEARCH_NAME),None)
+        if daily_provider is not None:
+            daily=search_cache.latest_daily(JSEARCH_NAME)
+            if daily and (datetime.now(timezone.utc).date()-date.fromisoformat(daily[0])).days<=DAILY_MAX_AGE_DAYS:
+                diagnostics['daily_results']=len(daily[1])
+                diagnostics['provider_results']+=len(daily[1])
+                diagnostics['provider_counts'][JSEARCH_NAME]=diagnostics['provider_counts'].get(JSEARCH_NAME,0)+len(daily[1])
+                jobs.extend(daily[1])
         # One request per planned query, distributed across enabled remote providers.
         # No implicit retries or role × city × provider fan-out. Without a refresh, cached
         # results are reused and, while the local index has jobs, nothing else is requested.
