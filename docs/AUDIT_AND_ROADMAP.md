@@ -308,6 +308,9 @@ Built on branch `m1d-alerts` (decisions D3, D4):
   Indeed pages never fetched (also enforced in the verifier).
 - Bookmarklet: URL and title only, local form, same eligibility and matching pipeline.
 - Three-way eligibility (M1) is already done; degree requirements remain deferred.
+- Decisions (2026-09-26): processed alerts are only marked read (no archiving); saved non-LinkedIn/
+  Naukri/Indeed pages are checked once at save time; foundit, Wellfound, Shine and WorkMundi alert
+  parsing deferred indefinitely.
 
 ### M2: Outcome data engine (about 1 week)
 
