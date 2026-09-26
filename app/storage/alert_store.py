@@ -95,6 +95,17 @@ def upsert(jobs: list[JobPosting], *, kind: str) -> UpsertResult:
     return result
 
 
+def update_job(job: JobPosting) -> None:
+    """Replace a stored job's details (e.g. after its save-time check), keeping its other listings."""
+    with _connect() as conn:
+        row = conn.execute("SELECT job_json FROM alert_jobs WHERE key=?", (str(job.source_job_id or job.application_url),)).fetchone()
+        if row is None:
+            return
+        sources = JobPosting.model_validate_json(row["job_json"]).sources
+        updated = job.model_copy(update={"sources": sources or job.sources})
+        conn.execute("UPDATE alert_jobs SET job_json=? WHERE key=?", (updated.model_dump_json(), str(job.source_job_id or job.application_url)))
+
+
 def set_radar_key(job: JobPosting, radar_key: str) -> None:
     with _connect() as conn:
         conn.execute("UPDATE alert_jobs SET radar_key=? WHERE key=? OR identity_key=?",

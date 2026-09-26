@@ -4,7 +4,8 @@ The bookmarklet reads only location.href and document.title of the page you
 are viewing; nothing is crawled or scraped, and LinkedIn/Naukri/Indeed pages
 are never fetched. You confirm the details and save (exact local origin). The
 job is stored as 'Saved by you', linked to an official Company Radar job when
-one matches, and checked with the same eligibility and matching as searches.
+one matches, and checked with the same eligibility and matching as searches. A
+saved page that is not on LinkedIn/Naukri/Indeed is checked once when saved.
 """
 import json
 
@@ -17,6 +18,7 @@ from app.core.config import settings
 from app.core.origin_security import has_exact_local_origin
 from app.core.static_assets import versioned_html
 from app.providers.common import build_posting
+from app.services.application_verifier import verify_application
 from app.services.career_agent import evaluate_job
 from app.services.job_identity import canonical_url, resolve_with_index
 from app.sources.alerts.parser import job_link
@@ -70,7 +72,7 @@ def capture_bookmarklet():
 
 
 @router.post("/capture")
-def save_captured_job(payload: CaptureRequest, request: Request):
+async def save_captured_job(payload: CaptureRequest, request: Request):
     if not has_exact_local_origin(request):
         raise HTTPException(status_code=403, detail="Open the localhost form to save a job.")
     link = job_link(payload.url)
@@ -89,6 +91,11 @@ def save_captured_job(payload: CaptureRequest, request: Request):
             radar_store.record_sources(matches)
             alert_store.set_radar_key(job, matches[0][0])
             target, matched = resolved[0], True
+    if not matched:
+        # One check of the page you saved, through the verifier's safe fetch. LinkedIn, Naukri and
+        # Indeed links are answered by the verifier without any request (never fetched).
+        target = await verify_application(target)
+        alert_store.update_job(target)
     profile, preferences, intent = saved_role_intent()
     result, _eligibility, _match = evaluate_job(profile, target, preferences, intent)
     return {**result, "matched_official": matched, "already_saved": stored.duplicates > 0}

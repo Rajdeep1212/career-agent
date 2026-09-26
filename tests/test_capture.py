@@ -23,7 +23,7 @@ JOB = {"url": "https://careers.example.com/jobs/ml-engineer-123?utm_source=x", "
        "description": "Freshers welcome. Python and PyTorch. 0-1 years of experience."}
 
 
-class CaptureTests(unittest.TestCase):
+class _CaptureBase(unittest.TestCase):
     def setUp(self):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
@@ -43,6 +43,8 @@ class CaptureTests(unittest.TestCase):
         self.client = TestClient(app, base_url="http://localhost:8010")
         self.addCleanup(self.client.close)
 
+
+class CaptureTests(_CaptureBase):
     def test_bookmarklet_sends_only_the_url_and_title(self):
         code = self.client.get("/capture/bookmarklet").json()["bookmarklet"]
         self.assertTrue(code.startswith("javascript:"))
@@ -106,6 +108,54 @@ class CaptureTests(unittest.TestCase):
             with self.subTest(change=change):
                 self.assertEqual(self.client.post("/capture", json={**JOB, **change}, headers=LOCAL).status_code, 422)
 
+
+
+class SaveTimeVerificationTests(_CaptureBase):
+    """A saved company page is checked once when saved; LinkedIn/Naukri/Indeed never are."""
+
+    PAGE = ('<html><head><title>Machine Learning Engineer</title></head><body><main><h1>Machine Learning Engineer</h1>'
+            '<p>Example Analytics, Bengaluru</p><a href="/jobs/ml-engineer-123/apply">Apply now</a></main></body></html>')
+
+    def _fetch(self, response=None, error=None):
+        import httpx
+        from unittest.mock import AsyncMock
+        if error is not None:
+            return patch("app.services.application_verifier.safe_get", AsyncMock(side_effect=error))
+        page = httpx.Response(200, text=response, request=httpx.Request("GET", "https://careers.example.com/jobs/ml-engineer-123"))
+        return patch("app.services.application_verifier.safe_get", AsyncMock(return_value=page))
+
+    def test_company_page_is_checked_once_and_the_result_stored(self):
+        with self._fetch(self.PAGE) as fetch:
+            body = self.client.post("/capture", json=JOB, headers=LOCAL).json()
+        fetch.assert_awaited_once()
+        self.assertEqual(fetch.await_args.args[0], "https://careers.example.com/jobs/ml-engineer-123")
+        self.assertEqual(body["verification_state"], "ACTIVE_VERIFIED")
+        self.assertEqual(alert_store.list_jobs()[0].verification_state, "ACTIVE_VERIFIED")
+
+    def test_an_unreachable_page_is_saved_as_unverified(self):
+        with self._fetch(error=OSError("offline")):
+            response = self.client.post("/capture", json=JOB, headers=LOCAL)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["verification_state"], "UNVERIFIED")
+        self.assertIn("could not be reached", response.json()["verification_reason"])
+
+    def test_linkedin_naukri_and_indeed_links_are_never_fetched_at_save_time(self):
+        for url in ("https://www.linkedin.com/jobs/view/4012345678/", "https://in.indeed.com/viewjob?jk=0123456789abcdef",
+                    "https://www.naukri.com/job-listings-data-analyst-example-pune-0-to-2-years-250926000123"):
+            with self.subTest(url=url), self._fetch(error=AssertionError("fetched")) as fetch:
+                body = self.client.post("/capture", json={**JOB, "url": url}, headers=LOCAL).json()
+                fetch.assert_not_awaited()
+                self.assertIn("never opened automatically", body["verification_reason"])
+
+    def test_a_job_matched_to_an_official_radar_job_is_not_fetched(self):
+        entry = company({"type": "greenhouse", "board": "example"}, id="example-analytics", name="Example Analytics")
+        radar_store.record_listing(entry.id, [posting(entry, job_id="7001", title="Machine Learning Engineer", location="Bengaluru, India",
+                                                      description="Freshers welcome.", url="https://job-boards.greenhouse.io/example/jobs/7001")],
+                                   complete=True, today=date(2026, 9, 25))
+        with self._fetch(error=AssertionError("fetched")) as fetch:
+            body = self.client.post("/capture", json=JOB, headers=LOCAL).json()
+        fetch.assert_not_awaited()
+        self.assertEqual(body["verification_state"], "ACTIVE_VERIFIED")
 
 if __name__ == "__main__":
     unittest.main()
