@@ -181,6 +181,14 @@ def mark_closed(company_id: str, source_job_id: str, reason: str, *, today: date
                      (reason, _now(), today.isoformat(), _key(company_id, source_job_id)))
 
 
+def has_jobs() -> bool:
+    """Whether the index holds any active job; never creates the database."""
+    if not DB_PATH.exists():
+        return False
+    with _connect() as conn:
+        return conn.execute("SELECT 1 FROM radar_jobs WHERE status='ACTIVE' LIMIT 1").fetchone() is not None
+
+
 def list_jobs(*, include_closed: bool = False, company_id: str | None = None) -> list[JobPosting]:
     query = "SELECT * FROM radar_jobs WHERE 1=1"
     params: list = []

@@ -3,9 +3,10 @@ from app.demo import DemoJobProvider
 from app.providers.adzuna_provider import AdzunaProvider
 from app.providers.jooble_provider import JoobleProvider
 from app.providers.jsearch_provider import JSearchProvider
+from app.providers.radar_provider import RadarProvider
 
-PROVIDERS = {'jsearch': JSearchProvider, 'adzuna': AdzunaProvider, 'jooble': JoobleProvider, 'demo': DemoJobProvider}
-REQUIREMENTS = {'demo': 'nothing (synthetic demo data)', 'jsearch': 'RAPIDAPI_KEY', 'adzuna': 'ADZUNA_APP_ID and ADZUNA_APP_KEY', 'jooble': 'JOOBLE_API_KEY'}
+PROVIDERS = {'radar': RadarProvider, 'jsearch': JSearchProvider, 'adzuna': AdzunaProvider, 'jooble': JoobleProvider, 'demo': DemoJobProvider}
+REQUIREMENTS = {'demo': 'nothing (synthetic demo data)', 'radar': 'a synced index (python -m app.sources.sync)', 'jsearch': 'RAPIDAPI_KEY', 'adzuna': 'ADZUNA_APP_ID and ADZUNA_APP_KEY', 'jooble': 'JOOBLE_API_KEY'}
 
 
 def register_provider(name, factory):
@@ -28,8 +29,6 @@ def get_providers():
 
 
 NOT_INSTALLED = (
-    ('greenhouse', 'Connector not installed'), ('lever', 'Connector not installed'),
-    ('smartrecruiters', 'Connector not installed'), ('company_careers', 'Connector not installed'),
     ('linkedin_jobs', 'Current LinkedIn scopes allow identity only, not job/member search'),
 )
 

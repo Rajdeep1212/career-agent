@@ -17,9 +17,9 @@ def _settings(**values):
 
 
 class ProviderRegistryTests(unittest.TestCase):
-    def test_default_list_includes_all_three_providers(self):
+    def test_default_list_is_radar_then_the_three_aggregators(self):
         from app.core.config import Settings
-        self.assertEqual(Settings(_env_file=None).job_providers, 'jsearch,adzuna,jooble')
+        self.assertEqual(Settings.model_fields['job_providers'].default, 'radar,jsearch,adzuna,jooble')
 
     def test_missing_keys_skip_providers(self):
         with _settings():

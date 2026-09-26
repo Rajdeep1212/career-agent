@@ -14,6 +14,7 @@ from app.models.schemas import JobPosting
 from app.providers.base import ProviderError
 from app.providers.jsearch_provider import format_reset
 from app.providers.registry import get_providers
+from app.sources.adapters import RADAR_SOURCE
 from app.services.candidate_intelligence import analyze_candidate
 from app.services.search_intent import interpret_search_request
 from app.services.role_discovery import expand_roles, family_for_title
@@ -119,6 +120,17 @@ def _distinct_locations(*groups: list[str]) -> list[str]:
     return result
 
 
+def _split(providers):
+    """(local index providers, remote providers): local ones send no requests and skip the round-robin."""
+    local=[p for p in providers if getattr(p,'local',False)]
+    return local,[p for p in providers if not getattr(p,'local',False)]
+
+
+def _preverified(job):
+    """Radar jobs already carry today's source-based status; the page need not be fetched again."""
+    return job.source==RADAR_SOURCE and job.verification_state in ('ACTIVE_VERIFIED','CLOSED')
+
+
 class CareerAgent:
     def __init__(self, providers=None):
         self.providers=providers
@@ -159,13 +171,14 @@ class CareerAgent:
             return dict(provider_requests=0,queries=[],providers=[p.name for p in providers],reuses_results=reuse)
         roles=expand_roles(intent,profile)[:6]
         queries=plan_search_queries(profile,intent,roles,preferences.search_query_limit)
-        # Mirrors search(): one request per planned query, round-robin across providers.
+        _local,remote=_split(providers)
+        # Mirrors search(): one request per planned query, round-robin across remote providers.
         shares={}
-        for index in range(len(queries)):
-            name=providers[index%len(providers)].name
+        for index in range(len(queries) if remote else 0):
+            name=remote[index%len(remote)].name
             shares[name]=shares.get(name,0)+1
-        quotas={p.name:p.quota() for p in providers if callable(getattr(p,'quota',None))}
-        return dict(provider_requests=len(queries),queries=[q.query for q in queries],
+        quotas={p.name:p.quota() for p in remote if callable(getattr(p,'quota',None))}
+        return dict(provider_requests=len(queries) if remote else 0,queries=[q.query for q in queries],
                     providers=list(dict.fromkeys(p.name for p in providers)),requests_by_provider=shares,
                     quotas={name:quota for name,quota in quotas.items() if quota},reuses_results=False)
 
@@ -198,10 +211,22 @@ class CareerAgent:
         blocked=set()
         jobs=[]
         if not providers:diagnostics['errors'].append('No configured provider is available.')
-        # One request per planned query, distributed across enabled providers.
+        local,remote=_split(providers)
+        # Local indexes are read once for all planned queries; no requests are sent.
+        for provider in local:
+            try:
+                found=provider.search_local(queries)
+            except Exception:
+                logger.exception('local provider %s failed',provider.name)
+                diagnostics['errors'].append(f'{provider.name}: the local index could not be read.')
+                continue
+            diagnostics['provider_results']+=len(found)
+            diagnostics['provider_counts'][provider.name]=diagnostics['provider_counts'].get(provider.name,0)+len(found)
+            jobs.extend(job.model_copy(deep=True) for job in found)
+        # One request per planned query, distributed across enabled remote providers.
         # No implicit retries or role × city × provider fan-out.
-        for index,planned in enumerate(queries if providers else []):
-            provider=providers[index%len(providers)]
+        for index,planned in enumerate(queries if remote else []):
+            provider=remote[index%len(remote)]
             name=provider.name
             if name in blocked:
                 diagnostics['skipped_requests']+=1
@@ -243,12 +268,15 @@ class CareerAgent:
             async with semaphore:
                 return await verify_application(job)
         budget=preferences.verification_limit
-        checked=await asyncio.gather(*(verify(job) for job in unseen[:budget]))
-        for job in unseen[budget:]:
+        preverified=[job for job in unseen if _preverified(job)]
+        to_check=[job for job in unseen if not _preverified(job)]
+        checked=list(await asyncio.gather(*(verify(job) for job in to_check[:budget])))
+        for job in to_check[budget:]:
             job.verification_state='UNVERIFIED';job.application_status='unverified'
             job.verification_reason='Not checked: this search reached the configured verification budget.'
-        checked+=unseen[budget:]
-        diagnostics['verification_attempted']=min(len(unseen),budget)
+        checked+=to_check[budget:]+preverified
+        diagnostics['verification_attempted']=min(len(to_check),budget)
+        diagnostics['source_verified']=len(preverified)
         counts=Counter(job.verification_state for job in checked)
         for state in ('ACTIVE_VERIFIED','LIKELY_ACTIVE','UNVERIFIED','CLOSED'):
             diagnostics[state.lower()]=counts[state]

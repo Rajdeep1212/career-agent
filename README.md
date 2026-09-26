@@ -68,7 +68,7 @@ Open `http://localhost:8010/app/`. Windows users may instead run
 | Setting | Purpose |
 | --- | --- |
 | `APP_ORIGIN` | The only browser origin allowed to change data; defaults to `http://localhost:8010`. |
-| `JOB_PROVIDERS` | Job providers to use (default `jsearch,adzuna,jooble`); a provider without its key is skipped. |
+| `JOB_PROVIDERS` | Job providers to use (default `radar,jsearch,adzuna,jooble`); `radar` is the local Company Radar index (used once it has data), and a provider without its key is skipped. |
 | `RAPIDAPI_KEY` | Enables live JSearch requests. |
 | `RAPIDAPI_HOST` | JSearch RapidAPI host. |
 | `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` | Enable Adzuna (India). Jobs are labeled "Jobs by Adzuna" as its terms require. |

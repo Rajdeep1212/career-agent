@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     adzuna_monthly_limit: int = Field(default=2500, ge=1)
     jooble_key_limit: int = Field(default=500, ge=1)
     # Comma-separated; providers without credentials are skipped.
-    job_providers: str = "jsearch,adzuna,jooble"
+    job_providers: str = "radar,jsearch,adzuna,jooble"
     search_country: str = "in"
     verification_concurrency: int = 4
     # Ask before a dashboard search that will send at least this many provider requests.
