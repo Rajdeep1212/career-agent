@@ -1047,7 +1047,7 @@ async function refreshExistingConnections() {
     const search = await api("/connections/search/status");
     const installed = (search.providers || []).filter(provider => provider.installed);
     const ready = installed.filter(provider => provider.configured);
-    const list = installed.map(provider => `<li>${escapeHtml(provider.name)}: ${provider.configured ? "configured" : `skipped (add ${escapeHtml(provider.requires)} to .env)`}</li>`).join("");
+    const list = installed.map(provider => `<li>${escapeHtml(provider.name)}: ${provider.configured ? "configured" : `skipped (add ${escapeHtml(provider.requires)} to .env)`}${provider.usage ? ` · ${escapeHtml(provider.usage)}` : ""}</li>`).join("");
     $("searchApiStatusBox").innerHTML = `
       <strong>${search.configured ? "Connected" : "Not configured"}</strong>
       <p>${search.configured ? "Searches use every configured provider. A provider without its key is skipped." : "Add at least one job provider key (JSearch, Adzuna or Jooble) to the local .env to enable job search."}</p>

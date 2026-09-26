@@ -9,6 +9,7 @@ from app.providers.base import JobProvider, ProviderError
 from urllib.parse import urlsplit
 from app.services.job_requirements import extract_requirements
 from app.services.skills import extract_skills
+from app.storage import provider_usage
 
 
 FRESHER_TERMS = [
@@ -152,9 +153,22 @@ class JSearchProvider(JobProvider):
         return bool(settings.rapidapi_key)
 
     def quota(self) -> dict | None:
-        """Quota reported by RapidAPI on the last response in this process, if any."""
+        """Quota reported by RapidAPI on the last response in this process, else counted locally this month."""
         quota = last_quota()
-        return {**quota, "window": None, "counted_locally": False} if quota else None
+        if quota and quota.get("remaining") is not None:
+            return {**quota, "window": None, "counted_locally": False}
+        used = provider_usage.usage("jsearch", settings.rapidapi_key or "")["month"]
+        now = datetime.now(timezone.utc)
+        reset = (now.replace(day=1, hour=0, minute=0, second=0, microsecond=0) + timedelta(days=32)).replace(day=1)
+        return {"remaining": max(0, settings.jsearch_monthly_limit - used), "limit": settings.jsearch_monthly_limit,
+                "window": "this month (UTC)", "reset_at": reset.isoformat(), "counted_locally": True}
+
+    def usage_text(self) -> str:
+        quota = self.quota() or {}
+        limit = quota.get("limit") or settings.jsearch_monthly_limit
+        used = limit - (quota.get("remaining") or 0)
+        origin = "counted on this machine" if quota.get("counted_locally") else "reported by RapidAPI"
+        return f"{used}/{limit} this month ({origin})"
 
     async def search(self, query: str, page: int = 1) -> list[JobPosting]:
         if not settings.rapidapi_key:
@@ -162,6 +176,7 @@ class JSearchProvider(JobProvider):
         # Fixed credential destination: never send an API key to a configurable arbitrary host.
         if settings.rapidapi_host != "jsearch.p.rapidapi.com":
             raise ProviderError("JSearch host must be jsearch.p.rapidapi.com.")
+        provider_usage.record("jsearch", settings.rapidapi_key)
         headers = {"X-RapidAPI-Key": settings.rapidapi_key,
                    "X-RapidAPI-Host": "jsearch.p.rapidapi.com", "Accept": "application/json"}
         try:

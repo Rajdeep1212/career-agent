@@ -354,12 +354,13 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   // Connections lists each provider; one without its key is shown as skipped.
   d = await dashboard({ configured: true, connected: false }, '', false, {
     '/connections/search/status': { configured: true, providers: [
-      { id: 'jsearch', name: 'JSearch/RapidAPI', installed: true, configured: true, requires: 'RAPIDAPI_KEY' },
+      { id: 'jsearch', name: 'JSearch/RapidAPI', installed: true, configured: true, requires: 'RAPIDAPI_KEY', usage: '37/200 this month (reported by RapidAPI)' },
       { id: 'adzuna', name: 'Adzuna', installed: true, configured: false, requires: 'ADZUNA_APP_ID and ADZUNA_APP_KEY' },
       { id: 'linkedin_jobs', name: 'linkedin_jobs', installed: false, configured: false, reason: 'n/a' }] }
   });
   assert.match(d.elements.get('searchApiStatusBox').innerHTML, /Adzuna: skipped \(add ADZUNA_APP_ID and ADZUNA_APP_KEY to .env\)/);
   assert.doesNotMatch(d.elements.get('searchApiStatusBox').innerHTML, /linkedin_jobs/);
+  assert.match(d.elements.get('searchApiStatusBox').innerHTML, /JSearch\/RapidAPI: configured · 37\/200 this month/);
   assert.equal(d.elements.get('providerPill').textContent, 'Search API: 1 of 2 providers');
 
   // Jobs from aggregators carry the credit their terms require.

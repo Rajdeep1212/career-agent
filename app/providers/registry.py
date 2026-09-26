@@ -33,10 +33,19 @@ NOT_INSTALLED = (
 )
 
 
+def _usage(name):
+    """Quota use such as '37/200 this month', for configured providers that track it."""
+    factory = PROVIDERS[name]
+    if not callable(getattr(factory, 'usage_text', None)) or not _configured(factory):
+        return None
+    return factory().usage_text()
+
+
 def provider_status():
-    """Configuration only (never secret values), for the Connections view."""
+    """Configuration and quota use only (never secret values), for the Connections view."""
     return [*[{'id': name, 'name': getattr(PROVIDERS[name], 'name', name), 'installed': True,
-               'configured': _configured(PROVIDERS[name]), 'requires': REQUIREMENTS.get(name, 'provider credentials')}
+               'configured': _configured(PROVIDERS[name]), 'requires': REQUIREMENTS.get(name, 'provider credentials'),
+               **({'usage': usage} if (usage := _usage(name)) else {})}
               for name in _names() if name in PROVIDERS],
             *[{'id': name, 'name': name, 'installed': False, 'configured': False, 'reason': reason}
               for name, reason in NOT_INSTALLED]]

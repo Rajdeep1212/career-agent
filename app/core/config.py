@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     # A Jooble key works only on the country site it was issued for (India: in.jooble.org).
     jooble_host: str = "in.jooble.org"
     # Published free-plan limits, counted locally because these APIs do not report usage.
+    jsearch_monthly_limit: int = Field(default=200, ge=1)
     adzuna_daily_limit: int = Field(default=250, ge=1)
     adzuna_monthly_limit: int = Field(default=2500, ge=1)
     jooble_key_limit: int = Field(default=500, ge=1)
