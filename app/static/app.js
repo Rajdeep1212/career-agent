@@ -326,7 +326,7 @@ function renderSearchReport(data) {
   $('searchQueries').innerHTML = (data.queries || []).map(query => `<div class="query-item"><strong>${escapeHtml(query.query)}</strong><p>${escapeHtml(query.reason)}</p></div>`).join('') || '<p class="muted">No additional provider queries were needed.</p>';
   $('executionSummary').textContent = typeof data.summary === 'string' ? data.summary : 'Search completed. Review the counts and any provider errors below.';
   const diagnostics = data.diagnostics || {};
-  const countFields = [['generated_queries', 'Queries'], ['provider_results', 'Provider results'], ['unique_jobs', 'Unique jobs'], ['already_seen', 'Already seen'], ['active_verified', 'Verified active'], ['likely_active', 'Likely active'], ['unverified', 'Unverified'], ['closed', 'Closed'], ['eligibility_rejected', 'Eligibility exclusions'], ['ranked_results', 'Ranked'], ['final_recommendations', 'Recommendations']];
+  const countFields = [['generated_queries', 'Queries'], ['provider_results', 'Provider results'], ['unique_jobs', 'Unique jobs'], ['already_seen', 'Already seen'], ['active_verified', 'Verified active'], ['likely_active', 'Likely active'], ['unverified', 'Unverified'], ['closed', 'Closed'], ['eligibility_rejected', 'Excluded (explicit)'], ['uncertain_results', 'Uncertain (shown)'], ['ranked_results', 'Ranked'], ['final_recommendations', 'Recommendations']];
   const aliases = { generated_queries: (data.queries || []).length, provider_results: diagnostics.fetched, unique_jobs: diagnostics.deduplicated, ranked_results: diagnostics.ranked, final_recommendations: data.result_count };
   $('searchDiagnostics').innerHTML = countFields.map(([key, label]) => `<div class="metric"><strong>${escapeHtml(diagnostics[key] ?? aliases[key] ?? 0)}</strong><span>${label}</span></div>`).join('') +
     `<div class="diagnostic-details"><p>Provider counts: ${escapeHtml(Object.entries(diagnostics.provider_counts || {}).map(([name, count]) => name + ': ' + count).join(' / ') || 'None')}</p><p>Elapsed: ${escapeHtml(diagnostics.latency_ms ?? 0)} ms</p>${diagnostics.errors?.length ? `<ul class="provider-errors">${textList(diagnostics.errors.map(error => typeof error === 'string' ? error : JSON.stringify(error)))}</ul>` : '<p>No provider errors reported.</p>'}</div>`;
@@ -585,6 +585,22 @@ function providerCredit(job) {
   return credit ? `<span class="provider-credit">${credit(PROVIDER_SITES[job.source])}</span>` : '';
 }
 
+// Three-way eligibility (a heuristic, claim level L0). Older stored results only have `eligible`.
+const ELIGIBILITY_LABELS = { eligible: ['Eligible', 'good'], uncertain: ['Uncertain', 'warn'], excluded: ['Excluded', 'bad'] };
+
+function eligibilityStatus(job) {
+  const eligibility = job?.eligibility || {};
+  return eligibility.status || job?.eligibility_status || (eligibility.eligible === false || job?.eligible === false ? 'excluded' : 'eligible');
+}
+
+function eligibilitySummary(job) {
+  return job?.eligibility?.summary || job?.eligibility_summary || '';
+}
+
+function describeEvidence(item) {
+  return item.quote ? `${item.outcome}: quoted '${item.quote}' (${item.reason})` : `${item.outcome}: ${item.reason}`;
+}
+
 function jobCardsMarkup(jobs, compact = false) {
   return jobs.map(job => {
     if (job?.id) jobsById.set(job.id, job);
@@ -601,9 +617,9 @@ function jobCardsMarkup(jobs, compact = false) {
     return `<article class="job-card ${compact ? 'compact' : ''} ${selectedJob?.id === job.id ? 'selected' : ''}">
       <div class="job-head"><div><h3>${escapeHtml(job.title)}</h3><div class="company">${escapeHtml(job.company)}</div>${providerCredit(job)}</div><div class="score" style="--score:${score}"><span>${Math.round(score)}%</span></div></div>
       <div class="meta">${tags([job.location || 'Location unknown', job.work_mode || 'Work arrangement unknown'])}${job.salary ? tags([job.salary], 'good') : ''}${job.official_application ? '<span class="tag good">Official application</span>' : ''}${job.posted_date ? tags([postedLabel(job.posted_date)]) : ''}</div>
-      <div class="card-state-row"><span class="tag ${state === 'ACTIVE_VERIFIED' ? 'good' : 'warn'}">Verification: ${escapeHtml(state.replaceAll('_', ' '))}</span><span class="tag ${eligible === false ? 'bad' : 'good'}">Eligibility: ${eligible === false ? 'Not eligible' : 'No exclusion'}</span><span class="tag">Tracker: ${escapeHtml(trackerState.replaceAll('_', ' '))}</span>${outreachState !== 'NONE' ? `<span class="tag">Outreach: ${escapeHtml(outreachState)}</span>` : ''}</div>
+      <div class="card-state-row"><span class="tag ${state === 'ACTIVE_VERIFIED' ? 'good' : 'warn'}">Verification: ${escapeHtml(state.replaceAll('_', ' '))}</span><span class="tag ${ELIGIBILITY_LABELS[eligibilityStatus(job)][1]}">Eligibility: ${ELIGIBILITY_LABELS[eligibilityStatus(job)][0]}</span><span class="tag">Tracker: ${escapeHtml(trackerState.replaceAll('_', ' '))}</span>${outreachState !== 'NONE' ? `<span class="tag">Outreach: ${escapeHtml(outreachState)}</span>` : ''}</div>
       <div><strong class="muted">Matched skills</strong><div class="skill-row">${tags(match.matched_skills || job.matched_skills, 'good') || '<span class="muted">No explicit skill match</span>'}</div></div>
-      ${compact ? '' : `<div class="verification"><p>${escapeHtml(job.verification_reason || 'Application page has not been verified.')}</p></div><p>${escapeHtml(match.explanation || 'Review the listed requirements before applying.')}</p>${match.transferable_skills?.length ? `<div><strong class="muted">Transferable skills</strong><div class="skill-row">${tags(match.transferable_skills)}</div></div>` : ''}${(match.missing_skills || job.missing_skills)?.length ? `<div><strong class="muted">Missing skills</strong><div class="skill-row">${tags(match.missing_skills || job.missing_skills, 'warn')}</div></div>` : ''}<details><summary>Match evidence and eligibility</summary><p>${eligible === false ? 'Eligibility requirements are not met.' : 'No confirmed eligibility exclusion.'} ${escapeHtml(eligibility.confidence ? 'Confidence: ' + eligibility.confidence : '')}</p><ul>${textList([...(match.strengths || []), ...(match.gaps || []), ...(eligibility.positive_signals || []), ...(eligibility.warnings || []), ...(eligibility.hard_rejections || []), ...(job.reasons || [])])}</ul></details>`}
+      ${compact ? '' : `<div class="verification"><p>${escapeHtml(job.verification_reason || 'Application page has not been verified.')}</p>${eligibilitySummary(job) ? `<p class="eligibility-summary">${escapeHtml(eligibilitySummary(job))}</p>` : ''}</div><p>${escapeHtml(match.explanation || 'Review the listed requirements before applying.')}</p>${match.transferable_skills?.length ? `<div><strong class="muted">Transferable skills</strong><div class="skill-row">${tags(match.transferable_skills)}</div></div>` : ''}${(match.missing_skills || job.missing_skills)?.length ? `<div><strong class="muted">Missing skills</strong><div class="skill-row">${tags(match.missing_skills || job.missing_skills, 'warn')}</div></div>` : ''}<details><summary>Match evidence and eligibility</summary><p>${escapeHtml(eligibilitySummary(job) || 'No eligibility evidence recorded.')} ${escapeHtml(eligibility.confidence ? 'Confidence: ' + eligibility.confidence : '')}</p><ul>${textList([...(match.strengths || []), ...(match.gaps || []), ...(eligibility.positive_signals || []), ...(eligibility.warnings || []), ...(eligibility.hard_rejections || []), ...(job.reasons || [])])}</ul></details>`}
       <div class="card-actions"><button class="primary" data-job-id="${storedId}" onclick="selectJobById('${storedId}')" ${storedId ? '' : 'disabled'}>View details</button><button class="secondary" onclick="saveJobById('${storedId}')" ${storedId ? '' : 'disabled'}>${application ? 'Saved' : 'Save'}</button>${url ? `<a class="secondary" target="_blank" rel="noopener noreferrer" href="${escapeHtml(url)}">Open job</a>` : '<span class="muted">Application link unavailable</span>'}<button class="secondary" onclick="startJobOutreach('${storedId}')" ${storedId ? '' : 'disabled'}>Prepare outreach</button></div>
     </article>`;
   }).join('');
@@ -638,7 +654,7 @@ function renderSelectedJobContext() {
     <section class="drawer-section"><h3>Matched skills</h3><div class="skill-row">${tags(match.matched_skills || [], 'good') || '<span class="muted">No explicit skill match</span>'}</div></section>
     ${match.transferable_skills?.length ? `<section class="drawer-section"><h3>Transferable skills</h3><div class="skill-row">${tags(match.transferable_skills)}</div></section>` : ''}
     ${(match.missing_skills || selectedJob.missing_skills)?.length ? `<section class="drawer-section"><h3>Missing skills</h3><div class="skill-row">${tags(match.missing_skills || selectedJob.missing_skills, 'warn')}</div></section>` : ''}
-    <section class="drawer-section"><h3>Eligibility</h3><p>${eligibility.eligible === false ? 'This role has a confirmed eligibility conflict.' : 'No confirmed eligibility exclusion.'} ${escapeHtml(eligibility.confidence ? `Confidence: ${eligibility.confidence}.` : '')}</p>${eligibility.warnings?.length ? `<ul>${textList(eligibility.warnings)}</ul>` : ''}</section>
+    <section class="drawer-section"><h3>Eligibility: ${ELIGIBILITY_LABELS[eligibilityStatus(selectedJob)][0]}</h3><p>${escapeHtml(eligibilitySummary(selectedJob) || 'No eligibility evidence recorded.')}</p>${(eligibility.evidence || []).length ? `<ul>${textList(eligibility.evidence.map(describeEvidence))}</ul>` : eligibility.warnings?.length ? `<ul>${textList(eligibility.warnings)}</ul>` : ''}<p class="muted">Heuristic check (L0) from the listing text, not a prediction. ${escapeHtml(eligibility.confidence ? `Confidence: ${eligibility.confidence}.` : '')}</p></section>
     <section class="drawer-section"><h3>Verification</h3><p>${escapeHtml(selectedJob.verification_reason || 'Application page has not been verified.')}</p></section>
     <div class="context-actions">${url ? `<a class="secondary" target="_blank" rel="noopener noreferrer" href="${escapeHtml(url)}">Open job</a>` : ''}<button class="secondary" type="button" onclick="saveSelectedJob()">${application ? 'Refresh saved state' : 'Save to tracker'}</button></div>`;
   selectedJob.application_id = application?.id || selectedJob.application_id || null;

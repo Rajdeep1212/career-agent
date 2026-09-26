@@ -38,6 +38,15 @@ Every score or estimate shown to a user, or written in docs, must carry its leve
 
 Ghost/scam output is a set of evidence-backed risk signals, never a factual accusation.
 
+## Eligibility model
+
+`app/services/eligibility.py` returns a three-way `EligibilityResult` (claim level L0):
+`status` is `eligible`, `uncertain` or `excluded`; `summary` and `evidence` quote the listing
+(e.g. `excluded: quoted '5+ years experience required' (...)`). Exclude only on an explicit
+disqualifier in the listing or an explicit user constraint; ambiguous or missing evidence is
+`uncertain` and is shown, ranked below `eligible`. `eligible: bool` remains for compatibility and
+is False only when excluded. Search results carry `eligibility_status` and `eligibility_summary`.
+
 ## Working rules
 
 - Run the full offline suite after every change: `python -m pytest` (or `python run_tests.py`),

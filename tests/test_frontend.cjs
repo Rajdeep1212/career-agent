@@ -399,6 +399,18 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   assert.doesNotMatch(tracker, /T12:49:14/);
   assert.equal(vm.runInContext(`formatDate('2026-09-24')`, d.context), '24 Sep 2026');  // date-only stays that day
 
+  // Cards and the drawer show the three-way eligibility status with its quoted evidence.
+  const threeWay = vm.runInContext(`jobCardsMarkup([
+    { id: '${'e'.repeat(64)}', title: 'A', company: 'X', eligibility: { status: 'eligible', summary: "eligible: quoted 'Freshers welcome' (Explicit entry-level or graduate language.)" } },
+    { id: '${'f'.repeat(64)}', title: 'B', company: 'X', eligibility: { status: 'uncertain', summary: "uncertain: quoted '1-2 years preferred' (Experience is preferred, not required.)" } },
+    { id: '${'0'.repeat(64)}', title: 'C', company: 'X', eligible: false }])`, d.context);
+  assert.match(threeWay, /tag good">Eligibility: Eligible/);
+  assert.match(threeWay, /tag warn">Eligibility: Uncertain/);
+  assert.match(threeWay, /tag bad">Eligibility: Excluded/);
+  assert.match(threeWay, /uncertain: quoted &#039;1-2 years preferred&#039;/);
+  assert.equal(vm.runInContext(`describeEvidence({ outcome: 'excluded', reason: 'Requires at least 5 years; your limit is 1.', quote: '5+ years experience required' })`, d.context),
+    "excluded: quoted '5+ years experience required' (Requires at least 5 years; your limit is 1.)");
+
   // A costly search asks first; cancelling sends nothing to /chat/run.
   const costly = { will_search: true, provider_requests: 8, warning: 'This search will send 8 requests to JSearch/RapidAPI.' };
   d = await dashboard({ configured: true, connected: false }, '', false, {

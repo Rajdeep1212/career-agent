@@ -141,6 +141,8 @@ class JobScore(BaseModel):
     matched_skills: list[str]
     missing_skills: list[str]
     eligible: bool
+    eligibility_status: Literal["eligible", "uncertain", "excluded"] = "eligible"
+    eligibility_summary: str = ""
     reasons: list[str]
 
 

@@ -100,6 +100,7 @@ def interpret_search_request(text: str, previous: SearchIntent | None = None) ->
         assign('excluded_locations', list(dict.fromkeys(intent.excluded_locations + excluded)))
     if locations:
         assign('locations', list(dict.fromkeys((intent.locations if re.search(r'\b(?:also|add)\b', low) else []) + locations)))
+        assign('locations_from_preferences', False)
 
     if re.search(r'\b(?:remote[- ]only|only remote|work from home only)\b', low):
         assign('remote_allowed', True); assign('hybrid_allowed', False); assign('onsite_allowed', False)

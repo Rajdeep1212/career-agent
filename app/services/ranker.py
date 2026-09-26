@@ -17,9 +17,12 @@ def score_job(profile, job, prefs):
         project_relevance_score=match.components.get("projects_research",0),
         application_quality_score=match.components.get("verification",0),
         matched_skills=match.matched_skills,missing_skills=match.missing_skills,
-        eligible=eligibility.eligible,reasons=match.strengths+match.gaps+eligibility.hard_rejections)
+        eligible=eligibility.eligible,eligibility_status=eligibility.status,eligibility_summary=eligibility.summary,
+        reasons=match.strengths+match.gaps+eligibility.hard_rejections)
 
 
 def rank_jobs(profile, jobs, prefs):
     scores=[score_job(profile,job,prefs) for job in jobs]
-    return sorted((score for score in scores if score.eligible),key=lambda score:score.total_score,reverse=True)
+    # Excluded jobs are dropped; eligible rank before uncertain, then by heuristic score.
+    tiers={'eligible':0,'uncertain':1}
+    return sorted((score for score in scores if score.eligible),key=lambda score:(tiers[score.eligibility_status],-score.total_score))
