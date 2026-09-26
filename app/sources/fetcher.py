@@ -35,6 +35,10 @@ class RobotsDisallowed(RuntimeError):
     """robots.txt disallows this path for our User-Agent."""
 
 
+class RobotsUnavailable(RobotsDisallowed):
+    """robots.txt could not be read (server error or no response), so nothing on that host is fetched this run."""
+
+
 @dataclass
 class Fetched:
     url: str
@@ -64,6 +68,7 @@ class PoliteFetcher:
         self._last_request: dict[str, float] = {}
         self._blocked: set[str] = set()
         self._robots: dict[str, RobotFileParser | None] = {}
+        self._robots_unavailable: dict[str, str] = {}   # origin -> why robots.txt could not be read
         self.requests = 0  # requests actually sent this run
 
     async def _request(self, url: str, headers: dict[str, str]) -> httpx.Response:
@@ -95,10 +100,14 @@ class PoliteFetcher:
                     parser = RobotFileParser()
                     # A missing robots.txt (4xx) allows everything; a server error stays conservative.
                     parser.parse(response.text.splitlines() if response.status_code == 200 else [])
+                else:
+                    self._robots_unavailable[origin] = (f"robots.txt returned HTTP {response.status_code}; "
+                                                        "the site may be down or under maintenance")
             except HostBlocked:
                 raise
-            except Exception:
+            except Exception as exc:
                 parser = None
+                self._robots_unavailable[origin] = f"robots.txt could not be read ({type(exc).__name__})"
             self._robots[origin] = parser
         parser = self._robots[origin]
         return bool(parser and parser.can_fetch(USER_AGENT, url))
@@ -108,6 +117,9 @@ class PoliteFetcher:
 
     async def get(self, url: str, *, check_robots: bool = True, conditional: bool = False, accept: str | None = None) -> Fetched:
         if check_robots and not await self._allowed(url):
+            origin = "{0.scheme}://{0.netloc}".format(urlsplit(url))
+            if origin in self._robots_unavailable:
+                raise RobotsUnavailable(f"{self._robots_unavailable[origin]}; not fetching {url}")
             raise RobotsDisallowed(f"robots.txt disallows {url}")
         headers = {"Accept": accept} if accept else {}
         cached = None

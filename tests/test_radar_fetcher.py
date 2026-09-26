@@ -52,6 +52,19 @@ class PoliteFetcherTests(unittest.IsolatedAsyncioTestCase):
             await self.fetcher(web).get("https://site.example/private/job")
         self.assertEqual([url for url, _ in web.calls], ["https://site.example/robots.txt"])
 
+    async def test_robots_server_error_is_reported_as_unavailable_not_disallowed(self):
+        # Found in a live dry run: Workday tenants answer 503 during weekly maintenance.
+        from app.sources.fetcher import RobotsUnavailable
+        web = FakeWeb({"https://site.example/robots.txt": (503, "ERR_TENANT_OUTAGE", {}),
+                       "https://site.example/siteMap.xml": (200, "<urlset/>", {})})
+        with self.assertRaises(RobotsUnavailable) as caught:
+            await self.fetcher(web).get("https://site.example/siteMap.xml")
+        self.assertIsInstance(caught.exception, RobotsDisallowed)   # still never fetched
+        self.assertIn("robots.txt returned HTTP 503", str(caught.exception))
+        self.assertIn("maintenance", str(caught.exception))
+        self.assertNotIn("disallows", str(caught.exception))
+        self.assertEqual([url for url, _ in web.calls], ["https://site.example/robots.txt"])
+
     async def test_missing_robots_allows_and_is_fetched_once_per_host(self):
         web = FakeWeb({"https://site.example/a": (200, "A", {}), "https://site.example/b": (200, "B", {})})
         fetcher = self.fetcher(web)
