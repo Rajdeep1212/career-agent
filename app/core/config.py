@@ -34,6 +34,14 @@ class Settings(BaseSettings):
     jooble_host: str = "in.jooble.org"
     # Published free-plan limits, counted locally because these APIs do not report usage.
     jsearch_monthly_limit: int = Field(default=200, ge=1)
+    # Job-alert emails: a dedicated inbox read over IMAP (optional), and a folder for .eml files.
+    alerts_imap_host: str | None = None
+    alerts_imap_user: str | None = None
+    alerts_imap_app_password: str | None = None
+    alerts_imap_folder: str = "INBOX"
+    alerts_lookback_days: int = Field(default=14, ge=1, le=90)
+    alerts_max_messages: int = Field(default=200, ge=1, le=2000)
+    alerts_dropbox_dir: str = ""   # empty: data/alert_dropbox
     # The Radar sync's one daily JSearch request: empty query = saved roles joined with OR.
     jsearch_daily_query: str = ""
     jsearch_daily_date_posted: str = Field(default="3days", pattern=r"^(?:all|today|3days|week|month)$")
