@@ -117,6 +117,16 @@ def list_jobs() -> list[JobPosting]:
     return [JobPosting.model_validate_json(row["job_json"]) for row in rows]
 
 
+def new_since(since: str) -> list[JobPosting]:
+    """Jobs first seen since `since` that are not linked to an official Radar job."""
+    if not DB_PATH.exists():
+        return []
+    with _connect() as conn:
+        found = conn.execute("SELECT job_json FROM alert_jobs WHERE first_seen_at >= ? AND radar_key IS NULL "
+                             "ORDER BY first_seen_at DESC", (since,)).fetchall()
+    return [JobPosting.model_validate_json(row["job_json"]) for row in found]
+
+
 def rows() -> list[dict]:
     if not DB_PATH.exists():
         return []

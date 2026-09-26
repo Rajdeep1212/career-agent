@@ -16,6 +16,8 @@ import httpx
 
 from app.core.config import settings
 from app.models.schemas import JobPosting
+from app.sources.alerts.daily import run_alerts
+from app.sources.alerts.daily import summary as alerts_summary
 from app.sources.daily_jsearch import run_daily_jsearch
 from app.sources.digest import build_digest, write_digest
 from app.sources.adapters import FetchResult, SourceError, ashby, greenhouse, lever, sitemap, smartrecruiters
@@ -159,11 +161,12 @@ async def run_cycle(*, force: bool = False) -> dict:
     fetcher = PoliteFetcher(max_bytes=MAX_BYTES)
     outcomes = await run_sync(force=force, fetcher=fetcher)
     daily = await run_daily_jsearch(force=force)
+    alerts = run_alerts()
     result = build_digest()
     write_digest(result)
     return {"companies": len(outcomes), **{status: sum(o.status == status for o in outcomes) for status in ("ok", "partial", "error", "skipped")},
             "requests": fetcher.requests, "new": sum(o.new or 0 for o in outcomes), "closed": sum(o.closed or 0 for o in outcomes),
-            "jsearch": daily.status, "jsearch_jobs": daily.jobs, "eligible": len(result.eligible), "uncertain": len(result.uncertain)}
+            "jsearch": daily.status, "jsearch_jobs": daily.jobs, "alerts": alerts.status, "alert_jobs_new": alerts.new, "eligible": len(result.eligible), "uncertain": len(result.uncertain)}
 
 
 def _print(outcomes: list[Outcome], requests: int, dry_run: bool) -> None:
@@ -183,6 +186,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true", help="fetch and print counts without saving anything")
     parser.add_argument("--force", action="store_true", help="sync companies already synced today")
     parser.add_argument("--no-jsearch", action="store_true", help="skip the one daily JSearch request")
+    parser.add_argument("--no-alerts", action="store_true", help="skip reading job-alert emails")
     args = parser.parse_args(argv)
     if settings.demo_mode:
         print("DEMO_MODE is on: the Company Radar sync never runs in the demo.")
@@ -200,6 +204,8 @@ def main(argv: list[str] | None = None) -> int:
         daily = asyncio.run(run_daily_jsearch(force=args.force))
         detail = f"{daily.jobs} jobs ('{daily.query}')" if daily.status == "ok" else daily.note
         print(f"JSearch daily query: {daily.status}, {detail}")
+    if not args.dry_run and not args.no_alerts:
+        print(alerts_summary(run_alerts()))
     if not args.dry_run:
         result = build_digest()
         path = write_digest(result)

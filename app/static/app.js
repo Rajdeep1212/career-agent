@@ -1091,7 +1091,7 @@ function newTodayItem(item, tier) {
   const title = url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title)}</a>` : escapeHtml(item.title);
   const [label, tone] = ELIGIBILITY_LABELS[tier];
   return `<li><strong>${title}</strong> <span class="tag ${tone}">${label}</span> <span class="muted">heuristic fit ${escapeHtml(item.score)}/100</span>
-    <div>${escapeHtml(item.company)} · ${escapeHtml(item.location)}</div><div class="muted">${escapeHtml(item.summary)}</div></li>`;
+    <div>${escapeHtml(item.company)} · ${escapeHtml(item.location)}${/ alert$/.test(item.source || '') ? ` · from your ${escapeHtml(item.source)} email (not verified)` : ''}</div><div class="muted">${escapeHtml(item.summary)}</div></li>`;
 }
 
 async function loadNewToday() {
