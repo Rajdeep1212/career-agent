@@ -14,6 +14,7 @@ DEMO_BLANKED = (
     "rapidapi_key", "adzuna_app_id", "adzuna_app_key", "jooble_api_key",
     "google_client_id", "google_client_secret", "linkedin_client_id", "linkedin_client_secret",
     "token_encryption_key", "gemini_api_key",
+    "alerts_imap_host", "alerts_imap_user", "alerts_imap_app_password",
 )
 
 

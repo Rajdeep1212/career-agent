@@ -83,7 +83,8 @@ class DemoModeIsolationTests(unittest.TestCase):
             "RAPIDAPI_KEY": "real-rapid-key", "ADZUNA_APP_ID": "id", "ADZUNA_APP_KEY": "real-adzuna-key",
             "JOOBLE_API_KEY": "real-jooble-key", "GOOGLE_CLIENT_ID": "real-client", "GOOGLE_CLIENT_SECRET": "real-secret",
             "LINKEDIN_CLIENT_ID": "real-li", "LINKEDIN_CLIENT_SECRET": "real-li-secret",
-            "TOKEN_ENCRYPTION_KEY": "real-fernet-key", "JOB_PROVIDERS": "jsearch,adzuna,jooble",
+            "TOKEN_ENCRYPTION_KEY": "real-fernet-key", "ALERTS_IMAP_HOST": "imap.gmail.com", "ALERTS_IMAP_USER": "real-user",
+            "ALERTS_IMAP_APP_PASSWORD": "real-imap-password", "JOB_PROVIDERS": "jsearch,adzuna,jooble",
         }
 
     def test_demo_mode_is_fully_isolated(self):
@@ -95,6 +96,8 @@ class DemoModeIsolationTests(unittest.TestCase):
         self.assertEqual(Path(out["data_dir"]).resolve(), self.demo.resolve())
         self.assertTrue(out["keys_blank"])
         self.assertIn("rapidapi_key", out["ignored"])
+        self.assertIn("alerts_imap_app_password", out["ignored"])
+        self.assertNotIn("real-imap-password", result.stdout + result.stderr)
         self.assertNotIn("real-rapid-key", result.stdout + result.stderr)
         self.assertEqual((out["google_login"], out["google_status"], out["linkedin_status"]), (404, 404, 404))
         self.assertIn("synthetic", out["profile_name"])
