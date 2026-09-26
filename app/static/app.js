@@ -591,7 +591,10 @@ function providerCredit(job) {
 
 // Company Radar jobs come from the company's own board; other listings of the same job are merged into sources[].
 function sourceLine(job) {
-  const official = job?.source === 'Company Radar' ? "From the company's official job board" : '';
+  const alert = /^(LinkedIn|Naukri|Indeed) alert$/.exec(job?.source || '');
+  const official = job?.source === 'Company Radar' ? "From the company's official job board"
+    : alert ? `From your ${alert[1]} job-alert email (not verified: ${alert[1]} pages are never opened automatically)`
+    : job?.source === 'Saved by you' ? 'Saved by you with the bookmarklet' : '';
   const others = [...new Set((job?.sources || []).map(ref => ref?.source).filter(Boolean))];
   const also = others.length ? `Also listed on ${others.map(name => PROVIDER_CREDITS[name]
     ? `${escapeHtml(name)} (${PROVIDER_CREDITS[name](PROVIDER_SITES[name])})` : escapeHtml(name)).join(', ')}` : '';

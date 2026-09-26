@@ -438,6 +438,13 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   await d.elements.get('syncRadarBtn').handlers.click();
   assert.equal(d.calls.filter(([path, method]) => path === '/radar/sync' && method === 'POST').length, 1);
 
+  // Alert-email and saved jobs are labeled with their honest source.
+  const alertCard = vm.runInContext(`jobCardsMarkup([
+    { id: '${'1'.repeat(64)}', title: 'A', company: 'X', source: 'LinkedIn alert', application_url: 'https://www.linkedin.com/jobs/view/1/' },
+    { id: '${'2'.repeat(64)}', title: 'B', company: 'Y', source: 'Saved by you', application_url: 'https://careers.example.com/jobs/2' }])`, d.context);
+  assert.match(alertCard, /From your LinkedIn job-alert email \(not verified: LinkedIn pages are never opened automatically\)/);
+  assert.match(alertCard, /Saved by you with the bookmarklet/);
+
   // A costly search asks first; cancelling sends nothing to /chat/run.
   const costly = { will_search: true, provider_requests: 8, warning: 'This search will send 8 requests to JSearch/RapidAPI.' };
   d = await dashboard({ configured: true, connected: false }, '', false, {

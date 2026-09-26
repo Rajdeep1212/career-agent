@@ -22,7 +22,7 @@ from app.services.role_discovery import expand_roles, family_for_title
 from app.services.search_planner import plan_search_queries
 from app.services.job_identity import deduplicate_jobs, job_identity, resolve_with_index
 from app.sources.registry import alias_map, read_config
-from app.services.application_verifier import verify_application
+from app.services.application_verifier import never_fetched, verify_application
 from app.services.eligibility import evaluate_eligibility
 from app.services.matching import match_job
 from app.storage import career_store, history, radar_store, search_cache
@@ -135,8 +135,8 @@ DAILY_MAX_AGE_DAYS=3
 
 
 def _index_ready(local):
-    """A local index with jobs: aggregators then run only on a manual refresh."""
-    return any(bool(getattr(p,'configured',lambda:True)()) for p in local)
+    """The Company Radar index has jobs: aggregators then run only on a manual refresh."""
+    return any(p.name==RADAR_SOURCE and bool(getattr(p,'configured',lambda:True)()) for p in local)
 
 
 def _cached(key):
@@ -334,8 +334,10 @@ class CareerAgent:
                 return await verify_application(job)
         budget=preferences.verification_limit
         preverified=[job for job in unseen if _preverified(job)]
-        to_check=[job for job in unseen if not _preverified(job)]
-        checked=list(await asyncio.gather(*(verify(job) for job in to_check[:budget])))
+        # LinkedIn/Naukri/Indeed links are never fetched: their check sends nothing and uses no budget.
+        offline=[job for job in unseen if not _preverified(job) and never_fetched(job)]
+        to_check=[job for job in unseen if not _preverified(job) and not never_fetched(job)]
+        checked=list(await asyncio.gather(*(verify(job) for job in offline+to_check[:budget])))
         for job in to_check[budget:]:
             job.verification_state='UNVERIFIED';job.application_status='unverified'
             job.verification_reason='Not checked: this search reached the configured verification budget.'
