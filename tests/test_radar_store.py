@@ -90,8 +90,16 @@ class RadarStoreTests(unittest.TestCase):
         with closing(sqlite3.connect(self.path)) as conn:
             versions = [row[0] for row in conn.execute("SELECT version FROM schema_migrations")]
             tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-        self.assertEqual(versions, ["radar_v1"])
-        self.assertLessEqual({"radar_jobs", "radar_job_sources", "radar_sync_runs"}, tables)
+        self.assertEqual(versions, ["radar_v1", "radar_v2"])
+        self.assertLessEqual({"radar_jobs", "radar_job_sources", "radar_sync_runs", "radar_rejected"}, tables)
+
+    def test_known_jobs_and_rejected_ids(self):
+        radar_store.record_listing("example", [_job("1"), _job("2")], complete=True, today=D1)
+        radar_store.mark_closed("example", "2", "gone", today=D1)
+        self.assertEqual(set(radar_store.known_jobs("example")), {"1"})
+        radar_store.remember_rejected("example", ["9", "9", "8"], today=D1)
+        self.assertEqual(radar_store.rejected_ids("example"), {"8", "9"})
+        self.assertEqual(radar_store.rejected_ids("other"), set())
 
 
 if __name__ == "__main__":

@@ -61,8 +61,17 @@ def _create_v1(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX radar_sync_runs_day ON radar_sync_runs(company_id, day)")
 
 
-MIGRATIONS = [db.Migration("radar_v1", _create_v1,
-                           "Restore data/backups/<time>/radar.sqlite3, or delete data/radar.sqlite3; the next sync rebuilds it.")]
+def _create_v2(conn: sqlite3.Connection) -> None:
+    # Job pages already read and found outside India or expired, so a sitemap sync does not re-open them daily.
+    conn.execute("""CREATE TABLE radar_rejected (
+        company_id TEXT NOT NULL,
+        source_job_id TEXT NOT NULL,
+        checked_on TEXT NOT NULL,
+        PRIMARY KEY (company_id, source_job_id))""")
+
+
+_ROLLBACK = "Restore data/backups/<time>/radar.sqlite3, or delete data/radar.sqlite3; the next sync rebuilds it."
+MIGRATIONS = [db.Migration("radar_v1", _create_v1, _ROLLBACK), db.Migration("radar_v2", _create_v2, _ROLLBACK)]
 
 
 @dataclass
@@ -144,6 +153,26 @@ def missing_from_window(company_id: str) -> list[JobPosting]:
         rows = conn.execute("SELECT * FROM radar_jobs WHERE company_id=? AND status='ACTIVE' AND last_listed_on < last_checked_on",
                             (company_id,)).fetchall()
     return [_job_from_row(row) for row in rows]
+
+
+def known_jobs(company_id: str) -> dict[str, JobPosting]:
+    """Active jobs of a company as stored, keyed by source id."""
+    with _connect() as conn:
+        rows = conn.execute("SELECT source_job_id, job_json FROM radar_jobs WHERE company_id=? AND status='ACTIVE'",
+                            (company_id,)).fetchall()
+    return {row["source_job_id"]: JobPosting.model_validate_json(row["job_json"]) for row in rows}
+
+
+def remember_rejected(company_id: str, source_job_ids: list[str], *, today: date) -> None:
+    with _connect() as conn:
+        conn.executemany("INSERT OR REPLACE INTO radar_rejected (company_id, source_job_id, checked_on) VALUES (?, ?, ?)",
+                         [(company_id, job_id, today.isoformat()) for job_id in source_job_ids])
+
+
+def rejected_ids(company_id: str) -> set[str]:
+    with _connect() as conn:
+        rows = conn.execute("SELECT source_job_id FROM radar_rejected WHERE company_id=?", (company_id,)).fetchall()
+    return {row["source_job_id"] for row in rows}
 
 
 def mark_closed(company_id: str, source_job_id: str, reason: str, *, today: date) -> None:
