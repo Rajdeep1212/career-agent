@@ -45,5 +45,20 @@ class ExperienceClauseTests(unittest.TestCase):
 
 
 
+class CeilingTests(unittest.TestCase):
+    """'Up to N years' is a ceiling, not a minimum."""
+
+    def test_upper_bounds_are_not_minimums(self):
+        for text in ('Up to 2 years of experience with OpenCV.', 'Maximum 3 years of experience.',
+                     'Less than 2 years of experience.', 'Upto 1 year experience'):
+            with self.subTest(text=text):
+                self.assertEqual(extract_requirements(text)[0], 0)
+
+    def test_upper_bound_keeps_its_maximum(self):
+        from app.services.job_requirements import experience_clauses
+        [clause] = experience_clauses('Up to 2 years of experience with OpenCV.')
+        self.assertEqual((clause.minimum, clause.maximum), (0, 2))
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 _DURATION = re.compile(r"\b(?P<minimum>\d+(?:\.\d+)?)\s*(?:(?:-|to)\s*(?P<maximum>\d+(?:\.\d+)?)\s*|(?P<plus>\+)\s*)?(?:years?|yrs?)\b")
 _SOFT = re.compile(r"\b(?:preferred|preferably|desirable|optional|nice to have|good to have|a plus|is a plus|bonus|ideally|not required|not mandatory)\b")
 _CLAUSE_BREAK = re.compile(r"[.;\n!?]")
+_CEILING = re.compile(r"(?:\bup\s*to|\bupto|\bmaximum(?:\s+of)?|\bmax\.?|\bless than|\bunder|\bnot more than)\s*$")
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,9 @@ def experience_clauses(text: str) -> list[ExperienceClause]:
             continue
         minimum = float(match.group("minimum"))
         maximum = float(match.group("maximum")) if match.group("maximum") else None
+        if maximum is None and not match.group("plus") and _CEILING.search(before):
+            # "Up to 2 years" is a ceiling, not a minimum.
+            minimum, maximum = 0.0, minimum
         if minimum > 70 or maximum is not None and (maximum > 70 or maximum < minimum):
             continue
         left, right = _clause_bounds(low, match.start(), match.end())
