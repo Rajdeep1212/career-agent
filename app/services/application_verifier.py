@@ -101,11 +101,23 @@ def _is_aggregator_link(job: JobPosting) -> bool:
     return job.source in AGGREGATOR_SOURCES or bool(_AGGREGATOR_HOST.search(host))
 
 
+# Hard constraint (CLAUDE.md): these sites are never fetched by the app, only opened by the user.
+_NEVER_FETCHED_HOST = re.compile(r"(?:^|\.)(?:linkedin\.com|lnkd\.in|naukri\.com|indeed\.[a-z.]+)$")
+
+
+def _is_never_fetched(job: JobPosting) -> bool:
+    host = (urlparse(str(job.application_url)).hostname or "").lower().rstrip(".")
+    return bool(_NEVER_FETCHED_HOST.search(host))
+
+
 async def verify_application(job: JobPosting) -> JobPosting:
     if not job.application_url:
         return _status(job, "UNVERIFIED", "No application URL was provided.")
     if settings.demo_mode:
         return _status(job, "UNVERIFIED", "Demo data: synthetic listing, never fetched.")
+    if _is_never_fetched(job):
+        return _status(job, "UNVERIFIED", "LinkedIn, Naukri and Indeed pages are never opened automatically. "
+                                          "Open the link to check the listing.")
     if _is_aggregator_link(job):
         # Adzuna and Jooble links are tracked redirects; an automated visit would count as a click.
         return _status(job, "UNVERIFIED", "Aggregator link (Adzuna/Jooble): not checked automatically, because "
