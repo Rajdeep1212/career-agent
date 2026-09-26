@@ -44,8 +44,32 @@ class SearchQuery(BaseModel):
     location: str
 
 
+EligibilityStatus = Literal["eligible", "uncertain", "excluded"]
+
+
+class EligibilityEvidence(BaseModel):
+    """One eligibility decision and the listing text it rests on."""
+    outcome: EligibilityStatus
+    reason: str
+    quote: str | None = None
+
+    def describe(self) -> str:
+        """e.g. "excluded: quoted '5+ years experience required' (requires at least 5 years; ...)"."""
+        return f"{self.outcome}: quoted '{self.quote}' ({self.reason})" if self.quote else f"{self.outcome}: {self.reason}"
+
+
 class EligibilityResult(BaseModel):
-    eligible: bool = True
+    """Three-way eligibility; a deterministic heuristic (claim level L0), not a prediction.
+
+    excluded  = an explicit disqualifier in the listing or an explicit user constraint.
+    uncertain = ambiguous or missing evidence; shown to the user, ranked below eligible.
+    eligible  = positive evidence and nothing unresolved.
+    """
+    status: EligibilityStatus = "eligible"
+    eligible: bool = True  # compatibility: False only when status == "excluded"
+    summary: str = ""
+    evidence: list[EligibilityEvidence] = Field(default_factory=list)
+    claim_level: Literal["L0"] = "L0"
     confidence: Literal["high", "medium", "low"] = "medium"
     hard_rejections: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)

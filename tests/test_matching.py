@@ -11,15 +11,17 @@ class MatchingTests(unittest.TestCase):
         return JobPosting(company='Example',title='QA Engineer',location='Kolkata',description=description, **kwargs)
 
     def test_experience_and_batch_rules(self):
+        # Three-way: 2 years for a fresher (limit 1) is a soft mismatch, not a disqualifier.
         from app.services.eligibility import evaluate_eligibility
         prefs=JobSearchPreferences(required_graduation_year=2025)
-        for text, expected in [('0-1 years',True),('0-2 years freshers welcome',True),('1-2 years',True),
-                               ('minimum 2 years',False),('2+ years',False),('2026 batch only',False),
-                               ('2025/2026 graduates',True),('graduate trainee',True)]:
+        for text, expected in [('0-1 years','eligible'),('0-2 years freshers welcome','eligible'),('1-2 years','eligible'),
+                               ('minimum 2 years','uncertain'),('2+ years','uncertain'),('minimum 3 years','excluded'),
+                               ('2026 batch only','excluded'),('2025/2026 graduates','eligible'),('graduate trainee','eligible')]:
             with self.subTest(text=text):
                 result=evaluate_eligibility(self.candidate(),self.job(text),prefs,SearchIntent())
-                self.assertEqual(result.eligible,expected)
-                if not expected:self.assertTrue(result.hard_rejections)
+                self.assertEqual(result.status,expected)
+                self.assertEqual(result.eligible,expected!='excluded')
+                if expected=='excluded':self.assertTrue(result.hard_rejections)
 
     def test_seniority_from_candidate_not_fixed_globally(self):
         from app.services.eligibility import evaluate_eligibility
