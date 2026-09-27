@@ -24,6 +24,11 @@ class IntentTests(unittest.TestCase):
         self.assertEqual(result.locations, ['Reykjavik'])
         self.assertEqual(result.excluded_locations, ['Akureyri'])
 
+    def test_now_in_a_city_keeps_the_previous_role(self):
+        result = self.parse('now in Pune', self.parse('data analyst jobs'))
+        self.assertEqual(result.roles_requested, ['Data Analyst'])
+        self.assertEqual(result.locations, ['Pune'])
+
     def test_remote_only(self):
         result = self.parse('Remote only QA jobs')
         self.assertTrue(result.remote_allowed)

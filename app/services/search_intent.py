@@ -31,7 +31,7 @@ def _places(text: str, excluded: bool = False) -> list[str]:
 def _roles(text: str) -> list[str]:
     # Remove constraints before retaining free-form requested role text.
     head = re.split(r'\b(?:in|near|exclude|excluding|avoid|except|with|for|at|posted|remote|minimum|score|scores)\b', text, maxsplit=1, flags=re.I)[0]
-    head = re.sub(r'^(?:(?:please|instead|also|can you|i want|i need|find|search|show|me|include|add|look for|looking for|suggest|only)\s+)+', '', head, flags=re.I)
+    head = re.sub(r'^(?:(?:please|now|instead|also|can you|i want|i need|find|search|show|me|include|add|look for|looking for|suggest|only)\s+)+', '', head, flags=re.I)
     head = re.sub(r'\b(?:jobs?|roles?|positions?|opportunities)\b.*$', '', head, flags=re.I).strip(' ,.:')
     head = re.sub(r'\bfreshers?\b', '', head, flags=re.I).strip()
     generic = r'^(?:|great|suitable|relevant|any|all|more|non[- ]?coding|strong matches|best matches|freshers?|entry[- ]level)$'
