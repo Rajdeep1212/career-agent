@@ -346,6 +346,13 @@ Built on branch `m1d-alerts` (decisions D3, D4):
 - **CSV import and export**, with an anonymize option: company becomes a tier or size, title a role family, dates week offsets, and no names or emails.
 - **Evaluation:** the number of labeled applications; snapshot completeness (target 100% after M2); the funnel from applied to response.
 - **Risk:** you stop logging. Mitigate with the banner and one-click buttons.
+- **Decisions (2026-09-27):**
+  - "Shortlisted" is not a status. It is derived: an application that reached `ONLINE_TEST`,
+    `INTERVIEW` or beyond was shortlisted. The shortlist rate is computed from `application_events`.
+    The status set stays exactly as above.
+  - Marking a job applied is one click from the job card (search results and the tracker). Friction
+    here makes the data worthless.
+  - Referral contacts stay in M5 (warm paths); they are not pulled forward.
 
 ### M3: Ghost and scam risk signals (1.5–2 weeks)
 
