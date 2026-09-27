@@ -15,6 +15,14 @@ def words(text):
     return {SYNONYMS.get(token,token) for token in tokens}-STOP
 
 
+def requested_skills(job, keywords):
+    """(found, absent) for skills the search asked for; independent of the candidate's CV."""
+    listed={s.casefold() for s in job.skills}
+    posting=job.title+' '+job.description
+    found=[k for k in keywords if k.casefold() in listed or contains_phrase(posting,k)]
+    return found,[k for k in keywords if k not in found]
+
+
 def match_job(profile, job, intent, eligibility):
     candidate={s.casefold():s for s in profile.skills}
     required={s.casefold():s for s in job.skills}
@@ -52,9 +60,14 @@ def match_job(profile, job, intent, eligibility):
         except ValueError:pass
     parts=dict(skills=skill,role=role,transferable=transfer_score,experience=experience,location=location,
                projects_research=project,education=education,verification=verification,freshness=freshness)
+    found,absent=requested_skills(job,intent.keywords)
+    if intent.keywords:
+        parts['requested_skills']=round(10*len(found)/len(intent.keywords))
     strengths=([f'Matches: {", ".join(matched)}'] if matched else [])+([f'Transferable: {", ".join(transfer)}'] if transfer else [])+eligibility.positive_signals
+    if found:strengths.append('Requested skills in listing: '+', '.join(found))
     if relevant:strengths.append('Relevant candidate evidence: '+relevant[0][:180])
     gaps=([f'Not shown in profile: {", ".join(missing)}'] if missing else [])+eligibility.warnings
+    if absent:gaps.append('Requested skills not mentioned: '+', '.join(absent))
     if not required:gaps.append('Listing has no recognized skill requirements; skill fit is unknown.')
     total=min(100,sum(parts.values())) if eligibility.eligible else 0
     return MatchResult(overall_score=total,skill_score=skill,role_score=role,experience_score=experience,

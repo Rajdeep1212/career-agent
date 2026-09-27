@@ -370,7 +370,8 @@ class CareerAgent:
             result,eligibility,match=evaluate_job(profile,job,preferences,intent)
             job_family=family_for_title(job.title)
             off_role=bool(intent.roles_requested and match.role_score==0
-                          and not (job_family and job_family['family'] in intent.role_families))
+                          and not (job_family and job_family['family'] in intent.role_families)
+                          and not match.components.get('requested_skills'))
             if not eligibility.eligible:
                 if job.verification_state!='CLOSED':diagnostics['eligibility_rejected']+=1
                 if len(diagnostics['filtered_examples'])<10:
