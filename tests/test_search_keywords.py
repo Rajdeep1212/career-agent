@@ -16,6 +16,10 @@ class KeywordExtractionTests(unittest.TestCase):
         self.assertEqual(intent.roles_requested, [])
         self.assertEqual(intent.locations, ['Pune'])
 
+    def test_skills_after_a_location_are_not_part_of_it(self):
+        intent = parse('Data Analyst jobs in Bengaluru using LangChain')
+        self.assertEqual((intent.locations, intent.keywords), (['Bengaluru'], ['LangChain']))
+
     def test_skills_covered_by_the_role_are_not_repeated(self):
         intent = parse('python developer with django')
         self.assertEqual(intent.roles_requested, ['Python Developer'])

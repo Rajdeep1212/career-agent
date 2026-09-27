@@ -11,7 +11,7 @@ from app.services.skills import KNOWN_SKILLS, canonical_skill, extract_skills, s
 
 
 _LIMITATION = 'Rule-based English parser: review interpreted roles and filters; ambiguous or unsupported wording may be missed.'
-_BOUNDARY = r'(?=\s*(?:[;.!]|$)|\s+(?:excluding|except|but not|not in|with|for|minimum|score|scores|posted|remote|hybrid|onsite|strict|no|only|at|from|in the|and remote)\b)'
+_BOUNDARY = r'(?=\s*(?:[;.!]|$)|\s+(?:excluding|except|but not|not in|with|using|for|minimum|score|scores|posted|remote|hybrid|onsite|strict|no|only|at|from|in the|and remote)\b)'
 
 
 def _list(text: str) -> list[str]:
