@@ -7,6 +7,7 @@ import re
 
 from app.models.career import SearchIntent
 from app.services.role_discovery import family_for_title, load_role_catalog
+from app.services.skills import KNOWN_SKILLS, canonical_skill, extract_skills, split_composite
 
 
 _LIMITATION = 'Rule-based English parser: review interpreted roles and filters; ambiguous or unsupported wording may be missed.'
@@ -28,7 +29,27 @@ def _places(text: str, excluded: bool = False) -> list[str]:
     return list(dict.fromkeys(results))
 
 
-def _roles(text: str) -> list[str]:
+_NEGATED = re.compile(r'\b(?:no|not|without|except|excluding|exclude|avoid)\s+[^,;]*?(?=[,;]|\.(?:\s|$)|\s+(?:in|with|for|at|using|posted)\b|$)', re.I)
+
+
+def _is_skill(text: str) -> bool:
+    """A known vocabulary skill (or a list of them) that is not a role-catalog title or alias."""
+    if family_for_title(text):
+        return False
+    known = {name.casefold() for name in KNOWN_SKILLS}
+    return canonical_skill(text).casefold() in known or split_composite(text) is not None
+
+
+def _keywords(text: str, role_text: str) -> tuple[list[str], list[str]]:
+    """(requested skills, negated skills); skills already named by the role are left out."""
+    negated = [match.group(0) for match in _NEGATED.finditer(text)]
+    requested = extract_skills(_NEGATED.sub(' ', text))
+    covered = set(extract_skills(role_text))
+    return [skill for skill in requested if skill not in covered], extract_skills(' '.join(negated))
+
+
+def _roles(text: str) -> list[tuple[str, str]]:
+    """(text as written, normalized title) for each requested role."""
     # Remove constraints before retaining free-form requested role text.
     head = re.split(r'\b(?:in|near|exclude|excluding|avoid|except|with|for|at|posted|remote|minimum|score|scores)\b', text, maxsplit=1, flags=re.I)[0]
     head = re.sub(r'^(?:(?:please|now|instead|also|can you|i want|i need|find|search|show|me|include|add|look for|looking for|suggest|only)\s+)+', '', head, flags=re.I)
@@ -37,11 +58,11 @@ def _roles(text: str) -> list[str]:
     generic = r'^(?:|great|suitable|relevant|any|all|more|non[- ]?coding|strong matches|best matches|freshers?|entry[- ]level)$'
     if head and not re.fullmatch(generic, head, re.I) and not re.search(r'\b(?:scores?|matches?|cv|resume|graduates?|years?|only|no|above|below|at least|strong|strict|relaxed)\b', head, re.I):
         results = []
-        for title in _list(head):
-            title = {'testing': 'QA Engineer', 'agentic ai': 'Agentic AI Engineer'}.get(title.lower(), title)
+        for written in _list(head):
+            title = {'testing': 'QA Engineer', 'agentic ai': 'Agentic AI Engineer'}.get(written.lower(), written)
             catalog = family_for_title(title)
             exact = next((known for known in catalog['titles'] if known.lower() == title.lower()), None) if catalog else None
-            results.append(exact or (catalog['titles'][0] if catalog and title.lower() in catalog['aliases'] else title))
+            results.append((written, exact or (catalog['titles'][0] if catalog and title.lower() in catalog['aliases'] else title)))
         return list(dict.fromkeys(results))
     # Constraint-first prompts: longest catalog title/alias wins overlapping spans.
     hits = []
@@ -53,7 +74,7 @@ def _roles(text: str) -> list[str]:
     for start, end, title in sorted(hits, key=lambda value: -(value[1] - value[0])):
         if not any(start < old_end and end > old_start for old_start, old_end, _ in picked):
             picked.append((start, end, title))
-    return list(dict.fromkeys(title for _, _, title in sorted(picked)))
+    return list(dict.fromkeys((text[start:end], title) for start, end, title in sorted(picked)))
 
 
 def interpret_search_request(text: str, previous: SearchIntent | None = None) -> SearchIntent:
@@ -79,16 +100,35 @@ def interpret_search_request(text: str, previous: SearchIntent | None = None) ->
     if re.search(r'\b(?:cv|resume|profile)\b', low) and re.search(r'\b(?:based|suit|suitable|match|discover|suggest|fit|recommend)\w*\b', low):
         assign('cv_discovery', True)
 
-    roles = _roles(text)
+    additive = bool(previous and re.search(r'\b(?:also|add|include too)\b', low))
+    pairs = _roles(text)
+    skill_only = [written for written, _ in pairs if _is_skill(written)]
+    pairs = [(written, title) for written, title in pairs if written not in skill_only]
+    roles = list(dict.fromkeys(title for _, title in pairs))
+    reset = False
     if non_coding or intent.cv_discovery and not re.search(r'\b(?:engineer|analyst|developer|designer|manager|specialist|associate|technician|writer|recruiter|accountant)\b', low):
         roles = []
         if 'cv_discovery' in changed or non_coding:
+            reset = True
             assign('roles_requested', [])
             assign('role_families', [])
     if roles:
-        additive = bool(previous and re.search(r'\b(?:also|add|include too)\b', low))
         assign('roles_requested', list(dict.fromkeys((intent.roles_requested if additive else []) + roles)))
         assign('role_families', list(dict.fromkeys(item['family'] for title in intent.roles_requested if (item := family_for_title(title)))))
+    elif skill_only and not additive:
+        # "LangChain jobs" names skills, not a role: earlier roles no longer apply.
+        assign('roles_requested', [])
+        assign('role_families', [])
+
+    intent.keywords_cleared = None
+    keywords, negated = _keywords(text, ' '.join(written for written, _ in pairs) + ' ' + ' '.join(roles))
+    if keywords:
+        assign('keywords', list(dict.fromkeys((intent.keywords if additive else []) + keywords)))
+    elif intent.keywords and (reset or roles):
+        intent.keywords_cleared = 'CV-based search' if reset else 'new role'
+        assign('keywords', [])
+    if negated:
+        intent.warnings.append(f'Excluded skills ({", ".join(negated)}) are not a filter in this parser; listings that mention them are still shown.')
 
     excluded = _places(text, True)
     locations = [place for place in _places(text) if place.lower() not in {item.lower() for item in excluded}]

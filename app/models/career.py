@@ -6,7 +6,10 @@ from pydantic import BaseModel, Field
 class SearchIntent(BaseModel):
     roles_requested: list[str] = Field(default_factory=list)
     role_families: list[str] = Field(default_factory=list)
+    # Skills named in the prompt (canonical vocabulary names); a soft ranking signal, not a filter.
     keywords: list[str] = Field(default_factory=list)
+    # Set only on the turn that dropped earlier keywords: 'new role' or 'CV-based search'.
+    keywords_cleared: str | None = None
     locations: list[str] = Field(default_factory=list)
     excluded_locations: list[str] = Field(default_factory=list)
     # True when locations were filled from saved preferences rather than the request.
