@@ -315,6 +315,7 @@ function renderSearchReport(data) {
   const intent = data.intent || {};
   const fields = [
     ['Roles', intent.roles_requested?.join(', ') || intent.role_families?.join(', ') || 'Discover roles from your profile'],
+    ['Requested skills', intent.keywords?.join(', ') || (intent.keywords_cleared ? `cleared (${intent.keywords_cleared})` : 'None')],
     ['Locations', intent.locations?.join(', ') || 'No location restriction'],
     ['Work arrangements', ['remote', 'hybrid', 'onsite'].filter(mode => intent[mode + '_allowed'] !== false).join(', ')],
     ['Maximum experience', intent.experience_max == null ? 'Not specified' : intent.experience_max + ' years'],

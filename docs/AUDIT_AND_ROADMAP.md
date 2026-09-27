@@ -312,6 +312,27 @@ Built on branch `m1d-alerts` (decisions D3, D4):
   Naukri/Indeed pages are checked once at save time; foundit, Wellfound, Shine and WorkMundi alert
   parsing deferred indefinitely.
 
+### Requested skills in search (built 2026-09-27)
+
+`SearchIntent.keywords` existed but was never filled, so skills named in a prompt were dropped.
+
+- Skills come from the shared vocabulary (`skills.extract_skills`). Negated ones ("no Java") are
+  skipped with a warning, because excluding skills is not a filter. Skills already named by the role
+  are not repeated.
+- A prompt role that is a known skill and not a role-catalog title or alias ("LangChain jobs",
+  "python jobs") becomes a keyword, and matching falls back to the profile's roles.
+- Refinement: new skills replace, "also" appends, other turns keep them. A role change or a CV-based
+  search clears them, and the "How your search was understood" panel shows "cleared (new role)" or
+  "cleared (CV-based search)".
+- Matching adds a `requested_skills` component (L0, up to 10 points: the share of requested skills the
+  listing names), independent of the CV and present only when skills were requested. Searches without
+  them score exactly as before. Strength and gap lines name the found and missing skills. It is soft
+  ranking, so nothing is excluded, and a listing naming a requested skill isn't dropped as off-role.
+- Aggregator query planning is unchanged (recall and cache keys). Revisit if refresh results show
+  the need.
+- Parser fixes found along the way: "now in Pune" no longer becomes a role called "now", and
+  "using `<skill>`" after a city is not part of the location.
+
 ### M2: Outcome data engine (about 1 week)
 
 - **Statuses:** `APPLIED → ONLINE_TEST | INTERVIEW | OFFER | REJECTED | WITHDRAWN`, plus derived states.

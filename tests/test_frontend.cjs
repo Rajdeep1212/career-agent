@@ -184,6 +184,21 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   assert.match(d.elements.get('workspaceJobResults').innerHTML, /Junior Designer/);
   assert.match(d.elements.get('conversation').innerHTML, /job-artifact|Junior Designer/);
   assert.doesNotMatch(d.elements.get('conversation').innerHTML, /<img/);
+  for (const [extra, expected] of [
+    [{ keywords: ['LangChain', 'RAG'] }, /Requested skills<\/dt><dd>LangChain, RAG</],
+    [{ keywords: [], keywords_cleared: 'new role' }, /Requested skills<\/dt><dd>cleared \(new role\)</],
+    [{}, /Requested skills<\/dt><dd>None</]
+  ]) {
+    const search = { ...storedSearch, intent: { ...storedSearch.intent, ...extra } };
+    const view = await dashboard({ configured: true, connected: false }, '', false, {
+      '/chat/run': () => chatReplies[0],
+      '/agent/sessions/session-1': { id: 'session-1', intent: search.intent, response: search },
+      '/applications': []
+    });
+    view.elements.get('searchQuery').value = 'Find design roles';
+    await view.elements.get('searchForm').handlers.submit({ preventDefault() {} });
+    assert.match(view.elements.get('searchUnderstanding').innerHTML, expected);
+  }
   let chatCalls = d.calls.filter(([path]) => path === '/chat/run');
   assert.equal(chatCalls[0][2].career_session_id, null);
   assert.match(chatCalls[0][2].thread_id, /^career-/);
