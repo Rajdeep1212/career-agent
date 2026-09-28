@@ -19,7 +19,7 @@ from app.sources.adapters import RADAR_SOURCE
 from app.services.candidate_intelligence import analyze_candidate
 from app.services.search_intent import interpret_search_request
 from app.services.role_discovery import expand_roles, family_for_title
-from app.services.search_planner import plan_search_queries
+from app.services.search_planner import plan_local_queries, plan_search_queries
 from app.services.job_identity import deduplicate_jobs, job_identity, resolve_with_index
 from app.sources.registry import alias_map, read_config
 from app.services.application_verifier import never_fetched, verify_application
@@ -271,7 +271,7 @@ class CareerAgent:
         # Local indexes are read once for all planned queries; no requests are sent.
         for provider in local:
             try:
-                found=provider.search_local(queries)
+                found=provider.search_local(plan_local_queries(profile,intent,roles))
             except Exception:
                 logger.exception('local provider %s failed',provider.name)
                 diagnostics['errors'].append(f'{provider.name}: the local index could not be read.')

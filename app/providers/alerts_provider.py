@@ -9,7 +9,7 @@ official Radar job into it; the rest keep their honest source ("LinkedIn alert",
 from app.models.career import SearchQuery
 from app.models.schemas import JobPosting
 from app.providers.base import JobProvider
-from app.providers.radar_provider import MAX_RESULTS, _family, _location_pattern, _matches
+from app.providers.radar_provider import MAX_RESULTS, matches_any, plans_for
 from app.storage import alert_store
 
 ALERTS_NAME = "Alert emails and saved jobs"
@@ -27,8 +27,6 @@ class AlertsProvider(JobProvider):
         return self.search_local([SearchQuery(query=query, reason="", role=query, location="")])
 
     def search_local(self, queries: list[SearchQuery]) -> list[JobPosting]:
-        plans = [(query.role or query.query, _family(query.role or query.query), _location_pattern(query.location))
-                 for query in queries]
-        found = [job for job in alert_store.list_jobs()
-                 if any(_matches(job, role, family, place) for role, family, place in plans)]
+        plans = plans_for(queries)
+        found = [job for job in alert_store.list_jobs() if matches_any(job, plans)]
         return found[:MAX_RESULTS]
