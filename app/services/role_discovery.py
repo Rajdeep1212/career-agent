@@ -17,13 +17,32 @@ def contains_phrase(text: str, phrase: str) -> bool:
     return bool(re.search(r'(?<!\w)' + re.escape(phrase) + r'(?!\w)', text, re.I))
 
 
+def _family_matches(title: str) -> list[tuple[str, dict]]:
+    return [(term, item) for item in load_role_catalog() for term in item['titles'] + item['aliases']
+            if contains_phrase(title, term)]
+
+
 def family_for_title(title: str) -> dict | None:
-    matches = []
-    for item in load_role_catalog():
-        for term in item['titles'] + item['aliases']:
-            if contains_phrase(title, term):
-                matches.append((len(term), item))
-    return max(matches, key=lambda item: item[0])[1] if matches else None
+    """The role family a typed search names ("AI jobs" is the AI family)."""
+    matches = _family_matches(title)
+    return max(matches, key=lambda match: len(match[0]))[1] if matches else None
+
+
+# A bare "AI" or "ML" in a job title is often a label on another role ("Product Manager II - AI",
+# "AI Social Media Content Intern"). In a title it names the AI family only next to a technical role
+# word, or when the title names both AI and ML ("AI/ML Expert").
+_LABEL_TERMS = {'ai', 'ml'}
+_TECHNICAL_ROLE = re.compile(r'\b(?:engineers?|engineering|developers?|scientists?|research(?:ers?)?|architects?|'
+                             r'sde|swe|mle|residents?|residency)\b', re.I)
+
+
+def family_for_job_title(title: str) -> dict | None:
+    """The role family of a job posting's title."""
+    matches = _family_matches(title)
+    labels = {term.casefold() for term, _ in matches} & _LABEL_TERMS
+    technical = bool(_TECHNICAL_ROLE.search(title)) or labels == _LABEL_TERMS
+    matches = [(term, item) for term, item in matches if term.casefold() not in _LABEL_TERMS or technical]
+    return max(matches, key=lambda match: len(match[0]))[1] if matches else None
 
 
 def _evidence_rows(profile: CandidateProfile) -> list[tuple[str, str]]:

@@ -18,7 +18,7 @@ from app.providers.registry import get_providers
 from app.sources.adapters import RADAR_SOURCE
 from app.services.candidate_intelligence import analyze_candidate
 from app.services.search_intent import interpret_search_request
-from app.services.role_discovery import expand_roles, family_for_title
+from app.services.role_discovery import expand_roles, family_for_job_title
 from app.services.search_planner import plan_local_queries, plan_search_queries
 from app.services.job_identity import deduplicate_jobs, job_identity, resolve_with_index
 from app.sources.registry import alias_map, read_config
@@ -368,7 +368,7 @@ class CareerAgent:
         ranked=[]
         for job in checked:
             result,eligibility,match=evaluate_job(profile,job,preferences,intent)
-            job_family=family_for_title(job.title)
+            job_family=family_for_job_title(job.title)
             off_role=bool(intent.roles_requested and match.role_score==0
                           and not (job_family and job_family['family'] in intent.role_families)
                           and not match.components.get('requested_skills'))

@@ -12,7 +12,7 @@ from functools import lru_cache
 from app.models.career import SearchQuery
 from app.models.schemas import JobPosting
 from app.providers.base import JobProvider
-from app.services.role_discovery import contains_phrase, family_for_title
+from app.services.role_discovery import contains_phrase, family_for_job_title, family_for_title
 from app.sources.adapters import RADAR_SOURCE
 from app.storage import radar_store
 
@@ -33,6 +33,12 @@ def _family(title: str) -> str | None:
     return family["family"] if family else None
 
 
+@lru_cache(maxsize=8192)
+def _job_family(title: str) -> str | None:
+    family = family_for_job_title(title)
+    return family["family"] if family else None
+
+
 def _location_pattern(location: str) -> re.Pattern | None:
     if _NO_CITY.match(location or ""):
         return None
@@ -45,7 +51,7 @@ def _location_pattern(location: str) -> re.Pattern | None:
 def _matches(job: JobPosting, role: str, role_family: str | None, place: re.Pattern | None) -> bool:
     if place is not None and not place.search(job.location) and job.work_mode != "remote":
         return False
-    return bool(role and contains_phrase(job.title, role)) or bool(role_family and _family(job.title) == role_family)
+    return bool(role and contains_phrase(job.title, role)) or bool(role_family and _job_family(job.title) == role_family)
 
 
 Plan = tuple[str, str | None, re.Pattern | None]
