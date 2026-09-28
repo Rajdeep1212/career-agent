@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from unittest.mock import patch, AsyncMock
 
+LOCAL_ORIGIN = {"Origin": "http://localhost:8010"}
+
 import fitz
 import httpx
 from fastapi.testclient import TestClient
@@ -52,14 +54,14 @@ class RegressionTests(unittest.TestCase):
             return original(transport=httpx.MockTransport(handler), **kwargs)
         page = httpx.Response(200, text="<html><title>Junior Python Backend Developer</title><body>Example Job description Python backend. <a href='/roles/12345/apply'>Apply now</a></body></html>", request=httpx.Request('GET', 'https://example.com/roles/12345'))
         with patch("httpx.AsyncClient", side_effect=factory), patch('app.services.application_verifier.safe_get', new=AsyncMock(return_value=page)):
-            first = self.client.post("/agent/search", json={"query": "Python fresher"})
+            first = self.client.post("/agent/search", json={"query": "Python fresher"}, headers=LOCAL_ORIGIN)
             self.assertEqual(first.status_code, 200)
             self.assertEqual(first.json()["agent_action"], "search_verify_rank")
             self.assertEqual(first.json()["result_count"], 1)
             self.assertGreater(first.json()["results"][0]["total_score"], 0)
-            second = self.client.post("/agent/search", json={"query": "Python fresher"})
+            second = self.client.post("/agent/search", json={"query": "Python fresher"}, headers=LOCAL_ORIGIN)
             self.assertEqual(second.json()["result_count"], 0)
-            repeated = self.client.post("/agent/search", json={"query": "Python fresher", "include_seen": True})
+            repeated = self.client.post("/agent/search", json={"query": "Python fresher", "include_seen": True}, headers=LOCAL_ORIGIN)
             self.assertEqual(repeated.json()["result_count"], 1)
 
     def test_cv_upload_persists_profile_and_attachment(self):

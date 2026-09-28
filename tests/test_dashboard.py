@@ -14,7 +14,7 @@ class DashboardSmokeTests(unittest.TestCase):
     def test_dashboard_and_read_endpoints(self):
         with tempfile.TemporaryDirectory() as directory, \
              patch.object(profile_store, "PROFILE_PATH", Path(directory) / "missing.json"), \
-             TestClient(app) as client:
+             TestClient(app, base_url="http://localhost:8010") as client:
             self.assertIn(client.get("/", follow_redirects=False).status_code, (200, 307))
             page = client.get("/app/")
             self.assertEqual(page.status_code, 200)

@@ -1,10 +1,12 @@
 import re
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.core.config import settings
 from app.core.static_assets import STATIC_DIR, asset_version, versioned_html  # noqa: F401 (asset_version re-exported)
@@ -68,7 +70,20 @@ from app.storage.preference_store import preferences_for, save_preferences
 
 
 install_oauth_log_filter()
+
+
+def allowed_hosts() -> list[str]:
+    """Host names the server answers: APP_ORIGIN's, plus the loopback names that redirect to it.
+
+    Refusing other Host headers blocks DNS rebinding, where a hostile page on another name
+    reaches this server through the browser and reads local data. IPv6 loopback is not listed:
+    Starlette cannot parse a bracketed Host, and the server binds 127.0.0.1 only.
+    """
+    return list(dict.fromkeys([urlsplit(settings.app_origin).hostname or "localhost", "localhost", "127.0.0.1"]))
+
+
 app = FastAPI(title=settings.app_name)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts())
 if settings.demo_mode:
     # Hosted demo: synthetic data, no OAuth, no email, no outbound HTTP.
     from app.demo import prepare as prepare_demo
@@ -246,7 +261,8 @@ async def upload_cv(request: Request, file: UploadFile = File(...)):
 
 
 @app.post("/jobs/rank")
-def rank(request: RankJobsRequest):
+def rank(request: RankJobsRequest, http_request: Request):
+    require_local_origin(http_request)
     return rank_jobs(
         request.profile,
         request.jobs,
@@ -270,18 +286,9 @@ async def demo_search_and_rank(query: str = "AI ML Python fresher India"):
     }
 
 
-@app.get("/jobs/search-and-rank")
-def retired_search_and_rank():
-    # Retired: a GET that spent provider quota and changed seen-history could be
-    # triggered by any website. Kept as 410 for one release, then deleted.
-    raise HTTPException(
-        status_code=410,
-        detail="This endpoint was retired. Search from the dashboard, which uses POST /agent/search.",
-    )
-
-
 @app.post("/agent/search")
-async def agent_search(request: AgentSearchRequest):
+async def agent_search(request: AgentSearchRequest, http_request: Request):
+    require_local_origin(http_request)
     try:
         result = await career_agent.search(
             request.query,

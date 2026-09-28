@@ -151,7 +151,8 @@ class RefreshPlumbingTests(unittest.TestCase):
         from app.main import app
         search = AsyncMock(return_value={"results": [], "result_count": 0, "diagnostics": {}})
         with patch("app.services.career_agent.CareerAgent.search", search),              TestClient(app, base_url="http://localhost:8010") as client:
-            client.post("/agent/search", json={"query": "ml engineer", "refresh": True})
+            client.post("/agent/search", json={"query": "ml engineer", "refresh": True},
+                        headers={"Origin": "http://localhost:8010"})
         self.assertTrue(search.await_args.kwargs["refresh"])
         from app.models.chat import ChatRunRequest
         self.assertFalse(ChatRunRequest(thread_id="t", turn_id="u", message="m").refresh)

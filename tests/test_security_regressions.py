@@ -81,15 +81,54 @@ class LocalOriginTests(_IsolatedApp):
 
 
 class LegacySearchEndpointTests(_IsolatedApp):
-    """S2/B8: the side-effecting legacy GET is retired with 410 Gone."""
+    """S2/B8: the side-effecting legacy GET was retired (410 for one release) and is now gone."""
 
-    def test_legacy_get_returns_410_without_provider_calls(self):
+    def test_legacy_get_no_longer_exists_and_calls_no_provider(self):
         with patch('app.providers.jsearch_provider.JSearchProvider.search',
                    side_effect=AssertionError('provider must not be called')):
             response = self.client.get('/jobs/search-and-rank?query=python')
-        self.assertEqual(response.status_code, 410)
-        self.assertIn('/agent/search', response.json()['detail'])
+        self.assertEqual(response.status_code, 404)
         self.assertFalse((self.directory / 'history.sqlite3').exists())
+
+
+class HostHeaderTests(_IsolatedApp):
+    """DNS rebinding: a page on another host name must not read local data through the browser."""
+
+    def test_reads_from_a_foreign_host_are_refused(self):
+        foreign = TestClient(app, base_url='http://rebind.attacker.example:8010', raise_server_exceptions=False)
+        self.addCleanup(foreign.close)
+        for path in ('/profile/current', '/applications', '/email/drafts', '/preferences/current', '/health'):
+            self.assertEqual(foreign.get(path).status_code, 400, path)
+
+    def test_local_host_names_still_work(self):
+        self.assertEqual(self.client.get('/health').status_code, 200)
+        # The server binds 127.0.0.1 only (02_START_WINDOWS.ps1), so IPv6 loopback is not served.
+        for base in ('http://127.0.0.1:8010',):
+            loopback = TestClient(app, base_url=base, raise_server_exceptions=False)
+            self.addCleanup(loopback.close)
+            self.assertNotEqual(loopback.get('/health').status_code, 400, base)
+
+    def test_the_configured_origin_host_is_allowed(self):
+        from app.main import allowed_hosts
+        with patch('app.core.config.settings.app_origin', 'https://someone-career-agent.hf.space'):
+            self.assertIn('someone-career-agent.hf.space', allowed_hosts())
+
+
+class SearchOriginTests(_IsolatedApp):
+    """POST /agent/search (can spend quota and write history) and /jobs/rank need the local origin."""
+
+    def test_search_and_rank_refuse_other_origins(self):
+        with patch('app.main.career_agent.search', side_effect=AssertionError('search must not run')):
+            for headers in ({}, {'Origin': 'https://attacker.example'}):
+                self.assertEqual(self.client.post('/agent/search', json={'query': 'data analyst'}, headers=headers).status_code, 403)
+                self.assertEqual(self.client.post('/jobs/rank', json={'profile': {}, 'jobs': []}, headers=headers).status_code, 403)
+
+    def test_the_dashboard_origin_can_still_search(self):
+        async def fake_search(*_args, **_kwargs):
+            return {'results': [], 'summary': 'ok'}
+        with patch('app.main.career_agent.search', side_effect=fake_search):
+            response = self.client.post('/agent/search', json={'query': 'data analyst'}, headers=LOCAL)
+        self.assertEqual(response.status_code, 200)
 
 
 class AppOriginTests(unittest.TestCase):
@@ -132,7 +171,7 @@ class ProfileLoadTests(_IsolatedApp):
     def test_corrupt_profile_is_a_visible_error(self):
         self._corrupt()
         for response in (self.client.get('/profile/current'),
-                         self.client.post('/agent/search', json={'query': 'python jobs'})):
+                         self.client.post('/agent/search', json={'query': 'python jobs'}, headers=LOCAL)):
             self.assertEqual(response.status_code, 409)
             self.assertIn('could not be read', response.json()['detail'])
             self.assertNotIn('Alex Morgan', response.text)

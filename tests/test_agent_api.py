@@ -22,6 +22,7 @@ class CareerAgentAPITests(unittest.TestCase):
         with patch("app.services.career_agent.CareerAgent.search", search):
             response = self.client.post(
                 "/agent/search",
+                headers={"Origin": "http://localhost:8010"},
                 json={
                     "query": "not strict",
                     "include_seen": True,
@@ -48,6 +49,7 @@ class CareerAgentAPITests(unittest.TestCase):
         ):
             response = self.client.post(
                 "/agent/search",
+                headers={"Origin": "http://localhost:8010"},
                 json={"query": "show stronger matches", "session_id": "missing"},
             )
 
