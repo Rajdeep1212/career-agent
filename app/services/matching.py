@@ -2,7 +2,7 @@
 import re
 from datetime import datetime, timezone
 from app.models.career import MatchResult
-from app.services.skills import KNOWN_SKILLS, contains_phrase
+from app.services.skills import KNOWN_SKILLS, contains_phrase, extract_skills
 
 STOP={'engineer','junior','senior','jobs','job','role','roles','and','the','of','in'}
 # Whole-token synonyms; substring replacement turned "Qatar" into "testingtar".
@@ -17,8 +17,11 @@ def words(text):
 
 def requested_skills(job, keywords):
     """(found, absent) for skills the search asked for; independent of the candidate's CV."""
-    listed={s.casefold() for s in job.skills}
+    if not keywords:
+        return [],[]
     posting=job.title+' '+job.description
+    # Vocabulary aliases count: a requested LLM matches "large language models".
+    listed={s.casefold() for s in [*job.skills,*extract_skills(posting)]}
     found=[k for k in keywords if k.casefold() in listed or contains_phrase(posting,k)]
     return found,[k for k in keywords if k not in found]
 

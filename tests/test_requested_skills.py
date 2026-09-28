@@ -46,6 +46,15 @@ class RequestedSkillsMatchingTests(unittest.TestCase):
         self.assertEqual(result.components['requested_skills'], 10)
         self.assertNotIn('Kubernetes', result.matched_skills)
 
+    def test_vocabulary_aliases_in_the_listing_count(self):
+        posting = job('Build assistants on large language models, retrieval-augmented generation and Gen-AI tools.')
+        result = match(posting, SearchIntent(keywords=['LLM', 'RAG', 'Generative AI']))
+        self.assertEqual(result.components['requested_skills'], 10)
+
+    def test_a_skill_outside_the_vocabulary_still_matches_as_written(self):
+        result = match(job('Experience with Haystack pipelines.'), SearchIntent(keywords=['Haystack']))
+        self.assertEqual(result.components['requested_skills'], 10)
+
     def test_the_total_stays_capped_at_100(self):
         intent = SearchIntent(roles_requested=['Machine Learning Engineer'], locations=['Bengaluru'], keywords=['Python'])
         posting = job('Python, PyTorch, SQL. Freshers welcome.', skills=['Python', 'PyTorch', 'SQL'], posted_date=None,
