@@ -523,5 +523,27 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   await d.elements.get('searchForm').handlers.submit({ preventDefault() {} });
   assert.equal(d.calls.filter(([path]) => path === '/chat/run').length, 1);
 
+  // Saved and alert-email jobs can be removed from their card; official jobs cannot.
+  const savedId = 'c'.repeat(64);
+  const officialId = 'd'.repeat(64);
+  d = await dashboard({ configured: true, connected: false }, '', false, { '/applications': [] });
+  const cards = [
+    { id: savedId, title: 'Machine Learning Engineer', company: 'Naukri Test', source: 'Saved by you', match: {}, eligibility: {} },
+    { id: officialId, title: 'Data Analyst', company: 'Example', source: 'Company Radar', match: {}, eligibility: {} }
+  ];
+  d.context.renderJobs(cards);
+  const removable = d.elements.get('workspaceJobResults').innerHTML;
+  assert.match(removable, new RegExp(`removeJobById\\('${savedId}'\\)`));
+  assert.doesNotMatch(removable, new RegExp(`removeJobById\\('${officialId}'\\)`));
+  d.context.window.confirm = () => false;
+  await d.context.window.removeJobById(savedId);
+  assert.equal(d.calls.filter(([path]) => path.startsWith('/capture/jobs/')).length, 0, 'cancelled: nothing removed');
+  d.context.window.confirm = () => true;
+  await d.context.window.removeJobById(savedId);
+  const removal = d.calls.find(([path]) => path === `/capture/jobs/${savedId}`);
+  assert.equal(removal?.[1], 'DELETE');
+  assert.doesNotMatch(d.elements.get('workspaceJobResults').innerHTML, /Naukri Test/);
+  assert.match(d.elements.get('workspaceJobResults').innerHTML, /Data Analyst/);
+
   console.log('Dashboard JavaScript: LinkedIn, search/follow-up, empty diagnostics, safe results, save, profile, preferences and search-cost warning passed (DOM simulation, no browser).');
 })().catch(error => { console.error(error); process.exitCode = 1; });

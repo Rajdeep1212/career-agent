@@ -642,7 +642,7 @@ function jobCardsMarkup(jobs, compact = false) {
       <div class="card-state-row"><span class="tag ${state === 'ACTIVE_VERIFIED' ? 'good' : 'warn'}">Verification: ${escapeHtml(state.replaceAll('_', ' '))}</span><span class="tag ${ELIGIBILITY_LABELS[eligibilityStatus(job)][1]}">Eligibility: ${ELIGIBILITY_LABELS[eligibilityStatus(job)][0]}</span><span class="tag">Tracker: ${escapeHtml(trackerState.replaceAll('_', ' '))}</span>${outreachState !== 'NONE' ? `<span class="tag">Outreach: ${escapeHtml(outreachState)}</span>` : ''}</div>
       <div><strong class="muted">Matched skills</strong><div class="skill-row">${tags(match.matched_skills || job.matched_skills, 'good') || '<span class="muted">No explicit skill match</span>'}</div></div>
       ${compact ? '' : `<div class="verification"><p>${escapeHtml(job.verification_reason || 'Application page has not been verified.')}</p>${eligibilitySummary(job) ? `<p class="eligibility-summary">${escapeHtml(eligibilitySummary(job))}</p>` : ''}</div><p>${escapeHtml(match.explanation || 'Review the listed requirements before applying.')}</p>${match.transferable_skills?.length ? `<div><strong class="muted">Transferable skills</strong><div class="skill-row">${tags(match.transferable_skills)}</div></div>` : ''}${(match.missing_skills || job.missing_skills)?.length ? `<div><strong class="muted">Missing skills</strong><div class="skill-row">${tags(match.missing_skills || job.missing_skills, 'warn')}</div></div>` : ''}<details><summary>Match evidence and eligibility</summary><p>${escapeHtml(eligibilitySummary(job) || 'No eligibility evidence recorded.')} ${escapeHtml(eligibility.confidence ? 'Confidence: ' + eligibility.confidence : '')}</p><ul>${textList([...(match.strengths || []), ...(match.gaps || []), ...(eligibility.positive_signals || []), ...(eligibility.warnings || []), ...(eligibility.hard_rejections || []), ...(job.reasons || [])])}</ul></details>`}
-      <div class="card-actions"><button class="primary" data-job-id="${storedId}" onclick="selectJobById('${storedId}')" ${storedId ? '' : 'disabled'}>View details</button><button class="secondary" onclick="saveJobById('${storedId}')" ${storedId ? '' : 'disabled'}>${application ? 'Saved' : 'Save'}</button>${url ? `<a class="secondary" target="_blank" rel="noopener noreferrer" href="${escapeHtml(url)}">Open job</a>` : '<span class="muted">Application link unavailable</span>'}<button class="secondary" onclick="startJobOutreach('${storedId}')" ${storedId ? '' : 'disabled'}>Prepare outreach</button></div>
+      <div class="card-actions"><button class="primary" data-job-id="${storedId}" onclick="selectJobById('${storedId}')" ${storedId ? '' : 'disabled'}>View details</button><button class="secondary" onclick="saveJobById('${storedId}')" ${storedId ? '' : 'disabled'}>${application ? 'Saved' : 'Save'}</button>${url ? `<a class="secondary" target="_blank" rel="noopener noreferrer" href="${escapeHtml(url)}">Open job</a>` : '<span class="muted">Application link unavailable</span>'}<button class="secondary" onclick="startJobOutreach('${storedId}')" ${storedId ? '' : 'disabled'}>Prepare outreach</button>${storedId && REMOVABLE_SOURCES.has(job.source) ? `<button class="secondary" onclick="removeJobById('${storedId}')">Remove</button>` : ''}</div>
     </article>`;
   }).join('');
 }
@@ -728,6 +728,23 @@ window.selectJob = function(index) {
 
 window.saveSelectedJob = async function() {
   if (selectedJob?.id) await window.saveJobById(selectedJob.id);
+};
+
+// Saved (bookmarklet) and alert-email jobs are the user's own entries, so they can be removed.
+const REMOVABLE_SOURCES = new Set(['Saved by you', 'LinkedIn alert', 'Naukri alert', 'Indeed alert']);
+
+window.removeJobById = async function(id) {
+  const job = jobsById.get(id);
+  if (!job || !REMOVABLE_SOURCES.has(job.source)) return;
+  if (typeof window.confirm === 'function' && !window.confirm(`Remove "${job.title}" at ${job.company}? Later alert emails will not add it back.`)) return;
+  try {
+    await api(`/capture/jobs/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    jobsById.delete(id);
+    renderJobs((window.lastJobs || []).filter(item => item.id !== id));
+    showStatus($('searchStatus'), `Removed ${job.title} at ${job.company}.`, 'success');
+  } catch (error) {
+    showStatus($('searchStatus'), error.message, 'error');
+  }
 };
 
 window.saveJobById = async function(id) {

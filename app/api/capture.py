@@ -21,10 +21,11 @@ from app.providers.common import build_posting
 from app.services.application_verifier import verify_application
 from app.services.career_agent import evaluate_job
 from app.services.job_identity import canonical_url, resolve_with_index
-from app.sources.alerts.parser import job_link
+from app.models.schemas import JobPosting
+from app.sources.alerts.parser import SOURCES as ALERT_SOURCES, job_link
 from app.sources.digest import saved_role_intent
 from app.sources.registry import RadarConfigError, alias_map, read_config
-from app.storage import alert_store, radar_store
+from app.storage import alert_store, career_store, radar_store
 
 router = APIRouter(tags=["Save a job"])
 SAVED_SOURCE = "Saved by you"
@@ -99,3 +100,16 @@ async def save_captured_job(payload: CaptureRequest, request: Request):
     profile, preferences, intent = saved_role_intent()
     result, _eligibility, _match = evaluate_job(profile, target, preferences, intent)
     return {**result, "matched_official": matched, "already_saved": stored.duplicates > 0}
+
+
+@router.delete("/capture/jobs/{job_id}")
+def remove_job(job_id: str, request: Request):
+    """Remove a saved or alert-email job; a copy is kept and later alert emails do not bring it back."""
+    if not has_exact_local_origin(request):
+        raise HTTPException(status_code=403, detail="Open the localhost dashboard to remove a job.")
+    stored = career_store.get_job(job_id)
+    if not stored or stored.get("source") not in {SAVED_SOURCE, *ALERT_SOURCES.values()}:
+        raise HTTPException(status_code=404, detail="No saved or alert job with this id.")
+    if not alert_store.delete(JobPosting.model_validate(stored)):
+        raise HTTPException(status_code=404, detail="This job was already removed.")
+    return {"removed": True, "id": job_id}

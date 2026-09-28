@@ -29,8 +29,18 @@ def _create_v1(conn: sqlite3.Connection) -> None:
         processed_at TEXT NOT NULL)""")
 
 
+def _create_v2(conn: sqlite3.Connection) -> None:
+    # Jobs the user removed: a recoverable copy, and a record so later alert emails skip them.
+    conn.execute("""CREATE TABLE IF NOT EXISTS deleted_alert_jobs (
+        key TEXT PRIMARY KEY, identity_key TEXT NOT NULL, kind TEXT NOT NULL, source TEXT NOT NULL,
+        job_json TEXT NOT NULL, first_seen_at TEXT NOT NULL, deleted_at TEXT NOT NULL)""")
+    conn.execute("CREATE INDEX IF NOT EXISTS deleted_alert_jobs_identity ON deleted_alert_jobs(identity_key)")
+
+
 MIGRATIONS = [db.Migration("alerts_v1", _create_v1,
-                           "Restore data/backups/<time>/alerts.sqlite3, or delete data/alerts.sqlite3 and re-drop the .eml files.")]
+                           "Restore data/backups/<time>/alerts.sqlite3, or delete data/alerts.sqlite3 and re-drop the .eml files."),
+              db.Migration("alerts_v2_deleted", _create_v2,
+                           "Restore data/backups/<time>/alerts.sqlite3; removed jobs are in deleted_alert_jobs.")]
 
 
 @dataclass
@@ -73,6 +83,13 @@ def upsert(jobs: list[JobPosting], *, kind: str) -> UpsertResult:
     with _connect() as conn:
         for job in jobs:
             key = str(job.source_job_id or job.application_url)
+            removed = conn.execute("SELECT key FROM deleted_alert_jobs WHERE key=? OR identity_key=?",
+                                   (key, identity_key(job))).fetchall()
+            if removed and kind != "capture":
+                result.duplicates += 1   # removed by the user; only saving it again brings it back
+                continue
+            for row in removed:
+                conn.execute("DELETE FROM deleted_alert_jobs WHERE key=?", (row["key"],))
             existing = conn.execute("SELECT key, job_json FROM alert_jobs WHERE key=?", (key,)).fetchone()
             if existing is None:
                 existing = conn.execute("SELECT key, job_json FROM alert_jobs WHERE identity_key=? ORDER BY first_seen_at LIMIT 1",
@@ -93,6 +110,23 @@ def upsert(jobs: list[JobPosting], *, kind: str) -> UpsertResult:
                          (stored.model_dump_json(), now, existing["key"]))
             result.duplicates += 1
     return result
+
+
+def delete(job: JobPosting) -> bool:
+    """Remove a stored alert or saved job, keeping a copy in deleted_alert_jobs; False if not stored."""
+    if not DB_PATH.exists():
+        return False
+    key = str(job.source_job_id or job.application_url)
+    with _connect() as conn:
+        row = conn.execute("SELECT * FROM alert_jobs WHERE key=?", (key,)).fetchone() or conn.execute(
+            "SELECT * FROM alert_jobs WHERE identity_key=? ORDER BY first_seen_at LIMIT 1", (identity_key(job),)).fetchone()
+        if row is None:
+            return False
+        conn.execute("INSERT OR REPLACE INTO deleted_alert_jobs (key, identity_key, kind, source, job_json, first_seen_at, deleted_at) "
+                     "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                     (row["key"], row["identity_key"], row["kind"], row["source"], row["job_json"], row["first_seen_at"], _now()))
+        conn.execute("DELETE FROM alert_jobs WHERE key=?", (row["key"],))
+    return True
 
 
 def update_job(job: JobPosting) -> None:
