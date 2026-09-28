@@ -1,10 +1,14 @@
 # Career Agent: Audit and Roadmap
 
-Status date: 2026-09-25 · Baseline commit `ede0d3c` · Phase 1 (documentation only)
+Status date: 2026-09-28 · Current commit `20d98d3` · M1 done; pre-M2 fixes in progress (§5, "Pre-M2 fixes")
+
+The original audit (baseline `ede0d3c`, 2026-09-25) is kept below as written. Later sections record
+what has been built since. As of 2026-09-28: 541 offline tests, CI green on Windows and Ubuntu, and a
+Company Radar index of about 2,150 jobs.
 
 ## Executive summary
 
-**Current state.**
+**Current state (as audited on 2026-09-25).**
 - The codebase is healthier than the original brief assumed. The offline suite passes (`python run_tests.py`: 204 tests, plus the dashboard and smoke scripts).
 - Outbound HTTP is SSRF-safe, OAuth tokens are encrypted, and sends go through an atomic approve → send boundary with at most one attempt.
 - Five of the nine suspected bugs were already fixed or never existed (§2).
@@ -22,11 +26,14 @@ Status date: 2026-09-25 · Baseline commit `ede0d3c` · Phase 1 (documentation o
 4. *Sample size:* a single student's outcomes can't support calibration claims. Pooled data or a narrower claim is required.
 5. *Claim inflation:* a heuristic score presented as a "probability" would undermine the research framing.
 
-**Milestone order** (revised 2026-09-25; M1A is complete on `m1a-correctness`):
-- **M1B** hygiene: pyproject, `tests/`, CI, storage migrations, DEMO_MODE/Docker
-- → **M1C** index-first Company Radar, job identity resolution, daily sync, 7 am self-digest
-- → **M1D** IMAP job-alert ingestion, bookmarklet capture, 3-way eligibility
-- → **M2** outcome tracker, 👍/👎 relevance labels
+**Milestone order** (revised 2026-09-25 and 2026-09-28):
+- ~~**M1B** hygiene: pyproject, `tests/`, CI, storage migrations, DEMO_MODE/Docker~~ (done)
+- → ~~**M1C** index-first Company Radar, job identity resolution, daily sync, 7 am self-digest~~ (done)
+- → ~~**M1D** IMAP job-alert ingestion, bookmarklet capture, 3-way eligibility~~ (done)
+- → **Pre-M2 fixes** chat routing, local location coverage, host/origin hardening, deleting saved
+  jobs, the "ai" catalogue name (decided 2026-09-28)
+- → **M2** outcome tracker, 👍/👎 relevance labels; relevance labelling (D-rel) runs **in parallel**,
+  so the evaluation harness starts right after M2 with labels already collected
 - → **M3** evidence matrix, ESCO skill graph, scam rules, job lifecycle observatory (ATS aggregates only)
 - → **M4** LLM-teacher → calibrated model; competition/timing-aware ranking
 - → **M5** grounded outreach, MCP server, showcase
@@ -332,6 +339,77 @@ Built on branch `m1d-alerts` (decisions D3, D4):
   the need.
 - Parser fixes found along the way: "now in Pune" no longer becomes a role called "now", and
   "using `<skill>`" after a city is not part of the location.
+
+### Pre-M2 fixes (audited and decided 2026-09-28)
+
+A situation audit on 2026-09-28 found these defects. Each one was verified against the code and on
+copies of the owner's data. They are fixed before M2, in this order, test first, one commit per
+concern.
+
+1. **Chat routing.** The chat box sends everything to `/chat/run`, and `routing.deterministic_action`
+   started a search only for a find/search/show/recommend verb plus "jobs", or for a phrase of 10
+   words or fewer with one of about 20 role nouns.
+   - "GenAI jobs using LLM and RAG in Bengaluru", "aiml roles", "gen ai", "LLM jobs" and every
+     follow-up refinement ("now in Pune", "only remote", "minimum score 70") fell through to career
+     advice. With `CHAT_MODEL_PROVIDER=none` that path has no answerer, so the user got the canned
+     "Tell me the roles…" reply: 12 of 17 stored chat turns.
+   - Never worked. It dates to the baseline `c69936a`, and `b01c05f` only added role nouns.
+   - **Fix:** keep the explicit command rules (send, outreach, update, save) first. Then route to
+     search when the message is not a question and the search parser finds a search signal: a
+     role-catalogue term, a vocabulary skill, a location, a job noun or a filter. With an open search
+     session, any non-question message that changes the search routes to search. The no-model reply
+     says how to phrase a search. The "Show saved jobs" chip opens the tracker, and the "Analyze a job
+     description" chip is removed (no such feature). Tests: a corpus of real phrasings in both
+     directions, plus an end-to-end run through `CareerGraphRuntime`.
+2. **Local search skipped saved locations.** The 4-query budget meant for paid providers
+   (`search_query_limit`) also limited the free local Radar lookup. With 8 saved locations, only the
+   first 4 were searched. Introduced in `f176f5b`. **Fix:** the local providers get every planned
+   role × location; the budget applies to remote providers only.
+3. **Host and origin hardening.** GET endpoints answered any `Host` header. Under DNS rebinding a
+   hostile page could read `/profile/current`, `/applications` and `/email/drafts`.
+   `POST /agent/search` and `POST /jobs/rank` lacked the local-origin check. **Fix:** Starlette's
+   `TrustedHostMiddleware` (already installed) allowing the `APP_ORIGIN` host and loopback names,
+   plus the origin check on both endpoints. The retired `GET /jobs/search-and-rank` is deleted
+   (decision D: its release has passed).
+4. **Deleting saved and alert jobs.** Nothing could remove a stored alert or bookmarklet job, so the
+   manual-test record "Naukri Test — Machine Learning Engineer" appeared in real results. **Fix:** a
+   local-origin delete for `data/alerts.sqlite3` rows (backup first) and a Remove action. Then the
+   test record is removed.
+5. **The "ai" catalogue name.** The AI family lists the bare name "ai", so any title containing
+   "AI" counted as the requested role ("Product Manager II - AI", "AI Social Media Content Intern").
+   This is a correctness bug. **Fix:** a bare "ai" in a *title* no longer marks the AI family. It
+   still counts when it is part of an engineering or research title ("AI Engineer", "AI Research
+   Assistant"), and prompts such as "AI jobs" still mean the AI family. "aiml" is added as a name
+   for the family.
+
+**Deliberately deferred:**
+- *Eligible-first ordering* (`career_agent._rank_key`: every eligible result ranks above every
+  uncertain one). This is a design choice. The evaluation harness decides it after M2, measured on
+  D-rel labels.
+- *Splitting GenAI/LLM from the AI family.* This is a ranking and coverage change, evaluated with the
+  harness.
+- *Search speed* (about 7 s per search; the hot spots are the uncached role-family regexes,
+  `matching.words` and one database connection per stored job).
+- *Scheduling the daily sync* (the "CareerAgent Daily Sync" task is not registered, so Radar
+  "verified active" states age silently between manual syncs). This is the owner's choice. Showing
+  the age of the last sync in the UI is a candidate fix.
+- *Unused code:* `outreach_service.find_outreach_options` (M5), `/contacts` with no UI (M5), and the
+  legacy `/jobs/rank` and `/jobs/demo-search*` endpoints.
+
+**Relevance labelling in parallel with M2.** The owner labels D-rel (§6.2) while M2 is built. Batches
+of 50–100 results come from a frozen snapshot of the index: real searches, each result shown with
+its title, company, location and listing text, rated 0–3 against a written rubric. Labels are stored
+outside the app data (they are evaluation data, not app state). The harness starts right after M2,
+with NDCG@10 and P@5 for the current heuristic, BM25 and later fastembed, on held-out searches. After
+about a week, 50 labels are re-rated to check the labeller's consistency.
+
+**Rejected ideas (2026-09-28):**
+- *Ranking from outcomes* (jobs like past shortlists rank higher). At solo volume there are perhaps
+  10–40 shortlists, delayed and biased toward what was already ranked high. "No response" is not
+  evidence of a ghost job. Outcomes stay descriptive, and 👍/👎 relevance labels are the ranking
+  feedback (Decision A).
+- *Embeddings now.* The LLM/GenAI/computer-vision merge is in the role catalogue, not in keyword
+  matching. Embeddings stay an optional fastembed baseline, measured in M4.
 
 ### M2: Outcome data engine (about 1 week)
 
