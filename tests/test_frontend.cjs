@@ -31,7 +31,7 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   let activeElement = null;
   function element(id) {
     const el = { id, className: '', textContent: '', innerHTML: '', disabled: false, value: '', checked: false, handlers: {}, attributes: {}, isConnected: true,
-      showModal() { this.open = true; }, close() { this.open = false; }, focus() { this.focused = true; activeElement = this; }, scrollIntoView() {}, reportValidity() { return true; },
+      showModal() { this.open = true; }, close() { this.open = false; }, click() { this.clicked = true; this.handlers.click?.(); }, focus() { this.focused = true; activeElement = this; }, scrollIntoView() {}, reportValidity() { return true; },
       requestSubmit() { return this.handlers.submit?.({ preventDefault() {} }); },
       setAttribute(name, value) { this.attributes[name] = String(value); }, removeAttribute(name) { delete this.attributes[name]; },
       addEventListener(event, callback) { this.handlers[event] = callback; } };
@@ -91,7 +91,7 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
     location: { search: query, pathname: '/app/', hash: '' },
     history: { replaceState(_a, _b, path) { replacement = path; } },
     fetch: async (path, options = {}) => {
-      calls.push([path, options.method, options.body ? JSON.parse(options.body) : null]);
+      calls.push([path, options.method, typeof options.body === 'string' ? JSON.parse(options.body) : options.body ?? null]);
       if (path === '/auth/linkedin/disconnect') {
         if (disconnectFails) throw Error('private provider exception');
         linkedin = { configured: true, connected: false };
@@ -522,6 +522,24 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   d.elements.get('searchQuery').value = 'Find python developer jobs';
   await d.elements.get('searchForm').handlers.submit({ preventDefault() {} });
   assert.equal(d.calls.filter(([path]) => path === '/chat/run').length, 1);
+
+  // A CV can be attached from the chat box: the same /cv/upload endpoint and parser as the Profile page.
+  assert.match(html, /id="chatCvInput"[^>]*accept="\.pdf,application\/pdf"/);
+  assert.match(html, /id="chatCvButton"/);
+  d = await dashboard({ configured: true, connected: false }, '', false, {
+    '/applications': [],
+    '/cv/upload': { profile: { name: 'Test Student', skills: ['Python', 'PyTorch', 'SQL'], preferred_roles: [], preferred_locations: [] },
+                    attachment: { id: 'att-1', original_name: 'my_cv.pdf' } }
+  });
+  d.context.FormData = class { constructor() { this.parts = []; } append(name, value) { this.parts.push([name, value]); } };
+  d.elements.get('chatCvButton').handlers.click();
+  assert.equal(d.elements.get('chatCvInput').clicked, true);
+  await d.elements.get('chatCvInput').handlers.change({ target: { files: [{ name: 'my_cv.pdf' }], value: 'x' } });
+  const upload = d.calls.find(([path]) => path === '/cv/upload');
+  assert.equal(upload?.[1], 'POST');
+  assert.match(d.elements.get('conversation').innerHTML, /my_cv\.pdf/);
+  assert.match(d.elements.get('conversation').innerHTML, /3 skills/);
+  assert.match(d.elements.get('conversation').innerHTML, /Find jobs suitable for my CV/);
 
   // Saved and alert-email jobs can be removed from their card; official jobs cannot.
   const savedId = 'c'.repeat(64);

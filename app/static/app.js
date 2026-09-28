@@ -287,20 +287,24 @@ $('preferencesForm').addEventListener('submit', async event => {
   finally { $('savePreferencesBtn').disabled = false; }
 });
 
+// The Profile page and the chat box both upload through /cv/upload (same parser, same checks).
+async function uploadCv(file) {
+  const form = new FormData();
+  form.append("file", file);
+  const data = await api("/cv/upload", { method: "POST", body: form });
+  currentProfile = data.profile;
+  resumeAttachmentId = data.attachment.id;
+  localStorage.setItem("jobAgentResumeAttachmentId", resumeAttachmentId);
+  renderProfile(currentProfile);
+  return data;
+}
+
 $("cvInput").addEventListener("change", async (e) => {
   const file = e.target.files?.[0];
   if (!file) return;
-
   showStatus($("cvStatus"), `Uploading and parsing ${file.name}…`);
-  const form = new FormData();
-  form.append("file", file);
-
   try {
-    const data = await api("/cv/upload", { method: "POST", body: form });
-    currentProfile = data.profile;
-    resumeAttachmentId = data.attachment.id;
-    localStorage.setItem("jobAgentResumeAttachmentId", resumeAttachmentId);
-    renderProfile(currentProfile);
+    const data = await uploadCv(file);
     showStatus(
       $("cvStatus"),
       `CV updated. ${data.attachment.original_name} is also ready to attach to approved emails.`,
@@ -308,6 +312,26 @@ $("cvInput").addEventListener("change", async (e) => {
     );
   } catch (err) {
     showStatus($("cvStatus"), err.message, "error");
+  }
+});
+
+$("chatCvButton").addEventListener("click", () => $("chatCvInput").click());
+
+$("chatCvInput").addEventListener("change", async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  showStatus($("searchStatus"), `Uploading and parsing ${file.name}…`);
+  try {
+    const data = await uploadCv(file);
+    const skills = data.profile?.skills?.length || 0;
+    addConversation('user', `Attached CV: ${data.attachment.original_name}`);
+    addConversation('assistant', `Your profile was updated from ${data.attachment.original_name} (${skills} skills found). ` +
+      `Check it on the Profile page, then try "Find jobs suitable for my CV".`);
+    showStatus($("searchStatus"), 'CV uploaded and parsed.', 'success');
+  } catch (err) {
+    showStatus($("searchStatus"), err.message, "error");
+  } finally {
+    e.target.value = '';
   }
 });
 
