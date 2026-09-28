@@ -1,7 +1,7 @@
 # Career Agent Implementation Plan
 
 > Historical implementation plan. Checklist state is preserved as authored;
-> see `CAREER_AGENT_BUILD_REPORT.md` for the current verified status.
+> see `docs/AUDIT_AND_ROADMAP.md` for the current status (the old build report is in `docs/history/`).
 
 > Execute stages with tests-first changes and the existing offline runner. The user explicitly authorizes execution without further confirmation.
 

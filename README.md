@@ -221,7 +221,7 @@ python -m mypy
 - [LinkedIn setup](LINKEDIN_SETUP.md)
 - [Security policy](SECURITY.md)
 - [Contributing](CONTRIBUTING.md)
-- [Current build status](CAREER_AGENT_BUILD_REPORT.md)
+- [Status, roadmap and decisions](docs/AUDIT_AND_ROADMAP.md)
 
-The project remains under development. See the build report for implemented
-stages and current limitations.
+The project is under active development. The roadmap lists what is built, what is
+in progress and the known limitations.

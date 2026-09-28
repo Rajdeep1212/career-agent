@@ -1,4 +1,8 @@
-# Career Agent Build Report
+# Career Agent Build Report (historical, 2026-09-21)
+
+> Historical snapshot from before the 2026-09-25 audit. It is kept for the record and is not
+> maintained. The current state, milestones and decisions are in
+> [AUDIT_AND_ROADMAP.md](../AUDIT_AND_ROADMAP.md).
 
 Status date: 2026-09-21
 
