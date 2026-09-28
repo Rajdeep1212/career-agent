@@ -77,6 +77,27 @@ def _roles(text: str) -> list[tuple[str, str]]:
     return list(dict.fromkeys((text[start:end], title) for start, end, title in sorted(picked)))
 
 
+JOB_NOUN = re.compile(r'\b(?:jobs?|roles?|openings?|vacanc(?:y|ies)|positions?|internships?|opportunit(?:y|ies)|hiring)\b', re.I)
+_FILTER_WORD = re.compile(
+    r'\b(?:remote|hybrid|on-?site|work from home|freshers?|entry[- ]level|graduates?|batch|minimum|score|'
+    r'matches|posted|exclude|excluding|except|full[- ]time|contracts?|strict|relaxed)\b', re.I)
+
+
+def search_signal(text: str) -> str | None:
+    """What makes a message read as a job search or a refinement of one, or None."""
+    if JOB_NOUN.search(text):
+        return 'job noun'
+    if family_for_title(text):
+        return 'role'
+    if extract_skills(text):
+        return 'skill'
+    if _places(text):
+        return 'location'
+    if _FILTER_WORD.search(text):
+        return 'filter'
+    return None
+
+
 def interpret_search_request(text: str, previous: SearchIntent | None = None) -> SearchIntent:
     """Apply this turn to previous structured state; never concatenate old prompts."""
     intent = previous.model_copy(deep=True) if previous else SearchIntent()

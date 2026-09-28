@@ -22,6 +22,13 @@ from app.storage.graph_checkpoint import TurnReceiptStore
 
 
 
+_NO_ADVICE = (
+    "I can search jobs from here. To search, name a role, skill or place, for example "
+    "\"GenAI jobs in Bengaluru\", \"LLM and RAG roles for freshers\", or, after a search, \"only remote\". "
+    "Answering career questions needs a local model (Ollama); see the README to turn one on."
+)
+
+
 async def _maybe_await(value):
     return await value if inspect.isawaitable(value) else value
 
@@ -110,9 +117,13 @@ class CareerGraphRuntime:
             explanation = state.get("model_explanation")
             return {
                 "stage": "completed",
-                "response_text": explanation or (
-                    "Tell me the roles, locations, or career question you want help with."
-                ),
+                "response_text": explanation or _NO_ADVICE,
+            }
+
+        async def show_tracker(_state):
+            return {
+                "stage": "completed",
+                "response_text": "Your saved and applied jobs are in the Tracker (in the sidebar).",
             }
 
         async def clarify(_state):
@@ -204,6 +215,7 @@ class CareerGraphRuntime:
         builder.add_node("model_assist", model_assist)
         builder.add_node("search_jobs", search_jobs)
         builder.add_node("career_advice", career_advice)
+        builder.add_node("show_tracker", show_tracker)
         builder.add_node("clarify", clarify)
         builder.add_node("unsupported_action", unsupported_action)
         builder.add_node("save_application", save_application)
@@ -221,6 +233,7 @@ class CareerGraphRuntime:
             {
                 "search_jobs": "search_jobs",
                 "career_advice": "career_advice",
+                "show_tracker": "show_tracker",
                 "needs_clarification": "clarify",
                 "prepare_outreach": "prepare_outreach",
                 "send_draft": "await_send_confirmation",
@@ -242,7 +255,7 @@ class CareerGraphRuntime:
             {"send": "send_draft", "cancel": "cancel_send"},
         )
         for node in (
-            "search_jobs", "career_advice", "clarify", "unsupported_action",
+            "search_jobs", "career_advice", "show_tracker", "clarify", "unsupported_action",
             "save_application", "update_application", "send_draft", "cancel_send",
         ):
             builder.add_edge(node, END)

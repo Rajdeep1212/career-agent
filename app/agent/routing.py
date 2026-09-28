@@ -2,6 +2,7 @@ import re
 from dataclasses import dataclass
 
 from app.models.chat import ModelDecision
+from app.services.search_intent import JOB_NOUN, search_signal
 
 
 _SECRET_VALUE = r'(?:"[^"\r\n]{1,500}"|\'[^\'\r\n]{1,500}\'|[^\s,;]{1,500})'
@@ -33,6 +34,12 @@ def sanitize_text(value: object, limit: int = 1000) -> str:
 
 
 def deterministic_action(message: str) -> str:
+    """Explicit commands first; then anything that reads as a job search; career advice otherwise.
+
+    Search is read-only (no provider requests unless the user asks for a refresh), so a
+    message with a search signal runs a search rather than reaching career advice, which
+    has no answerer when no local model is configured.
+    """
     value = message.casefold()
     if re.search(r"\b(?:send|email)\s+(?:the\s+)?draft\b|\bsend\s+draft\s+\d+\b", value):
         return "send_draft"
@@ -40,28 +47,28 @@ def deterministic_action(message: str) -> str:
         return "prepare_outreach"
     if re.search(r"\b(?:mark|change|update)\b.{0,40}\b(?:application|status|notes?)\b", value):
         return "update_application"
-    if re.search(r"\b(?:find|search|show|recommend)\b.{0,80}\b(?:jobs?|roles?|vacancies|openings)\b|\bjob\s+search\b", value):
-        return "search_jobs"
     if re.search(r"\b(?:save|track)\b.{0,30}\b(?:job|application)\b", value):
         return "save_application"
-    if _is_role_query(value):
+    if _TRACKER.search(value):
+        return "show_tracker"
+    if re.search(r"\b(?:find|search|show|recommend)\b.{0,80}\b(?:jobs?|roles?|vacancies|openings)\b|\bjob\s+search\b", value):
         return "search_jobs"
-    return "career_advice"
+    if is_unsafe_model_request(message) or _ADVICE.search(value):
+        return "career_advice"
+    if _QUESTION.search(value):
+        # "Any GenAI openings in Pune?" asks for listings; other questions are advice.
+        return "search_jobs" if JOB_NOUN.search(value) else "career_advice"
+    return "search_jobs" if search_signal(message) else "career_advice"
 
 
-_ROLE_NOUN = re.compile(
-    r"\b(?:engineers?|developers?|analysts?|scientists?|designers?|interns?|internships?|trainees?|"
-    r"testers?|architects?|researchers?|consultants?|associates?|executives?|specialists?|"
-    r"administrators?|accountants?|recruiters?|writers?|managers?)\b"
-)
+_TRACKER = re.compile(r"\b(?:my|the)\s+(?:saved\s+jobs|applications|tracker|tracked\s+jobs)\b|\b(?:open|show)\s+(?:the\s+)?tracker\b")
 _QUESTION = re.compile(
     r"\?|^\s*(?:what|how|why|when|where|which|who|should|can|could|would|is|are|do|does|tell|explain|help)\b"
 )
-
-
-def _is_role_query(value: str) -> bool:
-    """A short role phrase such as "GenAI engineer fresher" is a search, not a question."""
-    return len(value.split()) <= 10 and not _QUESTION.search(value) and bool(_ROLE_NOUN.search(value))
+_ADVICE = re.compile(
+    r"\b(?:should|learn|learning|become|improve|prepare|advice|advise|tips?|how|why|explain|"
+    r"think|chances|career|interview|difference)\b"
+)
 
 
 def is_ambiguous_followup(message: str, *, has_reference: bool = False) -> bool:
