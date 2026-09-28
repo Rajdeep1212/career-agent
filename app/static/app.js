@@ -572,6 +572,10 @@ $('searchQuery').addEventListener('keydown', event => {
 
 document.querySelectorAll('.suggestion-chip').forEach(button => {
   button.addEventListener('click', async () => {
+    if (button.dataset.view) {
+      setView(button.dataset.view);
+      return;
+    }
     $('searchQuery').value = button.dataset.suggestion;
     await runChat(button.dataset.suggestion);
   });

@@ -100,6 +100,20 @@ graph stores only bounded sanitized text and safe IDs. Outreach pauses once at
 the final editable draft; one confirmed resume approves it and enters the
 existing atomic Gmail send boundary.
 
+## Searching from the chat box
+
+Type what you want the way you would say it. A message that names a role, skill, place or filter
+runs a search of the local index (no provider requests unless "Refresh job sites" is ticked):
+
+- `GenAI jobs in Bengaluru`, `LLM and RAG roles for freshers`, `LangChain jobs`, `aiml roles`
+- `Find jobs suitable for my CV` (roles suggested from your CV)
+- After a search, refine it: `now in Pune`, `only remote`, `minimum score 70`, `exclude Delhi`,
+  `also FastAPI`
+
+Questions such as `Should I learn Docker?` are career advice. They need a local model
+(`CHAT_MODEL_PROVIDER=ollama`); without one, the reply says how to phrase a search. Commands to
+save, update, draft or send act only on the job, application or draft you have selected.
+
 ## Company Radar
 
 The Company Radar is a local index of jobs read from companies' own job boards,

@@ -50,8 +50,13 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   const workspaceTabs = ['conversationPane', 'recommendationsPane', 'contextPane'].map(name => {
     const el = element(`tab-${name}`); el.dataset = { workspacePanel: name }; return el;
   });
-  const suggestionChips = ['Find jobs suitable for my CV', 'Search AI/ML roles', 'Analyze a job description', 'Show my saved jobs'].map((prompt, index) => {
-    const el = element(`suggestion-${index}`); el.dataset = { suggestion: prompt }; return el;
+  // Mirrors the chips in index.html (checked below): search prompts, then one view link.
+  const suggestionChips = [...html.matchAll(/class="suggestion-chip"[^>]*>/g)].map(([tag], index) => {
+    const el = element(`suggestion-${index}`);
+    const prompt = tag.match(/data-suggestion="([^"]+)"/);
+    const view = tag.match(/data-view="([^"]+)"/);
+    el.dataset = prompt ? { suggestion: prompt[1] } : { view: view[1] };
+    return el;
   });
   const documentHandlers = {};
   const detachedJobOpener = element('detached-job-opener');
@@ -169,6 +174,13 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   assert.equal(d.calls.filter(([path]) => path === '/chat/run').length, 1);
   assert.equal(d.calls.find(([path]) => path === '/chat/run')[2].message, 'Find jobs suitable for my CV');
   assert.equal(d.elements.get('searchView').classList.contains('conversation-started'), true);
+  assert.doesNotMatch(html, /Analyze a job description/);
+  const trackerChip = d.suggestionChips.find(chip => chip.dataset.view === 'tracker');
+  assert.ok(trackerChip, 'the saved-jobs chip opens the tracker instead of running a search');
+  const chatRunsBefore = d.calls.filter(([path]) => path === '/chat/run').length;
+  await trackerChip.handlers.click();
+  assert.equal(d.calls.filter(([path]) => path === '/chat/run').length, chatRunsBefore);
+  assert.equal(d.elements.get('trackerView').classList.contains('active'), true);
   chatCall = 0;
   d = await dashboard({ configured: true, connected: false }, '', false, {
     '/chat/run': () => chatReplies[Math.min(chatCall++, chatReplies.length - 1)],
