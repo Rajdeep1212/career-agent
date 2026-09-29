@@ -393,6 +393,16 @@ concern.
    controls, text boxes once), footers last, each distinct header or footer once. The same 10 MB and
    200,000-character limits as PDFs apply. `/cv/parse` now returns 400 rather than 500 for an
    unreadable file.
+7. **Email attachments** (added 2026-09-29). Only a MIME type was checked, and only when a file was
+   stored: an approved draft whose attachment was a legacy `.doc` was sent. Now
+   `attachment_store.ATTACHMENT_TYPES` (.pdf and .docx, each with its fixed MIME type) governs
+   storing, draft creation and sending, and the limit stays 5 MB. A draft that names a missing or
+   disallowed attachment is a 422. Before a draft is claimed for sending, its file is found by its
+   stored *name* in the current upload folder, since stored paths point at the old checkout, and is
+   re-checked for type, real size and folder. A refused draft keeps its status (422, not a 503
+   "uncertain send"). Legacy `.doc` and `.txt` rows and files are kept, and only their sending is
+   refused. `/cv/upload` checks the 5 MB limit before parsing, so an over-limit CV changes nothing.
+   Both approval views show the attachment's file name.
 
 **Deliberately deferred:**
 - *Eligible-first ordering* (`career_agent._rank_key`: every eligible result ranks above every

@@ -57,7 +57,7 @@ from app.services.outreach_workflow import (
     prepare_linked_outreach,
 )
 from app.storage.token_store import delete_token, TokenStoreError
-from app.storage.attachment_store import save_attachment
+from app.storage import attachment_store
 from app.storage.email_store import (
     create_draft,
     get_draft,
@@ -235,10 +235,19 @@ async def parse_cv(request: Request, file: UploadFile = File(...)):
 async def upload_cv(request: Request, file: UploadFile = File(...)):
     require_local_origin(request)
     content = await file.read()
+    try:
+        check_cv_filename(file.filename)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    # The uploaded CV is also stored as the email attachment, so its limit applies before anything
+    # is parsed or saved: an over-limit CV leaves the profile untouched.
+    if len(content) > attachment_store.MAX_BYTES:
+        raise HTTPException(
+            status_code=400, detail=f"CV is too large to attach: max {attachment_store.max_megabytes()} MB")
     parsed = _parse_uploaded_cv(file.filename, content)
     try:
         save_profile(parsed)
-        attachment = save_attachment(file.filename or "", content)
+        attachment = attachment_store.save_attachment(file.filename or "", content)
 
         return {
             "profile": parsed,
@@ -321,7 +330,8 @@ async def upload_attachment(request: Request, file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="Filename is required.")
 
     try:
-        attachment = save_attachment(file.filename, await file.read())
+        attachment_store.check_attachment_type(file.filename)
+        attachment = attachment_store.save_attachment(file.filename, await file.read())
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     # Never expose the local filesystem path to the browser.
@@ -390,6 +400,11 @@ def prepare_job_email(request: PrepareJobEmailRequest, http_request: Request):
 @app.post("/email/drafts")
 def create_email_draft(request: CreateEmailDraftRequest, http_request: Request):
     require_local_origin(http_request)
+    if request.attachment_id:
+        try:
+            attachment_store.attachable(request.attachment_id)
+        except attachment_store.AttachmentRejectedError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     return create_draft(
         recipient=request.recipient,
         subject=request.subject,
@@ -443,6 +458,9 @@ def send_email_draft(draft_id: int, request: Request):
         return send_draft_once(draft_id, sender=send_approved_email)
     except DraftNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except attachment_store.AttachmentRejectedError as exc:
+        # Refused before the draft was claimed: it keeps its status and nothing was sent.
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except DraftNotClaimableError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except SendResultUncertainError as exc:

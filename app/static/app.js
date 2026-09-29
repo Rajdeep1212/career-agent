@@ -420,11 +420,18 @@ async function hydrateRecommendations(response) {
   $('resultsSummary').classList.remove('hidden');
 }
 
+// The file a draft will send, by name, so it is checked before approval.
+function attachmentLabel(draft) {
+  if (!draft.attachment_id) return 'None';
+  return draft.attachment_name || 'File not found';
+}
+
 async function showPendingConfirmation(draftId) {
   const draft = await api(`/email/drafts/${encodeURIComponent(draftId)}`);
   pendingDraftId = draftId;
   $('confirmationSubject').value = draft.subject || '';
   $('confirmationBody').value = draft.body || '';
+  $('confirmationAttachment').textContent = `Attachment: ${attachmentLabel(draft)}`;
   $('sendConfirmationPanel').classList.remove('hidden');
   showStatus($('contextActionStatus'), 'Review the final draft. Confirming will approve and send it once.', 'success');
   if ($('jobDetailDrawer').classList.contains('hidden')) openJobDrawer();
@@ -998,7 +1005,7 @@ window.openDraft = async function(id) {
         <strong>To:</strong> ${escapeHtml(d.recipient)}<br>
         <strong>Subject:</strong> ${escapeHtml(d.subject)}<br>
         <strong>Status:</strong> ${escapeHtml(d.status)}<br>
-        <strong>Attachment:</strong> ${escapeHtml(d.attachment_id ? "CV/document attached" : "None")}
+        <strong>Attachment:</strong> ${escapeHtml(attachmentLabel(d))}
       </div>
       <div class="preview-box">${escapeHtml(d.body)}</div>
     `;

@@ -571,5 +571,24 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   assert.doesNotMatch(d.elements.get('workspaceJobResults').innerHTML, /Naukri Test/);
   assert.match(d.elements.get('workspaceJobResults').innerHTML, /Data Analyst/);
 
+  // Both approval views name the attached file: the Email view and the chat's final confirmation.
+  const reviewDraft = { recipient: 'hr@example.org', subject: 'Application', body: 'Review me', status: 'draft' };
+  d = await dashboard({ configured: true, connected: false }, '', false, {
+    '/email/drafts/88': { ...reviewDraft, id: 88, attachment_id: 'att-1', attachment_name: 'my_cv.docx' },
+    '/email/drafts/89': { ...reviewDraft, id: 89, attachment_id: null },
+    '/email/drafts/90': { ...reviewDraft, id: 90, attachment_id: 'gone', attachment_name: null }
+  });
+  await d.context.window.openDraft(88);
+  assert.match(d.elements.get('draftPreview').innerHTML, /Attachment:<\/strong> my_cv\.docx/);
+  assert.doesNotMatch(d.elements.get('draftPreview').innerHTML, /CV\/document attached/);
+  await d.context.window.openDraft(89);
+  assert.match(d.elements.get('draftPreview').innerHTML, /Attachment:<\/strong> None/);
+  await d.context.window.openDraft(90);
+  assert.match(d.elements.get('draftPreview').innerHTML, /Attachment:<\/strong> File not found/);
+  await vm.runInContext('showPendingConfirmation(88)', d.context);
+  assert.equal(d.elements.get('confirmationAttachment').textContent, 'Attachment: my_cv.docx');
+  await vm.runInContext('showPendingConfirmation(89)', d.context);
+  assert.equal(d.elements.get('confirmationAttachment').textContent, 'Attachment: None');
+
   console.log('Dashboard JavaScript: LinkedIn, search/follow-up, empty diagnostics, safe results, save, profile, preferences and search-cost warning passed (DOM simulation, no browser).');
 })().catch(error => { console.error(error); process.exitCode = 1; });

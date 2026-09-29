@@ -1,7 +1,7 @@
 """Persistent job/application/contact/draft linkage without HTTP concerns."""
 from app.models.schemas import PrepareJobEmailRequest
 from app.services.outreach_service import draft_outreach
-from app.storage import career_store
+from app.storage import attachment_store, career_store
 from app.storage.email_store import create_draft
 from app.storage.profile_store import load_profile
 
@@ -19,16 +19,19 @@ class OutreachInputError(ValueError):
 
 
 def draft_with_outreach_linkage(draft: dict) -> dict:
+    result = dict(draft)
+    if draft.get("attachment_id"):
+        attachment = attachment_store.get_attachment(draft["attachment_id"])
+        result["attachment_name"] = attachment["original_name"] if attachment else None
     linkage = career_store.get_outreach_for_draft(draft["id"])
-    if linkage is None:
-        return draft
-    return {
-        **draft,
-        "job_id": linkage["job_id"],
-        "application_id": linkage["application_id"],
-        "contact_id": linkage["contact_id"],
-        "short_message": linkage["short_message"],
-    }
+    if linkage is not None:
+        result.update({
+            "job_id": linkage["job_id"],
+            "application_id": linkage["application_id"],
+            "contact_id": linkage["contact_id"],
+            "short_message": linkage["short_message"],
+        })
+    return result
 
 
 def prepare_linked_outreach(request: PrepareJobEmailRequest) -> dict:
@@ -49,6 +52,11 @@ def prepare_linked_outreach(request: PrepareJobEmailRequest) -> dict:
             raise OutreachNotFoundError("Job not found.")
     if request.contact_id and job is None:
         raise OutreachInputError("A contact requires a stored job or application.")
+    if request.attachment_id:
+        try:
+            attachment_store.attachable(request.attachment_id)
+        except attachment_store.AttachmentRejectedError as exc:
+            raise OutreachInputError(str(exc)) from exc
 
     recipient = request.recipient
     if request.contact_id:

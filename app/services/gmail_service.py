@@ -1,9 +1,7 @@
 import base64
 from email.message import EmailMessage
-from pathlib import Path
-
 from app.core.config import settings
-from app.storage.attachment_store import get_attachment
+from app.storage import attachment_store
 from app.storage.oauth_state import create_state, consume_state
 from app.storage.token_store import save_token, load_token, TokenStoreError
 
@@ -209,22 +207,14 @@ def build_message(
     message.set_content(body)
 
     if attachment_id:
-        attachment = get_attachment(attachment_id)
-        if not attachment:
-            raise ValueError("Attachment not found.")
-
-        path = Path(attachment["stored_path"])
-        if not path.exists():
-            raise ValueError("Stored attachment file is missing.")
-
-        mime = attachment["mime_type"] or "application/octet-stream"
-        maintype, subtype = mime.split("/", 1)
-
+        # Re-checked at send time: the row only records what was allowed when it was stored.
+        attachment = attachment_store.sendable_attachment(attachment_id)
+        maintype, subtype = attachment["mime_type"].split("/", 1)
         message.add_attachment(
-            path.read_bytes(),
+            attachment["content"],
             maintype=maintype,
             subtype=subtype,
-            filename=attachment["original_name"],
+            filename=attachment["filename"],
         )
 
     raw = base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")

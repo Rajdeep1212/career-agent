@@ -1,7 +1,7 @@
 """Shared one-attempt Gmail boundary used by HTTP routes and the graph."""
 from app.core.config import settings
 from app.services.gmail_service import send_approved_email
-from app.storage import career_store
+from app.storage import attachment_store, career_store
 from app.storage.email_store import (
     approve_draft,
     claim_draft_for_send,
@@ -23,11 +23,20 @@ class SendResultUncertainError(RuntimeError):
     pass
 
 
+def _check_attachment(draft: dict) -> None:
+    """Refuse a disallowed, missing or oversized attachment before the draft is claimed, so the
+    draft keeps its status and is not reported as an uncertain send."""
+    if draft.get("attachment_id"):
+        attachment_store.sendable_attachment(draft["attachment_id"])
+
+
 def send_draft_once(draft_id: int, *, sender=send_approved_email) -> dict:
     if settings.demo_mode:
         raise DraftNotClaimableError("Demo mode never sends email.")
-    if not get_draft(draft_id):
+    stored = get_draft(draft_id)
+    if not stored:
         raise DraftNotFoundError("Draft not found.")
+    _check_attachment(stored)
     draft = claim_draft_for_send(draft_id)
     if not draft:
         raise DraftNotClaimableError("Draft is not approved or has already been processed.")
@@ -51,8 +60,10 @@ def send_draft_once(draft_id: int, *, sender=send_approved_email) -> dict:
 
 
 def approve_and_send_draft(draft_id: int, *, sender=send_approved_email) -> dict:
-    if not get_draft(draft_id):
+    stored = get_draft(draft_id)
+    if not stored:
         raise DraftNotFoundError("Draft not found.")
+    _check_attachment(stored)
     if not approve_draft(draft_id):
         raise DraftNotClaimableError("Draft could not be approved for this send action.")
     return send_draft_once(draft_id, sender=sender)
