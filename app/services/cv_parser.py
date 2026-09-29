@@ -1,6 +1,11 @@
 """Conservative, local resume extraction with original supporting text."""
+import posixpath
 import re
+import zipfile
 from pathlib import Path
+
+# lxml is installed with python-docx (requirements.txt).
+from lxml import etree
 
 from app.models.schemas import CandidateProfile
 # The vocabulary lives in app/services/skills.py and app/core/skills/.
@@ -67,6 +72,207 @@ def extract_pdf_text(path: str) -> str:
         raise ValueError("Cannot read this PDF. Export a new PDF and try again.") from error
     if not text.strip():
         raise ValueError("No readable text in this PDF. It may be scanned; apply OCR or upload a text-based PDF.")
+    return text
+
+
+def check_cv_filename(filename: str | None) -> str:
+    """The lower-case extension of an accepted CV file name, or a ValueError the user can act on."""
+    suffix = Path(filename or "").suffix.lower()
+    if suffix == ".doc":
+        raise ValueError(".doc files (Word 97-2003) are not supported. Save the CV as .docx or PDF and upload it again.")
+    if suffix not in (".pdf", ".docx"):
+        raise ValueError("Upload your CV as a PDF or .docx file.")
+    return suffix
+
+
+def extract_cv_text(path: str, filename: str) -> str:
+    """Text of a PDF or .docx CV. The content must match the extension (checked by its first bytes)."""
+    suffix = check_cv_filename(filename)
+    with open(path, "rb") as stream:
+        head = stream.read(8)
+    if suffix == ".docx" and head.startswith(b"%PDF"):
+        raise ValueError("This file is a PDF but is named .docx. Rename it to .pdf, or upload the original .docx.")
+    if suffix == ".pdf" and head.startswith(b"PK\x03\x04"):
+        raise ValueError("This file is a Word .docx but is named .pdf. Rename it to .docx, or upload a PDF.")
+    return extract_docx_text(path) if suffix == ".docx" else extract_pdf_text(path)
+
+
+# .docx is a zip of XML parts. python-docx's Document() reads every part with an uncounted
+# ZipFile.read, so the parts a CV needs are read here with a byte budget and parsed with a
+# parser that resolves no entities, loads no DTD and makes no network requests.
+MAX_DOCX_UNPACKED_BYTES = 50 * 1024 * 1024  # declared total, checked before anything is unpacked
+MAX_DOCX_ENTRIES = 1000
+MAX_DOCX_COMPRESSION_RATIO = 100  # per entry, for entries declared at 1 MB or more
+MAX_DOCX_READ_BYTES = 20 * 1024 * 1024  # actual bytes unpacked across the parts read
+_RATIO_CHECK_MIN_BYTES = 1024 * 1024
+DOCX_XML_PARSER = etree.XMLParser(resolve_entities=False, load_dtd=False, no_network=True, huge_tree=False)
+
+_W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+_MC = "{http://schemas.openxmlformats.org/markup-compatibility/2006}"
+_R_ID = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
+_RELS = "{http://schemas.openxmlformats.org/package/2006/relationships}Relationship"
+_UNREADABLE = "Cannot read this .docx. Save it again from Word, or upload a PDF."
+_TOO_LARGE = "This .docx is too large when unpacked. Save a smaller copy, or upload a PDF."
+# Skipped inside a paragraph: text boxes (read as their own blocks), Word's duplicate fallback
+# copy of a shape, and deleted tracked changes.
+_SKIP_IN_PARAGRAPH = {_W + "txbxContent", _MC + "Fallback", _W + "del"}
+
+
+def _read_part(archive: zipfile.ZipFile, name: str, limit: int) -> bytes:
+    """A part's bytes, counting what is actually unpacked rather than trusting the zip header."""
+    chunks, total = [], 0
+    with archive.open(name) as stream:
+        while chunk := stream.read(64 * 1024):
+            total += len(chunk)
+            if total > limit:
+                raise ValueError(_TOO_LARGE)
+            chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _check_archive(archive: zipfile.ZipFile) -> None:
+    entries = archive.infolist()
+    if len(entries) > MAX_DOCX_ENTRIES:
+        raise ValueError(f"Cannot read this .docx: it has too many parts (over {MAX_DOCX_ENTRIES:,}).")
+    if sum(entry.file_size for entry in entries) > MAX_DOCX_UNPACKED_BYTES:
+        raise ValueError(_TOO_LARGE)
+    for entry in entries:
+        if entry.file_size >= _RATIO_CHECK_MIN_BYTES and entry.file_size > MAX_DOCX_COMPRESSION_RATIO * max(entry.compress_size, 1):
+            raise ValueError(_TOO_LARGE)
+    names = set(archive.namelist())
+    if "[Content_Types].xml" not in names or "word/document.xml" not in names:
+        raise ValueError("Cannot read this .docx: it is not a Word document. Save it again from Word, or upload a PDF.")
+
+
+def _parse_part(data: bytes):
+    # Word never writes a DOCTYPE; one here can only be an entity-expansion or XXE attempt.
+    if re.search(rb"<!DOCTYPE", data[:4096], re.IGNORECASE):
+        raise ValueError("Cannot read this .docx: it contains an XML DOCTYPE, which Word never writes.")
+    try:
+        root = etree.fromstring(data, DOCX_XML_PARSER)
+    except etree.XMLSyntaxError as error:
+        raise ValueError(_UNREADABLE) from error
+    if root.getroottree().docinfo.doctype:
+        raise ValueError("Cannot read this .docx: it contains an XML DOCTYPE, which Word never writes.")
+    return root
+
+
+def _paragraph_text(paragraph, boxes: list) -> str:
+    parts: list[str] = []
+
+    def walk(element) -> None:
+        for child in element:
+            tag = child.tag
+            if not isinstance(tag, str):
+                continue
+            if tag == _W + "txbxContent":
+                boxes.append(child)
+            elif tag in _SKIP_IN_PARAGRAPH:
+                continue
+            elif tag == _W + "t":
+                parts.append(child.text or "")
+            elif tag == _W + "tab":
+                parts.append("\t")
+            elif tag in (_W + "br", _W + "cr"):
+                parts.append("\n")
+            else:
+                walk(child)
+
+    walk(paragraph)
+    return "".join(parts)
+
+
+def _blocks(container, lines: list[str]) -> None:
+    """Paragraphs and tables in document order; tables row by row, nested tables in place."""
+    for child in container:
+        tag = child.tag
+        if tag == _W + "p":
+            boxes: list = []
+            lines.append(_paragraph_text(child, boxes))
+            for box in boxes:
+                _blocks(box, lines)
+        elif tag == _W + "tbl":
+            for row in _unwrapped(child, _W + "tr"):
+                for cell in _unwrapped(row, _W + "tc"):
+                    merge = cell.find(f"{_W}tcPr/{_W}vMerge")
+                    if merge is not None and merge.get(_W + "val") != "restart":
+                        continue  # continuation of a vertically merged cell, already read
+                    _blocks(cell, lines)
+        elif tag in (_W + "sdt", _W + "customXml"):
+            _blocks(_content(child), lines)
+
+
+def _content(wrapper):
+    """The children of a content control (w:sdt) or custom XML wrapper."""
+    content = wrapper.find(_W + "sdtContent") if wrapper.tag == _W + "sdt" else wrapper
+    return content if content is not None else []
+
+
+def _unwrapped(parent, tag: str):
+    """Direct `tag` children of a table or row, including those wrapped in content controls."""
+    for child in parent:
+        if child.tag == tag:
+            yield child
+        elif child.tag in (_W + "sdt", _W + "customXml"):
+            yield from _unwrapped(_content(child), tag)
+
+
+def _header_footer_lines(archive, document, kind: str, budget: list[int]) -> list[str]:
+    """Header or footer text over all sections, each distinct non-empty part once."""
+    names = set(archive.namelist())
+    rels_name = "word/_rels/document.xml.rels"
+    if rels_name not in names:
+        return []
+    targets = {}
+    for rel in _parse_part(_read_budgeted(archive, rels_name, budget)).iter(_RELS):
+        if rel.get("TargetMode") != "External":
+            target = rel.get("Target", "")
+            targets[rel.get("Id")] = target.lstrip("/") if target.startswith("/") else posixpath.normpath(posixpath.join("word", target))
+    seen_parts: set[str] = set()
+    seen_text: set[tuple[str, ...]] = set()
+    found: list[str] = []
+    for reference in document.iter(f"{_W}{kind}Reference"):
+        part = targets.get(reference.get(_R_ID))
+        if not part or part in seen_parts or part not in names:
+            continue
+        seen_parts.add(part)
+        part_lines: list[str] = []
+        _blocks(_parse_part(_read_budgeted(archive, part, budget)), part_lines)
+        text = tuple(line for line in part_lines if line.strip())
+        if text and text not in seen_text:
+            seen_text.add(text)
+            found.extend(text)
+    return found
+
+
+def _read_budgeted(archive, name: str, budget: list[int]) -> bytes:
+    data = _read_part(archive, name, budget[0])
+    budget[0] -= len(data)
+    return data
+
+
+def extract_docx_text(path: str) -> str:
+    if Path(path).stat().st_size > MAX_PDF_BYTES:
+        raise ValueError("Resume .docx exceeds 10 MB. Upload a smaller file.")
+    try:
+        with zipfile.ZipFile(path) as archive:
+            _check_archive(archive)
+            budget = [MAX_DOCX_READ_BYTES]
+            document = _parse_part(_read_budgeted(archive, "word/document.xml", budget))
+            body = document.find(_W + "body")
+            lines: list[str] = []
+            if body is not None:
+                _blocks(body, lines)
+            header = _header_footer_lines(archive, document, "header", budget)
+            footer = _header_footer_lines(archive, document, "footer", budget)
+    except (zipfile.BadZipFile, zipfile.LargeZipFile, EOFError, NotImplementedError) as error:
+        # BadZipFile also covers a CRC mismatch, e.g. a part whose size header lies.
+        raise ValueError(_UNREADABLE) from error
+    text = "\n".join(header + lines + footer)
+    if len(text) > MAX_TEXT_CHARS:
+        raise ValueError("Resume text exceeds 200,000 characters. Upload a shorter resume.")
+    if not text.strip():
+        raise ValueError("No readable text in this .docx. Add the CV text, or upload a text-based PDF.")
     return text
 
 

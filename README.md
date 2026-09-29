@@ -4,7 +4,7 @@
 
 Career Agent is a local FastAPI application for evidence-based job discovery,
 application tracking, and user-approved outreach. It parses text-based PDF
-resumes, persists profile and search preferences, searches configured job
+and .docx resumes, persists profile and search preferences, searches configured job
 providers, verifies listings, applies eligibility rules, ranks matches, and
 stores application and outreach state.
 

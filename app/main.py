@@ -29,7 +29,7 @@ from app.models.schemas import (
     CandidateProfileUpdate,
     JobSearchPreferencesUpdate,
 )
-from app.services.cv_parser import extract_pdf_text, parse_profile_from_text
+from app.services.cv_parser import check_cv_filename, extract_cv_text, parse_profile_from_text
 from app.services.ranker import rank_jobs
 from app.providers.mock_provider import MockJobProvider
 from app.agent.routing import deterministic_action
@@ -206,45 +206,39 @@ def update_current_preferences(update: JobSearchPreferencesUpdate, request: Requ
     return save_preferences(preferences)
 
 
+def _parse_uploaded_cv(filename: str | None, content: bytes) -> CandidateProfile:
+    """Profile from an uploaded PDF or .docx CV; any problem with the file is a 400 the user can act on."""
+    try:
+        suffix = check_cv_filename(filename)
+        with NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+        try:
+            parsed = parse_profile_from_text(extract_cv_text(tmp_path, filename or ""))
+        finally:
+            Path(tmp_path).unlink(missing_ok=True)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    baseline = _upload_baseline()
+    parsed.preferred_locations = baseline.preferred_locations
+    parsed.preferred_roles = baseline.preferred_roles
+    return parsed
+
+
 @app.post("/cv/parse", response_model=CandidateProfile)
 async def parse_cv(request: Request, file: UploadFile = File(...)):
     require_local_origin(request)
-    if not file.filename or not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF CVs are supported.")
-
-    with NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        tmp.write(await file.read())
-        tmp_path = tmp.name
-
-    try:
-        parsed = parse_profile_from_text(extract_pdf_text(tmp_path))
-        baseline = _upload_baseline()
-        parsed.preferred_locations = baseline.preferred_locations
-        parsed.preferred_roles = baseline.preferred_roles
-        return parsed
-    finally:
-        Path(tmp_path).unlink(missing_ok=True)
+    return _parse_uploaded_cv(file.filename, await file.read())
 
 
 @app.post("/cv/upload")
 async def upload_cv(request: Request, file: UploadFile = File(...)):
     require_local_origin(request)
-    if not file.filename or not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF CVs are supported.")
-
     content = await file.read()
-
-    with NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        tmp.write(content)
-        tmp_path = tmp.name
-
+    parsed = _parse_uploaded_cv(file.filename, content)
     try:
-        parsed = parse_profile_from_text(extract_pdf_text(tmp_path))
-        baseline = _upload_baseline()
-        parsed.preferred_locations = baseline.preferred_locations
-        parsed.preferred_roles = baseline.preferred_roles
         save_profile(parsed)
-        attachment = save_attachment(file.filename, content)
+        attachment = save_attachment(file.filename or "", content)
 
         return {
             "profile": parsed,
@@ -256,8 +250,6 @@ async def upload_cv(request: Request, file: UploadFile = File(...)):
         }
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    finally:
-        Path(tmp_path).unlink(missing_ok=True)
 
 
 @app.post("/jobs/rank")

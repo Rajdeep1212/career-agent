@@ -524,7 +524,15 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   assert.equal(d.calls.filter(([path]) => path === '/chat/run').length, 1);
 
   // A CV can be attached from the chat box: the same /cv/upload endpoint and parser as the Profile page.
-  assert.match(html, /id="chatCvInput"[^>]*accept="\.pdf,application\/pdf"/);
+  // Both CV inputs (Profile page and chat Attach) take a PDF or a .docx, and say so.
+  for (const id of ['cvInput', 'chatCvInput']) {
+    const accept = html.match(new RegExp(`id="${id}"[^>]*accept="([^"]+)"`))?.[1] || '';
+    assert.deepEqual(accept.split(',').filter(type => type.startsWith('.')).sort(), ['.docx', '.pdf'], id);
+    assert.doesNotMatch(accept, /(^|,)\.doc(,|$)|msword/, `${id} must not offer old .doc files`);
+  }
+  assert.match(html, /id="chatCvButton"[^>]*title="[^"]*PDF or \.docx/);
+  assert.match(html, /Upload CV \(PDF or \.docx\)/);
+  assert.match(html, /Upload a newer PDF or \.docx any time/);
   assert.match(html, /id="chatCvButton"/);
   d = await dashboard({ configured: true, connected: false }, '', false, {
     '/applications': [],

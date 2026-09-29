@@ -381,6 +381,18 @@ concern.
    still counts when it is part of an engineering or research title ("AI Engineer", "AI Research
    Assistant"), and prompts such as "AI jobs" still mean the AI family. "aiml" is added as a name
    for the family.
+6. **.docx CVs** (added 2026-09-29). `/cv/upload`, `/cv/parse` and the chat Attach CV button accept
+   a PDF or a .docx; `.doc`, `.docm` and `.dotx` are rejected with a message. The first bytes must
+   match the extension. `python-docx==1.2.0` is pinned (it brings lxml), but `Document()` reads
+   every zip part with an uncounted `ZipFile.read`. So `cv_parser` checks the archive first (at most
+   1,000 entries, 50 MB declared in total, compression ratio at most 100:1 for entries of 1 MB or
+   more), then reads only the document, its rels, headers and footers, counting the bytes actually
+   unpacked (20 MB budget). A part whose size header lies fails zipfile's CRC check. The XML parser
+   resolves no entities, loads no DTD and makes no network requests, and any DOCTYPE is refused.
+   Text order: headers first, body in document order (paragraphs, tables, nested tables, content
+   controls, text boxes once), footers last, each distinct header or footer once. The same 10 MB and
+   200,000-character limits as PDFs apply. `/cv/parse` now returns 400 rather than 500 for an
+   unreadable file.
 
 **Deliberately deferred:**
 - *Eligible-first ordering* (`career_agent._rank_key`: every eligible result ranks above every
