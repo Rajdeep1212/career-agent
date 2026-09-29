@@ -21,7 +21,8 @@ def family(title):
 class JobTitleTests(unittest.TestCase):
     def test_ai_as_a_label_on_a_non_technical_role_is_not_the_ai_family(self):
         for title in ('Product Manager II - AI', 'AI Social Media Content Intern', 'Sales Executive, AI Products',
-                      'AI Content Writer', 'HR Business Partner - AI & Data'):
+                      'AI Content Writer', 'HR Business Partner - AI & Data', 'AI Strategy Lead', 'AI Lead',
+                      'Consulting and Advisory Lead - Data & AI'):
             self.assertNotEqual(family(title), 'ai', title)
 
     def test_ai_and_ml_engineering_and_research_titles_are(self):
@@ -29,7 +30,9 @@ class JobTitleTests(unittest.TestCase):
                       'ML Engineer', 'Machine Learning Engineer', 'AI Research Assistant', 'Applied AI Scientist',
                       'AI/ML Developer', 'Generative AI Engineer', 'NLP Engineer', 'LLM Engineer',
                       # Found in the real index (2026-09-29): abbreviations, residencies, AI + ML together.
-                      'SDE II - AI', 'AI/Data Resident', 'AI/ML Expert', 'GLO AI-ML specialist'):
+                      'SDE II - AI', 'AI/Data Resident', 'AI/ML Expert', 'GLO AI-ML specialist',
+                      # "agentic" is a strong AI-specific signal, unlike "lead" which readmits management titles.
+                      'Agentic AI Lead', 'Agentic AI Product Manager'):
             self.assertEqual(family(title), 'ai', title)
 
 

@@ -30,17 +30,20 @@ def family_for_title(title: str) -> dict | None:
 
 # A bare "AI" or "ML" in a job title is often a label on another role ("Product Manager II - AI",
 # "AI Social Media Content Intern"). In a title it names the AI family only next to a technical role
-# word, or when the title names both AI and ML ("AI/ML Expert").
+# word, next to an AI-specific signal word ("Agentic AI Lead"), or when the title names both AI and
+# ML ("AI/ML Expert"). "lead"/"manager" alone are not signal words: they would readmit every
+# management or product title that happens to mention AI ("Consulting and Advisory Lead - Data & AI").
 _LABEL_TERMS = {'ai', 'ml'}
 _TECHNICAL_ROLE = re.compile(r'\b(?:engineers?|engineering|developers?|scientists?|research(?:ers?)?|architects?|'
                              r'sde|swe|mle|residents?|residency)\b', re.I)
+_AI_SIGNAL = re.compile(r'\bagentic\b', re.I)
 
 
 def family_for_job_title(title: str) -> dict | None:
     """The role family of a job posting's title."""
     matches = _family_matches(title)
     labels = {term.casefold() for term, _ in matches} & _LABEL_TERMS
-    technical = bool(_TECHNICAL_ROLE.search(title)) or labels == _LABEL_TERMS
+    technical = bool(_TECHNICAL_ROLE.search(title)) or bool(_AI_SIGNAL.search(title)) or labels == _LABEL_TERMS
     matches = [(term, item) for term, item in matches if term.casefold() not in _LABEL_TERMS or technical]
     return max(matches, key=lambda match: len(match[0]))[1] if matches else None
 
