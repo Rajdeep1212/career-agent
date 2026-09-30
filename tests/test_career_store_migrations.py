@@ -42,7 +42,8 @@ class CareerStoreMigrationTests(unittest.TestCase):
             tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             versions = {row[0] for row in conn.execute("SELECT version FROM schema_migrations")}
         self.assertLessEqual({"career_sessions", "career_jobs", "career_applications", "career_contacts", "career_outreach"}, tables)
-        self.assertEqual(versions, {"career_v1", "career_outreach_contact_v2"})
+        # M2 adds the event log (career_v3_events); earlier versions keep their recorded ids.
+        self.assertEqual(versions, {"career_v1", "career_outreach_contact_v2", "career_v3_events"})
 
     def test_older_database_is_upgraded_with_its_data(self):
         with closing(sqlite3.connect(self.path)) as conn:

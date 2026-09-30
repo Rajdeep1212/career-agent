@@ -10,7 +10,7 @@ from app.core.config import settings
 from app.models.career import ApplicationStatus, ContactCandidate
 from app.models.schemas import JobPosting
 from app.services.job_identity import job_identity
-from app.storage import db
+from app.storage import career_events, db
 
 
 DB_PATH = Path(settings.data_dir) / 'agent.sqlite3'
@@ -58,6 +58,9 @@ MIGRATIONS = [
     db.Migration('career_v1', _career_v1, 'Restore data/backups/<time>/agent.sqlite3; the tables are additive.'),
     db.Migration('career_outreach_contact_v2', _outreach_contact_v2,
                  'Restore data/backups/<time>/agent.sqlite3; SQLite cannot drop the contact_id column in place.'),
+    db.Migration('career_v3_events', career_events.migrate_v3,
+                 'Restore data/backups/<time>/agent.sqlite3 (taken before this migration). The event, snapshot '
+                 'and profile tables are additive; the status remap is recorded in each backfilled event note.'),
 ]
 
 
@@ -103,6 +106,23 @@ def get_job(identity: str) -> dict | None:
     with _connection() as conn:
         row = conn.execute('SELECT job_json FROM career_jobs WHERE id=?', (identity,)).fetchone()
     return json.loads(row['job_json']) if row else None
+
+
+def capture_snapshot(job_id: str, *, profile: dict, features: dict) -> int:
+    """Snapshot the job as stored now, with the CV and L0 features used (docs/M2_PLAN.md §1.3)."""
+    with _connection() as conn:
+        return career_events.capture_snapshot(conn, job_id, profile=profile, features=features)
+
+
+def record_event(job_id: str, event_type: str, **fields) -> dict:
+    """Append one event to the job's log (docs/M2_PLAN.md §1.1)."""
+    with _connection() as conn:
+        return career_events.append_event(conn, job_id, event_type, **fields)
+
+
+def job_events(job_id: str) -> list[dict]:
+    with _connection() as conn:
+        return career_events.events_for_job(conn, job_id)
 
 
 def _application(conn, row) -> dict | None:
