@@ -138,8 +138,12 @@ def _application(conn, row) -> dict | None:
     result['job'] = json.loads(job['job_json']) if job else None
     result['outreach'] = [dict(item) for item in conn.execute('SELECT * FROM career_outreach WHERE application_id=? ORDER BY created_at', (row['id'],)).fetchall()]
     # Derived at read time from the log, never stored (docs/M2_PLAN.md §1.1).
-    result['response_state'] = career_events.response_state(
-        career_events.events_for_job(conn, row['job_id']), now=datetime.now(timezone.utc), window_days=_response_window())
+    events = career_events.events_for_job(conn, row['job_id'])
+    result['response_state'] = career_events.response_state(events, now=datetime.now(timezone.utc),
+                                                            window_days=_response_window())
+    latest = _latest_tracker_event(events)
+    result['last_event'] = ({key: latest[key] for key in ('id', 'event_type', 'occurred_at')}
+                            if latest is not None else None)
     return result
 
 
@@ -154,12 +158,121 @@ Snapshot = tuple[dict, dict]   # (profile, L0 features) captured with a status e
 
 
 def _refresh_cache(conn, application_id: str, job_id: str) -> None:
-    """status and applied_at are a cache of the log (docs/M2_PLAN.md §1.2)."""
+    """status and applied_at are a cache of the log (docs/M2_PLAN.md §1.2). An application whose funnel
+    events are all undone stays tracked as SAVED; no event is invented for it."""
     events = career_events.events_for_job(conn, job_id)
-    status = career_events.status_from_events(events)
-    if status is not None:
-        conn.execute('UPDATE career_applications SET status=?, applied_at=?, updated_at=? WHERE id=?',
-                     (status, career_events.first_applied_at(events), _now(), application_id))
+    conn.execute('UPDATE career_applications SET status=?, applied_at=?, updated_at=? WHERE id=?',
+                 (career_events.status_from_events(events) or 'SAVED', career_events.first_applied_at(events),
+                  _now(), application_id))
+
+
+# Events recorded from the tracker's one-click buttons, and the ones Undo may cancel.
+OUTCOME_EVENTS = ('recruiter_reply', 'online_test', 'interview', 'offer', 'rejected', 'withdrawn',
+                  'no_response_confirmed')
+_TRACKER_EVENTS = (*career_events.FUNNEL_EVENTS, *career_events.RESPONSE_EVENTS)
+
+
+class RequestConflictError(ValueError):
+    """A request_id already used for a different action."""
+
+
+def _replayed(conn, request_id: str, job_id: str, event_type: str, undoes: int | None = None) -> dict | None:
+    """The event an earlier request with this id recorded; a conflict if that was another action."""
+    row = conn.execute('SELECT * FROM job_events WHERE request_id=?', (request_id,)).fetchone()
+    if row is None:
+        return None
+    if (row['job_id'], row['event_type'], row['undoes_event_id']) != (job_id, event_type, undoes):
+        raise RequestConflictError('This request id was already used for a different action.')
+    return dict(row)
+
+
+def _latest_tracker_event(events: list[dict]) -> dict | None:
+    tracker = [event for event in career_events._standing(events) if event['event_type'] in _TRACKER_EVENTS]
+    return tracker[-1] if tracker else None
+
+
+def _result(conn, application_id: str, event: dict, **flags) -> dict:
+    row = conn.execute('SELECT * FROM career_applications WHERE id=?', (application_id,)).fetchone()
+    return {'application': _application(conn, row), 'event': event, **flags}
+
+
+def _application_row(conn, application_id: str):
+    row = conn.execute('SELECT * FROM career_applications WHERE id=?', (application_id,)).fetchone()
+    if row is None:
+        raise LookupError('Application not found')
+    return row
+
+
+def record_applied(job_id: str, *, request_id: str, occurred_at: str | None = None, applied_via: str | None = None,
+                   effort_minutes: int | None = None, note: str = '', snapshot: Snapshot | None = None) -> dict:
+    """One-click Applied (docs/M2_PLAN.md §3): creates the application if needed, never a second applied
+    event while one stands, and a repeated request_id returns the first result. One transaction."""
+    with _connection() as conn:
+        if conn.execute('SELECT 1 FROM career_jobs WHERE id=?', (job_id,)).fetchone() is None:
+            raise LookupError('Job not found')
+        replay = _replayed(conn, request_id, job_id, 'applied')
+        if replay is not None:
+            return _result(conn, replay['application_id'], replay, already_applied=False, replayed=True)
+        stamp = _now()
+        conn.execute('''INSERT OR IGNORE INTO career_applications (id, job_id, status, notes, created_at, updated_at)
+                        VALUES (?, ?, 'APPLIED', '', ?, ?)''', (str(uuid4()), job_id, stamp, stamp))
+        row = conn.execute('SELECT * FROM career_applications WHERE job_id=?', (job_id,)).fetchone()
+        standing = [event for event in career_events._standing(career_events.events_for_job(conn, job_id))
+                    if event['event_type'] == 'applied']
+        if standing:
+            return _result(conn, row['id'], standing[0], already_applied=True, replayed=False)
+        snapshot_id = (career_events.capture_snapshot(conn, job_id, profile=snapshot[0], features=snapshot[1])
+                       if snapshot else None)
+        event = career_events.append_event(conn, job_id, 'applied', application_id=row['id'], occurred_at=occurred_at,
+                                           request_id=request_id, snapshot_id=snapshot_id, note=note)
+        conn.execute('UPDATE career_applications SET applied_via=COALESCE(?, applied_via), '
+                     'effort_minutes=COALESCE(?, effort_minutes) WHERE id=?', (applied_via, effort_minutes, row['id']))
+        _refresh_cache(conn, row['id'], job_id)
+        return _result(conn, row['id'], event, already_applied=False, replayed=False)
+
+
+def record_outcome(application_id: str, event_type: str, *, request_id: str, occurred_at: str | None = None,
+                   note: str = '', snapshot: Snapshot | None = None) -> dict:
+    """A one-click outcome; the same outcome twice in a row records nothing."""
+    if event_type not in OUTCOME_EVENTS:
+        raise ValueError('Only outcome events are recorded here')
+    with _connection() as conn:
+        row = _application_row(conn, application_id)
+        replay = _replayed(conn, request_id, row['job_id'], event_type)
+        if replay is not None:
+            return _result(conn, application_id, replay, already_recorded=False, replayed=True)
+        latest = _latest_tracker_event(career_events.events_for_job(conn, row['job_id']))
+        if latest is not None and latest['event_type'] == event_type:
+            return _result(conn, application_id, latest, already_recorded=True, replayed=False)
+        snapshot_id = (career_events.capture_snapshot(conn, row['job_id'], profile=snapshot[0], features=snapshot[1])
+                       if snapshot else None)
+        event = career_events.append_event(conn, row['job_id'], event_type, application_id=application_id,
+                                           occurred_at=occurred_at, request_id=request_id, snapshot_id=snapshot_id,
+                                           note=note)
+        _refresh_cache(conn, application_id, row['job_id'])
+        return _result(conn, application_id, event, already_recorded=False, replayed=False)
+
+
+def undo_event(application_id: str, event_id: int, *, request_id: str) -> dict:
+    """Cancel one tracker event of this application's job with an `undone` event; idempotent."""
+    with _connection() as conn:
+        row = _application_row(conn, application_id)
+        target = conn.execute('SELECT * FROM job_events WHERE id=? AND job_id=?', (event_id, row['job_id'])).fetchone()
+        if target is None:
+            raise LookupError('Event not found for this application')
+        if target['event_type'] not in _TRACKER_EVENTS:
+            raise ValueError('Only tracker events can be undone here')
+        replay = _replayed(conn, request_id, row['job_id'], 'undone', event_id)
+        if replay is not None:
+            return _result(conn, application_id, replay, already_undone=False, replayed=True)
+        earlier = conn.execute("SELECT * FROM job_events WHERE event_type='undone' AND undoes_event_id=?",
+                               (event_id,)).fetchone()
+        if earlier is not None:
+            return _result(conn, application_id, dict(earlier), already_undone=True, replayed=False)
+        event = career_events.append_event(conn, row['job_id'], 'undone', application_id=application_id,
+                                           request_id=request_id, undoes_event_id=event_id)
+        _refresh_cache(conn, application_id, row['job_id'])
+        return _result(conn, application_id, event, already_undone=False, replayed=False)
 
 
 def _record_status(conn, row, status: str, snapshot: Snapshot | None) -> dict:

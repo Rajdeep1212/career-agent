@@ -575,6 +575,47 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   assert.doesNotMatch(d.elements.get('workspaceJobResults').innerHTML, /Naukri Test/);
   assert.match(d.elements.get('workspaceJobResults').innerHTML, /Data Analyst/);
 
+  // One click marks a job applied (one request even when double-clicked), with Undo in a toast.
+  const applyJobId = 'd'.repeat(64);
+  d = await dashboard({ configured: true, connected: false }, '', false, {
+    '/applications': [],
+    '/applications/applied': { application: { id: 'app-9', job_id: applyJobId, status: 'APPLIED', response_state: 'PENDING_CENSORED' },
+                               event: { id: 41, event_type: 'applied' }, already_applied: false, replayed: false },
+    '/applications/app-9/events/41/undo': { application: { id: 'app-9', status: 'SAVED' }, event: { id: 42 }, already_undone: false, replayed: false }
+  });
+  d.context.renderJobs([{ id: applyJobId, title: 'NLP Engineer', company: 'ExampleCo', source: 'Company Radar', match: {}, eligibility: {} }]);
+  assert.match(d.elements.get('workspaceJobResults').innerHTML, new RegExp(`markAppliedById\\('${applyJobId}'\\)`));
+  await Promise.all([d.context.window.markAppliedById(applyJobId), d.context.window.markAppliedById(applyJobId)]);
+  const applyPosts = d.calls.filter(([path]) => path === '/applications/applied');
+  assert.equal(applyPosts.length, 1, 'a double click sends one request');
+  assert.equal(applyPosts[0][1], 'POST');
+  assert.equal(applyPosts[0][2].job_id, applyJobId);
+  assert.ok(applyPosts[0][2].request_id);
+  assert.equal(d.elements.get('undoToast').classList.contains('hidden'), false);
+  assert.match(d.elements.get('undoToastText').textContent, /Marked as applied/);
+  await d.elements.get('undoToastBtn').handlers.click();
+  assert.ok(d.calls.some(([path, method]) => path === '/applications/app-9/events/41/undo' && method === 'POST'));
+  assert.equal(d.elements.get('undoToast').classList.contains('hidden'), true);
+
+  // Tracker cards: one-click outcomes and Undo of the latest tracker event.
+  d = await dashboard({ configured: true, connected: false }, '', false, {
+    '/applications': [{ id: 'app-9', job_id: applyJobId, status: 'APPLIED', notes: '', response_state: 'PENDING_CENSORED',
+                        last_event: { id: 41, event_type: 'applied' }, job: { title: 'NLP Engineer', company: 'ExampleCo' } }],
+    '/applications/app-9/events': { application: { id: 'app-9', status: 'INTERVIEW' }, event: { id: 43, event_type: 'interview' },
+                                    already_recorded: false, replayed: false }
+  });
+  await vm.runInContext('loadTracker()', d.context);
+  const trackerHtml = d.elements.get('trackerList').innerHTML;
+  for (const outcome of ['recruiter_reply', 'online_test', 'interview', 'offer', 'rejected', 'withdrawn']) {
+    assert.match(trackerHtml, new RegExp(`recordOutcome\\('app-9', '${outcome}'\\)`), outcome);
+  }
+  assert.match(trackerHtml, /undoEvent\('app-9', 41\)/);
+  assert.match(trackerHtml, /Waiting for a reply/);
+  await d.context.window.recordOutcome('app-9', 'interview');
+  const outcomePost = d.calls.find(([path]) => path === '/applications/app-9/events');
+  assert.equal(outcomePost?.[2].event_type, 'interview');
+  assert.ok(outcomePost?.[2].request_id);
+
   // Both approval views name the attached file: the Email view and the chat's final confirmation.
   const reviewDraft = { recipient: 'hr@example.org', subject: 'Application', body: 'Review me', status: 'draft' };
   d = await dashboard({ configured: true, connected: false }, '', false, {

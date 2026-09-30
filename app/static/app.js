@@ -675,7 +675,7 @@ function jobCardsMarkup(jobs, compact = false) {
       <div class="card-state-row"><span class="tag ${state === 'ACTIVE_VERIFIED' ? 'good' : 'warn'}">Verification: ${escapeHtml(state.replaceAll('_', ' '))}</span><span class="tag ${ELIGIBILITY_LABELS[eligibilityStatus(job)][1]}">Eligibility: ${ELIGIBILITY_LABELS[eligibilityStatus(job)][0]}</span><span class="tag">Tracker: ${escapeHtml(trackerState.replaceAll('_', ' '))}</span>${outreachState !== 'NONE' ? `<span class="tag">Outreach: ${escapeHtml(outreachState)}</span>` : ''}</div>
       <div><strong class="muted">Matched skills</strong><div class="skill-row">${tags(match.matched_skills || job.matched_skills, 'good') || '<span class="muted">No explicit skill match</span>'}</div></div>
       ${compact ? '' : `<div class="verification"><p>${escapeHtml(job.verification_reason || 'Application page has not been verified.')}</p>${eligibilitySummary(job) ? `<p class="eligibility-summary">${escapeHtml(eligibilitySummary(job))}</p>` : ''}</div><p>${escapeHtml(match.explanation || 'Review the listed requirements before applying.')}</p>${match.transferable_skills?.length ? `<div><strong class="muted">Transferable skills</strong><div class="skill-row">${tags(match.transferable_skills)}</div></div>` : ''}${(match.missing_skills || job.missing_skills)?.length ? `<div><strong class="muted">Missing skills</strong><div class="skill-row">${tags(match.missing_skills || job.missing_skills, 'warn')}</div></div>` : ''}<details><summary>Match evidence and eligibility</summary><p>${escapeHtml(eligibilitySummary(job) || 'No eligibility evidence recorded.')} ${escapeHtml(eligibility.confidence ? 'Confidence: ' + eligibility.confidence : '')}</p><ul>${textList([...(match.strengths || []), ...(match.gaps || []), ...(eligibility.positive_signals || []), ...(eligibility.warnings || []), ...(eligibility.hard_rejections || []), ...(job.reasons || [])])}</ul></details>`}
-      <div class="card-actions"><button class="primary" data-job-id="${storedId}" onclick="selectJobById('${storedId}')" ${storedId ? '' : 'disabled'}>View details</button><button class="secondary" onclick="saveJobById('${storedId}')" ${storedId ? '' : 'disabled'}>${application ? 'Saved' : 'Save'}</button>${url ? `<a class="secondary" target="_blank" rel="noopener noreferrer" href="${escapeHtml(url)}">Open job</a>` : '<span class="muted">Application link unavailable</span>'}<button class="secondary" onclick="startJobOutreach('${storedId}')" ${storedId ? '' : 'disabled'}>Prepare outreach</button>${storedId && REMOVABLE_SOURCES.has(job.source) ? `<button class="secondary" onclick="removeJobById('${storedId}')">Remove</button>` : ''}</div>
+      <div class="card-actions"><button class="primary" data-job-id="${storedId}" onclick="selectJobById('${storedId}')" ${storedId ? '' : 'disabled'}>View details</button><button class="secondary" onclick="saveJobById('${storedId}')" ${storedId ? '' : 'disabled'}>${application ? 'Saved' : 'Save'}</button><button class="secondary" onclick="markAppliedById('${storedId}')" ${storedId ? '' : 'disabled'}>${application?.applied_at ? 'Applied ✓' : 'Mark applied'}</button>${url ? `<a class="secondary" target="_blank" rel="noopener noreferrer" href="${escapeHtml(url)}">Open job</a>` : '<span class="muted">Application link unavailable</span>'}<button class="secondary" onclick="startJobOutreach('${storedId}')" ${storedId ? '' : 'disabled'}>Prepare outreach</button>${storedId && REMOVABLE_SOURCES.has(job.source) ? `<button class="secondary" onclick="removeJobById('${storedId}')">Remove</button>` : ''}</div>
     </article>`;
   }).join('');
 }
@@ -766,6 +766,72 @@ window.saveSelectedJob = async function() {
 // Saved (bookmarklet) and alert-email jobs are the user's own entries, so they can be removed.
 const REMOVABLE_SOURCES = new Set(['Saved by you', 'LinkedIn alert', 'Naukri alert', 'Indeed alert']);
 
+// One-click tracker events (docs/M2_PLAN.md §3). Each click carries a request id, so a retry or a double
+// click records one event; a click while the same action is in flight is ignored.
+const OUTCOME_BUTTONS = [['recruiter_reply', 'Recruiter replied'], ['online_test', 'Online test'], ['interview', 'Interview'],
+  ['offer', 'Offer'], ['rejected', 'Rejected'], ['withdrawn', 'Withdrawn']];
+const eventLabel = type => ({ applied: 'applied', saved: 'saved', skipped: 'skipped', no_response_confirmed: 'no response' })[type]
+  || (OUTCOME_BUTTONS.find(([key]) => key === type)?.[1] || type).toLowerCase();
+const pendingActions = new Set();
+const newRequestId = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+let undoTarget = null;
+let undoTimer = null;
+
+async function oncePerAction(key, action) {
+  if (pendingActions.has(key)) return;
+  pendingActions.add(key);
+  try { await action(); } finally { pendingActions.delete(key); }
+}
+
+function showUndo(text, target) {
+  undoTarget = target;
+  $('undoToastText').textContent = text;
+  $('undoToastBtn').classList.toggle('hidden', !target);
+  $('undoToast').classList.remove('hidden');
+  if (undoTimer) clearTimeout(undoTimer);
+  if (typeof setTimeout === 'function') undoTimer = setTimeout(() => $('undoToast').classList.add('hidden'), 10000);
+}
+
+async function refreshAfterTrackerEvent() {
+  await refreshApplicationIndex();
+  if (window.lastJobs) renderJobs(window.lastJobs);
+  if ($('trackerView').classList.contains('active')) await loadTracker();
+}
+
+window.markAppliedById = id => oncePerAction(`applied:${id}`, async () => {
+  if (!id) return;
+  try {
+    const data = await api('/applications/applied', jsonOptions('POST', { job_id: id, request_id: newRequestId() }));
+    showUndo(data.already_applied ? 'Already marked as applied.' : 'Marked as applied.',
+             data.already_applied ? null : { applicationId: data.application.id, eventId: data.event.id });
+    await refreshAfterTrackerEvent();
+  } catch (error) { showStatus($('resultActionStatus'), error.message, 'error'); }
+});
+
+window.recordOutcome = (applicationId, type) => oncePerAction(`${type}:${applicationId}`, async () => {
+  try {
+    const data = await api(`/applications/${encodeURIComponent(applicationId)}/events`,
+                           jsonOptions('POST', { event_type: type, request_id: newRequestId() }));
+    showUndo(data.already_recorded ? `Already recorded: ${eventLabel(type)}.` : `Recorded: ${eventLabel(type)}.`,
+             data.already_recorded ? null : { applicationId, eventId: data.event.id });
+    await loadTracker();
+  } catch (error) { showStatus($('trackerStatus'), error.message, 'error'); }
+});
+
+window.undoEvent = (applicationId, eventId) => oncePerAction(`undo:${eventId}`, async () => {
+  try {
+    await api(`/applications/${encodeURIComponent(applicationId)}/events/${encodeURIComponent(eventId)}/undo`,
+              jsonOptions('POST', { request_id: newRequestId() }));
+    $('undoToast').classList.add('hidden');
+    undoTarget = null;
+    await refreshAfterTrackerEvent();
+  } catch (error) { showStatus($('trackerStatus'), error.message, 'error'); }
+});
+
+$('undoToastBtn').addEventListener('click', async () => {
+  if (undoTarget) await window.undoEvent(undoTarget.applicationId, undoTarget.eventId);
+});
+
 window.removeJobById = async function(id) {
   const job = jobsById.get(id);
   if (!job || !REMOVABLE_SOURCES.has(job.source)) return;
@@ -811,7 +877,7 @@ async function loadTracker() {
     $('trackerList').innerHTML = trackerEntries.length ? trackerEntries.map((entry, index) => {
       const job = entry.job || entry;
       const url = safeExternalUrl(job.application_url);
-      return `<article class="tracker-card"><div class="panel-head"><div><h3>${escapeHtml(job.title || entry.job_title || 'Saved opportunity')}</h3><p>${escapeHtml(job.company || entry.company || '')}</p></div>${url ? `<a class="secondary" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open job</a>` : ''}</div>${RESPONSE_LABELS[entry.response_state] ? `<p><span class="tag">${escapeHtml(RESPONSE_LABELS[entry.response_state])}</span></p>` : ''}<label for="trackerState${index}">Application status</label><select id="trackerState${index}">${applicationStatuses.map(status => `<option value="${status}" ${entry.status === status ? 'selected' : ''}>${status.replaceAll('_', ' ')}</option>`).join('')}</select><label for="trackerNotes${index}">Your notes</label><textarea id="trackerNotes${index}" rows="3">${escapeHtml(entry.notes || '')}</textarea><div class="card-actions section-gap"><button class="primary" onclick="updateApplication(${index})">Save changes</button><button class="secondary" onclick="composeTrackedEmail(${index})">Prepare outreach</button></div><p class="muted">Last updated: ${escapeHtml(formatDate(entry.updated_at || entry.created_at) || 'Unknown')}</p></article>`;
+      return `<article class="tracker-card"><div class="panel-head"><div><h3>${escapeHtml(job.title || entry.job_title || 'Saved opportunity')}</h3><p>${escapeHtml(job.company || entry.company || '')}</p></div>${url ? `<a class="secondary" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open job</a>` : ''}</div>${RESPONSE_LABELS[entry.response_state] ? `<p><span class="tag">${escapeHtml(RESPONSE_LABELS[entry.response_state])}</span></p>` : ''}<label for="trackerState${index}">Application status</label><select id="trackerState${index}">${applicationStatuses.map(status => `<option value="${status}" ${entry.status === status ? 'selected' : ''}>${status.replaceAll('_', ' ')}</option>`).join('')}</select><label for="trackerNotes${index}">Your notes</label><textarea id="trackerNotes${index}" rows="3">${escapeHtml(entry.notes || '')}</textarea><div class="card-actions section-gap">${OUTCOME_BUTTONS.map(([type, label]) => `<button class="secondary" onclick="recordOutcome('${escapeHtml(entry.id)}', '${type}')">${label}</button>`).join('')}${entry.last_event ? `<button class="secondary" onclick="undoEvent('${escapeHtml(entry.id)}', ${Number(entry.last_event.id)})">Undo ${escapeHtml(eventLabel(entry.last_event.event_type))}</button>` : ''}</div><div class="card-actions section-gap"><button class="primary" onclick="updateApplication(${index})">Save changes</button><button class="secondary" onclick="composeTrackedEmail(${index})">Prepare outreach</button></div><p class="muted">Last updated: ${escapeHtml(formatDate(entry.updated_at || entry.created_at) || 'Unknown')}</p></article>`;
     }).join('') : '<p class="muted">No saved applications yet. Save an opportunity from Recommendations to start tracking it.</p>';
     if (window.lastJobs) renderJobs(window.lastJobs);
     renderConversation();

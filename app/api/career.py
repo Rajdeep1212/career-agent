@@ -1,5 +1,7 @@
 """Local career tracking endpoints. These routes never send messages or apply."""
 import re
+from datetime import datetime, timedelta, timezone
+from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -62,6 +64,47 @@ class UpdateApplicationRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     status: ApplicationStatus | None = None
     notes: str | None = Field(default=None, max_length=20000)
+
+
+BACKDATE_LIMIT_DAYS = 365
+RequestId = Annotated[str, Field(min_length=1, max_length=128, pattern=r'^[A-Za-z0-9._:-]+$')]
+
+
+class _TrackerEventRequest(BaseModel):
+    """A client-generated request_id makes retries and double clicks safe (docs/M2_PLAN.md §3)."""
+    model_config = ConfigDict(extra='forbid')
+    request_id: RequestId
+    occurred_at: datetime | None = None
+    note: str = Field(default='', max_length=2000)
+
+    @field_validator('occurred_at')
+    @classmethod
+    def _within_limits(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        value = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        if value > now:
+            raise ValueError('The date cannot be in the future.')
+        if value < now - timedelta(days=BACKDATE_LIMIT_DAYS):
+            raise ValueError(f'The date can be at most {BACKDATE_LIMIT_DAYS} days ago.')
+        return value.astimezone(timezone.utc)
+
+
+class MarkAppliedRequest(_TrackerEventRequest):
+    job_id: str = Field(min_length=1, max_length=128)
+    applied_via: Literal['company_site', 'ats', 'job_board', 'email', 'referral', 'other'] | None = None
+    effort_minutes: int | None = Field(default=None, ge=0, le=1440)
+
+
+class OutcomeRequest(_TrackerEventRequest):
+    event_type: Literal['recruiter_reply', 'online_test', 'interview', 'offer', 'rejected', 'withdrawn',
+                        'no_response_confirmed']
+
+
+class UndoRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    request_id: RequestId
 
 
 def _public_url(value: str) -> bool:
@@ -135,6 +178,51 @@ def save_application(request: SaveApplicationRequest, http_request: Request):
         return public_career_data(result)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail='Job not found') from exc
+
+
+def _event_response(call):
+    """Run one tracker-event store call and map its errors to HTTP statuses."""
+    try:
+        return public_career_data(call())
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except career_store.RequestConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _iso(value: datetime | None) -> str | None:
+    return value.isoformat() if value else None
+
+
+@router.post('/applications/applied')
+def mark_applied(request: MarkAppliedRequest, http_request: Request):
+    """One click from a job card or the tracker (docs/M2_PLAN.md §3)."""
+    require_tracker_origin(http_request)
+    if career_store.get_job(request.job_id) is None:
+        raise HTTPException(status_code=404, detail='Job not found')
+    return _event_response(lambda: career_store.record_applied(
+        request.job_id, request_id=request.request_id, occurred_at=_iso(request.occurred_at),
+        applied_via=request.applied_via, effort_minutes=request.effort_minutes, note=request.note,
+        snapshot=_snapshot(request.job_id)))
+
+
+@router.post('/applications/{application_id}/events')
+def record_outcome(application_id: str, request: OutcomeRequest, http_request: Request):
+    require_tracker_origin(http_request)
+    current = career_store.get_application(application_id)
+    if current is None:
+        raise HTTPException(status_code=404, detail='Application not found')
+    return _event_response(lambda: career_store.record_outcome(
+        application_id, request.event_type, request_id=request.request_id, occurred_at=_iso(request.occurred_at),
+        note=request.note, snapshot=_snapshot(current['job_id'])))
+
+
+@router.post('/applications/{application_id}/events/{event_id}/undo')
+def undo_event(application_id: str, event_id: int, request: UndoRequest, http_request: Request):
+    require_tracker_origin(http_request)
+    return _event_response(lambda: career_store.undo_event(application_id, event_id, request_id=request.request_id))
 
 
 @router.patch('/applications/{application_id}')
