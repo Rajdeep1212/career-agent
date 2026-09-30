@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.origin_security import has_exact_local_origin
 from app.models.career import ApplicationStatus, ContactCandidate
+from app.services.job_snapshot import snapshot_inputs
 from app.storage import career_store
 
 
@@ -119,11 +120,18 @@ def get_application(application_id: str):
     return public_career_data(result)
 
 
+def _snapshot(job_id: str):
+    """The CV and L0 features to freeze with a status event (docs/M2_PLAN.md §1.3)."""
+    job = career_store.get_job(job_id)
+    return snapshot_inputs(job) if job else None
+
+
 @router.post('/applications')
 def save_application(request: SaveApplicationRequest, http_request: Request):
     require_tracker_origin(http_request)
     try:
-        result = career_store.save_application(request.job_id, request.status, request.notes)
+        result = career_store.save_application(request.job_id, request.status, request.notes,
+                                               snapshot=_snapshot(request.job_id))
         return public_career_data(result)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail='Job not found') from exc
@@ -132,7 +140,11 @@ def save_application(request: SaveApplicationRequest, http_request: Request):
 @router.patch('/applications/{application_id}')
 def update_application(application_id: str, request: UpdateApplicationRequest, http_request: Request):
     require_tracker_origin(http_request)
-    result = career_store.update_application(application_id, request.status, request.notes)
+    current = career_store.get_application(application_id)
+    if current is None:
+        raise HTTPException(status_code=404, detail='Application not found')
+    snapshot = _snapshot(current['job_id']) if request.status not in (None, current['status']) else None
+    result = career_store.update_application(application_id, request.status, request.notes, snapshot=snapshot)
     if result is None:
         raise HTTPException(status_code=404, detail='Application not found')
     return public_career_data(result)

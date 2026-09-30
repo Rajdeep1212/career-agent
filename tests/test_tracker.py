@@ -275,9 +275,9 @@ class MainTrackerAPITests(unittest.TestCase):
 
     def test_status_and_notes_persist_across_supported_lifecycle(self):
         created = self.save_via_api(self.save_job()).json()
+        # M2 status set (docs/M2_PLAN.md §1.2): DISCOVERED folds into SAVED; outreach is events, not statuses.
         statuses = [
-            'DISCOVERED', 'SAVED', 'APPLIED', 'OUTREACH_PREPARED', 'OUTREACH_SENT',
-            'INTERVIEW', 'REJECTED', 'OFFER', 'SKIPPED',
+            'SAVED', 'APPLIED', 'ONLINE_TEST', 'INTERVIEW', 'REJECTED', 'OFFER', 'WITHDRAWN', 'SKIPPED',
         ]
         for index, status in enumerate(statuses):
             response = self.client.patch(
@@ -291,7 +291,7 @@ class MainTrackerAPITests(unittest.TestCase):
 
         fetched = self.client.get(f"/applications/{created['id']}").json()
         self.assertEqual(fetched['status'], 'SKIPPED')
-        self.assertEqual(fetched['notes'], 'note 8')
+        self.assertEqual(fetched['notes'], 'note 7')
         self.assertIsNotNone(fetched['applied_at'])
 
     def test_invalid_ids_and_states_fail_safely(self):

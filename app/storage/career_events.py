@@ -8,7 +8,7 @@ import hashlib
 import json
 import sqlite3
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
 
@@ -209,10 +209,46 @@ def events_for_job(conn: sqlite3.Connection, job_id: str) -> list[dict]:
     return [dict(row) for row in conn.execute("SELECT * FROM job_events WHERE job_id=? ORDER BY id", (job_id,))]
 
 
+def _standing(events: list[dict]) -> list[dict]:
+    """Events in recorded order, without undo markers and the events they cancel."""
+    undone = {event["undoes_event_id"] for event in events if event["event_type"] == "undone"}
+    return [event for event in sorted(events, key=lambda item: item["id"])
+            if event["event_type"] != "undone" and event["id"] not in undone]
+
+
 def status_from_events(events: list[dict]) -> str | None:
     """The status set by the latest funnel event that is not undone; None when there is none."""
-    undone = {event["undoes_event_id"] for event in events if event["event_type"] == "undone"}
-    for event in sorted(events, key=lambda item: item["id"], reverse=True):
-        if event["event_type"] in FUNNEL_EVENTS and event["id"] not in undone:
-            return FUNNEL_EVENTS[event["event_type"]]
-    return None
+    funnel = [event for event in _standing(events) if event["event_type"] in FUNNEL_EVENTS]
+    return FUNNEL_EVENTS[funnel[-1]["event_type"]] if funnel else None
+
+
+def first_applied_at(events: list[dict]) -> str | None:
+    applied = [event for event in _standing(events) if event["event_type"] == "applied"]
+    return applied[0]["occurred_at"] if applied else None
+
+
+# A response ends censoring; it is any of these after the first application (docs/M2_PLAN.md §1.1).
+RESPONSE_TYPES = ("recruiter_reply", "online_test", "interview", "offer", "rejected")
+
+
+def response_state(events: list[dict], *, now: datetime, window_days: int) -> str | None:
+    """RESPONDED, NO_RESPONSE or PENDING_CENSORED for an application; None if it was never applied.
+
+    PENDING_CENSORED is unknown, never negative. Derived at read time, never stored.
+    """
+    standing = _standing(events)
+    applied = [event for event in standing if event["event_type"] == "applied"]
+    if not applied:
+        return None
+    after = [event for event in standing if event["id"] > applied[0]["id"]]
+    if any(event["event_type"] in RESPONSE_TYPES for event in after):
+        return "RESPONDED"
+    if any(event["event_type"] == "no_response_confirmed" for event in after):
+        return "NO_RESPONSE"
+    try:
+        applied_at = datetime.fromisoformat(applied[0]["occurred_at"])
+    except (TypeError, ValueError):
+        return "PENDING_CENSORED"   # an unreadable legacy time stays unknown, never negative
+    if applied_at.tzinfo is None:
+        applied_at = applied_at.replace(tzinfo=timezone.utc)
+    return "NO_RESPONSE" if now - applied_at >= timedelta(days=window_days) else "PENDING_CENSORED"

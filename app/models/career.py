@@ -98,7 +98,8 @@ class MatchResult(BaseModel):
     components: dict[str, int] = Field(default_factory=dict)
 
 
-ApplicationStatus = Literal["DISCOVERED", "SAVED", "APPLIED", "OUTREACH_PREPARED", "OUTREACH_SENT", "INTERVIEW", "REJECTED", "OFFER", "SKIPPED"]
+# Statuses are a cache of the job event log (docs/M2_PLAN.md §1.2); must match career_events.STATUSES.
+ApplicationStatus = Literal["SAVED", "APPLIED", "ONLINE_TEST", "INTERVIEW", "OFFER", "REJECTED", "WITHDRAWN", "SKIPPED"]
 
 
 class ContactCandidate(BaseModel):

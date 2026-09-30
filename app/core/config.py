@@ -90,6 +90,9 @@ class Settings(BaseSettings):
 
     data_dir: str = str(BASE_DIR / "data")
     upload_dir: str = str(BASE_DIR / "data" / "uploads")
+    # Days after applying with no response before an application counts as NO_RESPONSE rather than
+    # PENDING_CENSORED (unknown, never negative). docs/M2_PLAN.md §1.1.
+    response_window_days: int = Field(default=21, ge=1, le=365)
     # Pre-M1B location of the seen-job history; copied once into data_dir. Empty disables.
     legacy_history_path: str = str(BASE_DIR / "app" / "storage" / "job_history.sqlite3")
 

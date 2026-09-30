@@ -15,7 +15,9 @@ let pendingResumeTurn = null;
 let applicationsByJob = new Map();
 const jobsById = new Map();
 const conversation = [];
-const applicationStatuses = ['DISCOVERED', 'SAVED', 'APPLIED', 'OUTREACH_PREPARED', 'OUTREACH_SENT', 'INTERVIEW', 'REJECTED', 'OFFER', 'SKIPPED'];
+const applicationStatuses = ['SAVED', 'APPLIED', 'ONLINE_TEST', 'INTERVIEW', 'OFFER', 'REJECTED', 'WITHDRAWN', 'SKIPPED'];
+// Derived from the event log by the server; a pending reply is unknown, never a rejection.
+const RESPONSE_LABELS = { PENDING_CENSORED: 'Waiting for a reply', NO_RESPONSE: 'No response yet', RESPONDED: 'Responded' };
 const dialogReturnFocus = new WeakMap();
 let jobDrawerReturnFocus = null;
 let jobDrawerReturnJobId = null;
@@ -809,7 +811,7 @@ async function loadTracker() {
     $('trackerList').innerHTML = trackerEntries.length ? trackerEntries.map((entry, index) => {
       const job = entry.job || entry;
       const url = safeExternalUrl(job.application_url);
-      return `<article class="tracker-card"><div class="panel-head"><div><h3>${escapeHtml(job.title || entry.job_title || 'Saved opportunity')}</h3><p>${escapeHtml(job.company || entry.company || '')}</p></div>${url ? `<a class="secondary" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open job</a>` : ''}</div><label for="trackerState${index}">Application status</label><select id="trackerState${index}">${applicationStatuses.map(status => `<option value="${status}" ${entry.status === status ? 'selected' : ''}>${status.replaceAll('_', ' ')}</option>`).join('')}</select><label for="trackerNotes${index}">Your notes</label><textarea id="trackerNotes${index}" rows="3">${escapeHtml(entry.notes || '')}</textarea><div class="card-actions section-gap"><button class="primary" onclick="updateApplication(${index})">Save changes</button><button class="secondary" onclick="composeTrackedEmail(${index})">Prepare outreach</button></div><p class="muted">Last updated: ${escapeHtml(formatDate(entry.updated_at || entry.created_at) || 'Unknown')}</p></article>`;
+      return `<article class="tracker-card"><div class="panel-head"><div><h3>${escapeHtml(job.title || entry.job_title || 'Saved opportunity')}</h3><p>${escapeHtml(job.company || entry.company || '')}</p></div>${url ? `<a class="secondary" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open job</a>` : ''}</div>${RESPONSE_LABELS[entry.response_state] ? `<p><span class="tag">${escapeHtml(RESPONSE_LABELS[entry.response_state])}</span></p>` : ''}<label for="trackerState${index}">Application status</label><select id="trackerState${index}">${applicationStatuses.map(status => `<option value="${status}" ${entry.status === status ? 'selected' : ''}>${status.replaceAll('_', ' ')}</option>`).join('')}</select><label for="trackerNotes${index}">Your notes</label><textarea id="trackerNotes${index}" rows="3">${escapeHtml(entry.notes || '')}</textarea><div class="card-actions section-gap"><button class="primary" onclick="updateApplication(${index})">Save changes</button><button class="secondary" onclick="composeTrackedEmail(${index})">Prepare outreach</button></div><p class="muted">Last updated: ${escapeHtml(formatDate(entry.updated_at || entry.created_at) || 'Unknown')}</p></article>`;
     }).join('') : '<p class="muted">No saved applications yet. Save an opportunity from Recommendations to start tracking it.</p>';
     if (window.lastJobs) renderJobs(window.lastJobs);
     renderConversation();

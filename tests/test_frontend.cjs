@@ -22,6 +22,10 @@ assert.match(html, /data-suggestion="Find jobs suitable for my CV"/);
 assert.doesNotMatch(html, /Gemini/i);
 assert.match(css, /\.icon-btn\.mobile-menu\s*\{\s*display:\s*none/);
 assert.match(html, /class="inline-results-head sr-only"/);
+// M2 status set: the tracker offers exactly these; outreach is events, not statuses.
+assert.match(script, /const applicationStatuses = \['SAVED', 'APPLIED', 'ONLINE_TEST', 'INTERVIEW', 'OFFER', 'REJECTED', 'WITHDRAWN', 'SKIPPED'\];/);
+assert.doesNotMatch(script, /'DISCOVERED'|'OUTREACH_PREPARED'|'OUTREACH_SENT'/);
+assert.match(script, /PENDING_CENSORED: 'Waiting for a reply'/);
 
 // Let pending promise chains (e.g. the search-cost preview) finish.
 const settle = () => new Promise(resolve => setImmediate(resolve));

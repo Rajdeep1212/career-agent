@@ -125,6 +125,11 @@ def job_events(job_id: str) -> list[dict]:
         return career_events.events_for_job(conn, job_id)
 
 
+def _response_window() -> int:
+    # Some tests import this module under a minimal settings stand-in without the field.
+    return getattr(settings, 'response_window_days', 21)
+
+
 def _application(conn, row) -> dict | None:
     if row is None:
         return None
@@ -132,6 +137,9 @@ def _application(conn, row) -> dict | None:
     job = conn.execute('SELECT job_json FROM career_jobs WHERE id=?', (row['job_id'],)).fetchone()
     result['job'] = json.loads(job['job_json']) if job else None
     result['outreach'] = [dict(item) for item in conn.execute('SELECT * FROM career_outreach WHERE application_id=? ORDER BY created_at', (row['id'],)).fetchall()]
+    # Derived at read time from the log, never stored (docs/M2_PLAN.md §1.1).
+    result['response_state'] = career_events.response_state(
+        career_events.events_for_job(conn, row['job_id']), now=datetime.now(timezone.utc), window_days=_response_window())
     return result
 
 
@@ -140,17 +148,46 @@ def _status(value):
         raise ValueError('Unsupported application status')
 
 
-def save_application(job_id: str, status='SAVED', notes='') -> dict:
+# The funnel event that sets each status.
+_STATUS_EVENTS = {status: event for event, status in career_events.FUNNEL_EVENTS.items()}
+Snapshot = tuple[dict, dict]   # (profile, L0 features) captured with a status event
+
+
+def _refresh_cache(conn, application_id: str, job_id: str) -> None:
+    """status and applied_at are a cache of the log (docs/M2_PLAN.md §1.2)."""
+    events = career_events.events_for_job(conn, job_id)
+    status = career_events.status_from_events(events)
+    if status is not None:
+        conn.execute('UPDATE career_applications SET status=?, applied_at=?, updated_at=? WHERE id=?',
+                     (status, career_events.first_applied_at(events), _now(), application_id))
+
+
+def _record_status(conn, row, status: str, snapshot: Snapshot | None) -> dict:
+    snapshot_id = (career_events.capture_snapshot(conn, row['job_id'], profile=snapshot[0], features=snapshot[1])
+                   if snapshot else None)
+    event = career_events.append_event(conn, row['job_id'], _STATUS_EVENTS[status], application_id=row['id'],
+                                       snapshot_id=snapshot_id)
+    _refresh_cache(conn, row['id'], row['job_id'])
+    return event
+
+
+def save_application(job_id: str, status='SAVED', notes='', *, snapshot: Snapshot | None = None) -> dict:
+    """Track a job; a new application records its first status event, an existing one is unchanged."""
     _status(status)
     stamp = _now()
     with _connection() as conn:
         if conn.execute('SELECT id FROM career_jobs WHERE id=?', (job_id,)).fetchone() is None:
             raise ValueError('Job not found')
-        conn.execute('''INSERT OR IGNORE INTO career_applications
-                        (id, job_id, status, notes, created_at, updated_at, applied_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)''',
-                     (str(uuid4()), job_id, status, notes, stamp, stamp, stamp if status == 'APPLIED' else None))
-        application = _application(conn, conn.execute('SELECT * FROM career_applications WHERE job_id=?', (job_id,)).fetchone())
+        created = conn.execute('''INSERT OR IGNORE INTO career_applications
+                                  (id, job_id, status, notes, created_at, updated_at, applied_at)
+                                  VALUES (?, ?, ?, ?, ?, ?, NULL)''',
+                               (str(uuid4()), job_id, status, notes, stamp, stamp)).rowcount
+        row = conn.execute('SELECT * FROM career_applications WHERE job_id=?', (job_id,)).fetchone()
+        if row is None:
+            raise RuntimeError('Application could not be stored')
+        if created:
+            _record_status(conn, row, status, snapshot)
+        application = _application(conn, conn.execute('SELECT * FROM career_applications WHERE id=?', (row['id'],)).fetchone())
         if application is None:
             raise RuntimeError('Application could not be stored')
         return application
@@ -166,17 +203,19 @@ def get_application(identity: str) -> dict | None:
         return _application(conn, conn.execute('SELECT * FROM career_applications WHERE id=?', (identity,)).fetchone())
 
 
-def update_application(identity: str, status: str | None = None, notes: str | None = None) -> dict | None:
+def update_application(identity: str, status: str | None = None, notes: str | None = None, *,
+                       snapshot: Snapshot | None = None) -> dict | None:
+    """Change notes, and record a status change as an event; the same status again records nothing."""
     if status is not None:
         _status(status)
     with _connection() as conn:
         row = conn.execute('SELECT * FROM career_applications WHERE id=?', (identity,)).fetchone()
         if row is None:
             return None
-        stamp = _now()
-        applied_at = row['applied_at'] or (stamp if status == 'APPLIED' else None)
-        conn.execute('UPDATE career_applications SET status=?, notes=?, updated_at=?, applied_at=? WHERE id=?',
-                     (status if status is not None else row['status'], notes if notes is not None else row['notes'], stamp, applied_at, identity))
+        conn.execute('UPDATE career_applications SET notes=?, updated_at=? WHERE id=?',
+                     (notes if notes is not None else row['notes'], _now(), identity))
+        if status is not None and status != row['status']:
+            _record_status(conn, row, status, snapshot)
         return _application(conn, conn.execute('SELECT * FROM career_applications WHERE id=?', (identity,)).fetchone())
 
 
