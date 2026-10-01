@@ -32,7 +32,7 @@ from app.sources.fetcher import Fetched, HostBlocked, PoliteFetcher, RobotsDisal
 from app.sources.registry import CompanyEntry, Evidence, SourceSpec
 
 CACHE_DIR = Path(settings.data_dir) / "ats_detect_cache"
-STATUSES = ["confirmed", "detected", "not_detected", "not_read", "no_careers_url"]
+STATUSES = ["confirmed", "detected", "board_missing", "not_detected", "not_read", "no_careers_url"]
 _ADAPTERS = {"greenhouse": greenhouse, "lever": lever, "ashby": ashby, "smartrecruiters": smartrecruiters}
 _START = r"(?<![A-Za-z0-9.-])"
 _HOST = r"(?P<key>[a-z0-9-]+\.{domain})"
@@ -57,7 +57,8 @@ _PATTERNS = [(name, re.compile(_START + pattern, re.IGNORECASE)) for name, patte
     ("taleo", _HOST.format(domain=r"taleo\.net")),
     ("successfactors", _HOST.format(domain=r"successfactors\.(?:com|eu)")),
 ]]
-_GENERIC_HOSTS = {"www", "app", "api", "help", "support", "docs", "static", "cdn", "assets"}
+_VENDOR_HOSTS = {"www", "app", "api", "help", "support", "docs"}     # the vendor's own site: not evidence
+_SHARED_HOSTS = {"rmkcdn", "files", "static", "cdn", "assets"}       # shared asset hosts: the ATS, but no tenant
 
 
 class NeverFetched(RuntimeError):
@@ -67,7 +68,7 @@ class NeverFetched(RuntimeError):
 @dataclass(frozen=True)
 class Hit:
     ats: str
-    key: str            # board, site or tenant host
+    key: str            # board, site or tenant host; "" when only a shared vendor host was seen
     region: str         # "eu" for an EU board, else ""
     quote: str          # the text that matched
 
@@ -92,10 +93,12 @@ class Detection:
 def _hits(text: str) -> Iterable[Hit]:
     for name, pattern in _PATTERNS:
         for match in pattern.finditer(text):
-            key = match.group("key")
-            if key.split(".")[0].lower() in _GENERIC_HOSTS and "." in key:
-                continue        # www.keka.com is the vendor's own site, not a tenant
-            yield Hit(name, key.rstrip("."), (match.groupdict().get("region") or "").lower(), match.group(0)[:160])
+            key = match.group("key").rstrip(".")
+            label = key.split(".")[0].lower() if "." in key else ""
+            if label in _VENDOR_HOSTS:
+                continue
+            yield Hit(name, "" if label in _SHARED_HOSTS else key, (match.groupdict().get("region") or "").lower(),
+                      match.group(0)[:160])
 
 
 def match_url(url: str) -> Hit | None:
@@ -103,8 +106,9 @@ def match_url(url: str) -> Hit | None:
 
 
 def match_page(html: str) -> Hit | None:
-    """The board the page embeds or links most often."""
+    """The board the page embeds or links most often; a shared vendor host counts only when no board is named."""
     hits = list(_hits(html.replace("\\/", "/")))
+    hits = [hit for hit in hits if hit.key] or hits
     if not hits:
         return None
     (ats, key), _ = Counter((hit.ats, hit.key) for hit in hits).most_common(1)[0]
@@ -172,20 +176,22 @@ def _probe_entry(row: SeedRow, hit: Hit, checked: datetime) -> CompanyEntry:
                         evidence=Evidence(method="api_probe", checked_at=checked.date()))
 
 
-async def _confirm(row: SeedRow, hit: Hit, fetcher: DetectFetcher) -> tuple[int | None, int | None, str]:
-    """(fetched, india, note) from the board's public API; counts are None when it gave no job list."""
+async def _confirm(row: SeedRow, hit: Hit, fetcher: DetectFetcher) -> tuple[str, int | None, int | None, str]:
+    """(status, fetched, india, note) from the board's public API; counts are None when it gave no job list."""
     adapter = _ADAPTERS.get(hit.ats)
     if adapter is None:
-        return None, None, "no public API is used for this ATS"
+        return "detected", None, None, "no public API is used for this ATS"
     if hit.ats == "greenhouse" and hit.region:
-        return None, None, "EU board; its API is not probed"
+        return "detected", None, None, "EU board; its API is not probed"
     try:
         result = await adapter.fetch(_probe_entry(row, hit, fetcher._now()), fetcher)
-    except (SourceError, HostBlocked) as exc:
-        return None, None, str(exc)
+    except SourceError as exc:
+        return ("board_missing" if exc.http_status == 404 else "detected"), None, None, str(exc)
+    except HostBlocked as exc:
+        return "detected", None, None, str(exc)
     except Exception as exc:
-        return None, None, f"board API could not be read ({type(exc).__name__})"
-    return result.fetched, result.india, ""
+        return "detected", None, None, f"board API could not be read ({type(exc).__name__})"
+    return "confirmed", result.fetched, result.india, ""
 
 
 async def detect_company(row: SeedRow, fetcher: DetectFetcher) -> Detection:
@@ -214,9 +220,8 @@ async def detect_company(row: SeedRow, fetcher: DetectFetcher) -> Detection:
             evidence = f"careers page contains '{hit.quote}'" if hit else ""
         if not hit:
             return result("not_detected")
-    fetched, india, note = await _confirm(row, hit, fetcher)
-    return result("confirmed" if fetched is not None else "detected", ats=hit.ats, key=hit.key, method=method,
-                  evidence=evidence, fetched=fetched, india=india, note=note)
+    status, fetched, india, note = await _confirm(row, hit, fetcher)
+    return result(status, ats=hit.ats, key=hit.key, method=method, evidence=evidence, fetched=fetched, india=india, note=note)
 
 
 async def detect_all(rows: list[SeedRow], fetcher: DetectFetcher,
@@ -248,8 +253,9 @@ def render_report(seed: SeedFile, results: list[Detection], *, run_at: datetime,
              f"Generated by `python scripts/detect_ats.py` on {run_at.astimezone(timezone.utc):%Y-%m-%d %H:%M} UTC from "
              f"`{seed_name}` (sha256 `{seed.sha256[:16]}`). Do not edit by hand; re-run the script.", "",
              "Claim level L0: each row is a deterministic pattern match with the text that matched. `confirmed` means the "
-             "board's public API returned a job list during this run; `detected` means a board address was found but no API "
-             "confirmed it. Neither says the company is hiring freshers. Job counts are `len()` of the list the API returned "
+             "board's public API returned a job list during this run; `detected` means an ATS address was found and no API "
+             "was available to confirm it; `board_missing` means the address names a board that its API answered 404 for, so "
+             "the address is probably out of date. None of these says the company is hiring freshers. Job counts are `len()` of the list the API returned "
              "(for SmartRecruiters, of its India postings).", "",
              "## Seed list", "",
              f"- Rows: {len(seed.rows)}. Validation problems: {len(seed.problems)}.",
@@ -272,11 +278,15 @@ def render_report(seed: SeedFile, results: list[Detection], *, run_at: datetime,
                     [[f.company, f.ats, f.key, f.method, f.fetched, f.india] for f in by_status["confirmed"]])
     lines += ["## Detected, not confirmed", ""]
     lines += _table(["Company", "ATS", "Board or host", "Method", "Evidence", "Note"],
-                    [[f.company, f.ats, f.key, f.method, f.evidence, f.note] for f in by_status["detected"]])
+                    [[f.company, f.ats, f.key or "(not identified)", f.method, f.evidence, f.note] for f in by_status["detected"]])
+    lines += ["## Board address not found", ""]
+    lines += _table(["Company", "ATS", "Board", "Evidence", "Note"],
+                    [[f.company, f.ats, f.key, f.evidence, f.note] for f in by_status["board_missing"]])
     declared = [found for found in results if found.declared_ats != "unknown"]
     lines += ["## What the list says against what was found", ""]
-    lines += _table(["Company", "List says", "Detected", "Agree"],
-                    [[f.company, f.declared_ats, f.ats or f.status, "yes" if f.ats == f.declared_ats else "no"] for f in declared])
+    lines += _table(["Company", "List says", "Found", "Same ATS"],
+                    [[f.company, f.declared_ats, f"{f.ats or 'none'} ({f.status})", "yes" if f.ats == f.declared_ats else "no"]
+                     for f in declared])
     lines += ["## Page read, no ATS found", "",
               "The page was fetched and held no known board address. Pages that build their job list in the browser look "
               "like this too.", ""]

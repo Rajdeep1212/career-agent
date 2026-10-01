@@ -92,6 +92,16 @@ class MatchTests(unittest.TestCase):
         self.assertEqual((links.ats, links.key), ("lever", "examplelabs"))
         self.assertIsNone(match_page(fixture_text("careers_plain.html")))
 
+    def test_a_shared_vendor_host_names_the_ats_but_no_tenant(self):
+        # Found in the live run: pages load assets from rmkcdn.successfactors.com and files.freshteam.com.
+        shared = match_page('<link href="https://rmkcdn.successfactors.com/abc/site.css">')
+        self.assertEqual((shared.ats, shared.key), ("successfactors", ""))
+        self.assertEqual(match_page('<img src="https://files.freshteam.com/logo.png">').key, "")
+        both = match_page('<link href="https://rmkcdn.successfactors.com/a.css"><link href="https://rmkcdn.successfactors.com/b.css">'
+                          '<a href="https://career5.successfactors.eu/career?company=example">Jobs</a>')
+        self.assertEqual((both.ats, both.key), ("successfactors", "career5.successfactors.eu"))
+        self.assertIsNone(match_url("https://www.keka.com/"))
+
 
 class DetectTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
@@ -130,12 +140,19 @@ class DetectTests(unittest.IsolatedAsyncioTestCase):
                          ("detected", "workday", "example.wd3.myworkdayjobs.com", "redirect"))
         self.assertIsNone(found.fetched)
 
-    async def test_a_board_whose_api_does_not_answer_is_detected_not_confirmed(self):
+    async def test_a_board_address_the_api_does_not_know_is_reported_as_missing(self):
+        # Found in the live run: two list entries name a Greenhouse board that the API answers 404 for.
         web = FakeWeb({})
         found = await detect_company(row(careers_url="https://jobs.ashbyhq.com/example"), self.fetcher(web))
-        self.assertEqual((found.status, found.ats, found.fetched), ("detected", "ashby", None))
+        self.assertEqual((found.status, found.ats, found.key, found.fetched), ("board_missing", "ashby", "example", None))
         self.assertIn("HTTP 404", found.note)
         self.assertEqual(web.calls, [ASHBY_API])
+
+    async def test_a_board_whose_api_fails_is_detected_not_confirmed(self):
+        web = FakeWeb({ASHBY_API: (503, "maintenance")})
+        found = await detect_company(row(careers_url="https://jobs.ashbyhq.com/example"), self.fetcher(web))
+        self.assertEqual((found.status, found.ats, found.fetched), ("detected", "ashby", None))
+        self.assertIn("HTTP 503", found.note)
 
     async def test_a_page_without_a_board_is_not_detected(self):
         page = "https://www.example.com/careers"
@@ -220,10 +237,11 @@ class ReportTests(unittest.IsolatedAsyncioTestCase):
                                requests=fetcher.requests, cache_hits=fetcher.cache_hits, seed_name="seeds/companies_seed.csv")
         self.assertIn("| confirmed | 1 |", report)
         self.assertIn("| not_detected | 1 |", report)
+        self.assertIn("| board_missing | 0 |", report)
         self.assertIn("| no_careers_url | 2 |", report)
         self.assertIn("| Total | 4 |", report)
         self.assertIn("| Example Corp | greenhouse | examplecorp | url_pattern | 4 | 2 |", report)
-        self.assertIn("| Example Corp | lever | greenhouse |", report)       # the list said lever; the URL says greenhouse
+        self.assertIn("| Example Corp | lever | greenhouse (confirmed) | no |", report)       # the list said lever; the URL says greenhouse
         self.assertIn("Plain Services", report)
         self.assertIn(f"Requests sent: {fetcher.requests}", report)
         self.assertIn("abababababababab", report)
