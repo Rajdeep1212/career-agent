@@ -235,17 +235,20 @@ An application is **shortlisted** iff it has at least one funnel event with `eve
 - A batch file is never edited after it is issued. Several batches may be open at once
   ("parallel"), labelled in any order.
 
-**Proposed search list** (decision Q4). **The owner confirms it before any label is collected.** Up to
-100 results each gives about 500 query–job pairs. Result counts per search are measured on the
-frozen copy and reported with the confirmation request; none is known yet.
+**Search list** (decision Q4, confirmed by the owner on 2026-10-01). Up to 100 results each from the
+frozen index gives about 500 query–job pairs. Result counts per search are measured when the copy is
+frozen (commit 7); none is known yet.
 
-| # | Search text | Kind |
+| # | Search | Kind |
 |---|---|---|
-| S1 | `GenAI LLM Engineer jobs for freshers in India` | target |
-| S2 | `AI Engineer jobs for freshers in India` | target |
-| S3 | `NLP Engineer jobs for freshers in India` | target |
-| S4 | `Sales Executive jobs in India` | control: unrelated role |
-| S5 | `fresher jobs in India` | control: broad fresher search |
+| S1 | GenAI/LLM Engineer, fresher, India | target |
+| S2 | AI Engineer, fresher, India | target |
+| S3 | NLP Engineer, fresher, India | target |
+| S4 | Sales Executive, India | control: unrelated role |
+| S5 | Software Engineer, fresher, India | control: broad search |
+
+The exact text typed into the search for each row is fixed in the batch builder (commit 8) and
+recorded in every batch file, so a batch can be rebuilt from the same frozen copy.
 
 **Labels (graded 0–3, decision Q6):**
 - They live in `data/eval/labels.sqlite3`, outside the app databases (roadmap: "Labels are stored
@@ -253,11 +256,25 @@ frozen copy and reported with the confirmation request; none is known yet.
 - The table is `batch_labels(id, snapshot_stamp, batch_id, query_id, job_key, label 0–3,
   scale='graded_0_3', rubric_version, labeller, set='gold'|'batch', labelled_at, relabel_of NULL)`.
   It is append-only through the same kind of triggers.
-- The rubric (0 would not apply … 3 definitely apply) is written in `docs/LABEL_RUBRIC.md` with a
-  version before the first label; changing it creates a new version.
+- **Rubric `r1`** (decided 2026-10-01): one question, "would I apply?", answered 0–3.
+
+  | Label | Meaning |
+  |---|---|
+  | 0 | A different field, or ineligible for a fresher. |
+  | 1 | The same area, but the wrong role or skills; I wouldn't open it. |
+  | 2 | The right family and plausible for a fresher; worth a look. |
+  | 3 | The right role, fresher-friendly, matches my core skills; I would apply today. |
+
+  `rubric_version='r1'` is stored on every label. Changing the wording creates `r2`; labels under
+  different rubric versions are never pooled.
+- **Batch labelling** (decided 2026-10-01): parallel subagents label the batches against rubric `r1`
+  and a **fixed profile summary** kept in `data/eval/`. The summary has no phone number or email
+  address. The same summary file, identified by its hash, is used for every batch and recorded with
+  each label, along with `labeller='subagent:<model>'`. Before it is used, see the open question below
+  about what the summary may contain.
 - **Gold subset:** the owner labels about 100 pairs themselves (`set='gold'`), stratified across the
-  five searches. The parallel batch labelling covers the rest (`set='batch'`) and also labels the
-  gold pairs, blind to the gold labels.
+  five searches, **blind**: without seeing any subagent label. The subagents also label the gold
+  pairs, blind to the gold labels (`set='batch'`).
 - **Trust gate:** agreement on the gold subset is reported (exact agreement, and weighted Cohen's κ
   with quadratic weights, each with a bootstrap 90% interval) before any batch label is used by the
   harness. The harness refuses batch labels until an agreement report exists for their rubric version.
@@ -343,9 +360,9 @@ banner, `.ics` export, and CSV import/export with anonymize.
 | Q1 | Key the event log by job (`job_events`). |
 | Q2 | Fold `DISCOVERED` into `SAVED`. Drop `OUTREACH_*` as statuses; outreach is events. |
 | Q3 | Add a `recruiter_reply` event. It counts as a response (ends censoring) but not as shortlisted. |
-| Q4 | Batches come from the frozen index: 3 target searches (GenAI/LLM Engineer, AI Engineer, NLP Engineer) and 2 controls (an unrelated role, a broad fresher search), up to 100 results each (about 500 pairs). The exact list in §5 is confirmed by the owner before labelling. |
+| Q4 | Batches come from the frozen index: 3 target searches (GenAI/LLM Engineer, AI Engineer, NLP Engineer) and 2 controls (Sales Executive, and a broad "Software Engineer fresher India" search), up to 100 results each (about 500 pairs). The list in §5 was confirmed by the owner on 2026-10-01. |
 | Q5 | No scoring refactor and no `app/core/scoring/v1.json` in M2. `ranker_version` is a code constant, `"v1"` plus the short git SHA when available, and null-safe. |
-| Q6 | Two scales, never mixed: live thumbs (`thumbs`, `thumbs-v1`) and graded 0–3 batch labels (`graded_0_3`, rubric versioned). Scale and rubric version are stored on every label. The owner's gold subset is about 100 pairs; agreement is reported before any batch label is trusted. |
+| Q6 | Two scales, never mixed: live thumbs (`thumbs`, `thumbs-v1`) and graded 0–3 batch labels (`graded_0_3`, rubric versioned). Scale and rubric version are stored on every label. The owner's gold subset is about 100 pairs, labelled blind; agreement is reported before any batch label is trusted. Decided 2026-10-01: the graded rubric is `r1` ("would I apply?", §5), and parallel subagents label the batches against `r1` and a fixed profile summary with no phone number or email address. |
 | Q7 | A removed job with tracker history gets a `removed_from_results` note event, and all history is kept. Without history, nothing is recorded. |
 | Q8 | Backdating up to 365 days; future dates are rejected. |
 | Q9 | A local page in the existing web UI (keys 0–3), plus a CLI export. Labelling files stay in `data/eval/`, outside the app databases. |
@@ -353,10 +370,19 @@ banner, `.ics` export, and CSV import/export with anonymize.
 
 ### Open questions
 
-- **Who does the "parallel batch labelling"** of the roughly 400 non-gold pairs: other people, or a
-  local model through Ollama (decision A mentions LLM-teacher distillation)? If it is a model, its
-  labels are `labeller='model:<name>'` and never count as ground truth until the agreement gate passes.
-- **The rubric text** (what 0, 1, 2 and 3 mean) is written for approval before commit 8.
+- **What may the fixed profile summary contain?** `CLAUDE.md` has the hard constraint "Hosted models
+  never see real CV content", and labelling subagents are hosted models. A summary written from the
+  real CV is CV content, even without a phone number or email address. To settle before commit 8,
+  one of:
+  1. the owner writes a short summary of target roles and skills by hand and confirms it may be
+     shown to hosted models, and the constraint in `CLAUDE.md` is amended to say so;
+  2. batch labelling runs on a local model through Ollama instead (`labeller='model:<name>'`);
+  3. the summary is generic (target roles and "fresher, India" only), with no skills or projects
+     taken from the CV.
+
+  Until this is decided, no profile summary is written and no batch is labelled.
+- Subagent labels never count as ground truth. They are usable only after the agreement gate passes
+  for rubric `r1`, and the gold labels remain the reference.
 
 ### Risks
 
