@@ -29,7 +29,7 @@ from app.services.safe_http import safe_get
 from app.sources.adapters import SourceError, ashby, greenhouse, lever, smartrecruiters
 from app.sources.company_seed import SeedFile, SeedRow, fetch_allowed
 from app.sources.fetcher import Fetched, HostBlocked, PoliteFetcher, RobotsDisallowed
-from app.sources.registry import CompanyEntry, Evidence, SourceSpec
+from app.sources.registry import DEFAULT_INDIA_FILTER, CompanyEntry, Evidence, SourceSpec
 
 CACHE_DIR = Path(settings.data_dir) / "ats_detect_cache"
 STATUSES = ["confirmed", "detected", "board_missing", "not_detected", "not_read", "no_careers_url"]
@@ -194,6 +194,30 @@ async def _confirm(row: SeedRow, hit: Hit, fetcher: DetectFetcher) -> tuple[str,
     return "confirmed", result.fetched, result.india, ""
 
 
+_BOARD_PAGE = "https://job-boards{region}.greenhouse.io/{board}"
+_BOARD_JOB = re.compile(r'<a href="https://job-boards(?:\.eu)?\.greenhouse\.io/[^"/]+/jobs/(\d+)"[^>]*>\s*<p[^>]*>.*?</p>\s*<p[^>]*>(.*?)</p>',
+                        re.DOTALL)
+
+
+async def _html_board(hit: Hit, fetcher: DetectFetcher) -> tuple[str, int, int] | None:
+    """html_board mode: (page, job links, of which in India) from the public Greenhouse board page.
+
+    Used only when the board's API answered 404. The page is read like any crawled page (robots.txt,
+    per-host delay, cache); None when it cannot be read or lists no job."""
+    url = _BOARD_PAGE.format(region=".eu" if hit.region else "", board=hit.key)
+    try:
+        page = await fetcher.get(url)
+    except Exception:
+        return None
+    if page.status_code != 200:
+        return None
+    locations = {job_id: location for job_id, location in _BOARD_JOB.findall(page.text)}
+    if not locations:
+        return None
+    india = re.compile(DEFAULT_INDIA_FILTER, re.IGNORECASE)
+    return url, len(locations), len([place for place in locations.values() if india.search(place)])
+
+
 async def detect_company(row: SeedRow, fetcher: DetectFetcher) -> Detection:
     def result(status: str, **fields) -> Detection:
         return Detection(line=row.line, company=row.company, list_type=row.list_type, careers_url=row.careers_url,
@@ -221,6 +245,12 @@ async def detect_company(row: SeedRow, fetcher: DetectFetcher) -> Detection:
         if not hit:
             return result("not_detected")
     status, fetched, india, note = await _confirm(row, hit, fetcher)
+    if status == "board_missing" and hit.ats == "greenhouse":
+        listed = await _html_board(hit, fetcher)
+        if listed:
+            url, fetched, india = listed
+            status, method = "confirmed", "html_board"
+            evidence, note = f"board page {url} lists {fetched} job links", f"{note} The count is of job links on the board page."
     return result(status, ats=hit.ats, key=hit.key, method=method, evidence=evidence, fetched=fetched, india=india, note=note)
 
 

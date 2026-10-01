@@ -148,6 +148,32 @@ class DetectTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("HTTP 404", found.note)
         self.assertEqual(web.calls, [ASHBY_API])
 
+    async def test_html_board_reads_the_board_page_when_the_api_answers_404(self):
+        board = "https://job-boards.greenhouse.io/examplecorp"
+        web = FakeWeb({board: (200, fixture_text("greenhouse_board_page.html"))})
+        found = await detect_company(row(careers_url=board, ats="greenhouse"), self.fetcher(web))
+        self.assertEqual((found.status, found.ats, found.key, found.method), ("confirmed", "greenhouse", "examplecorp", "html_board"))
+        self.assertEqual((found.fetched, found.india), (3, 2))       # distinct job links; the script block repeats one
+        self.assertIn("HTTP 404", found.note)
+        self.assertEqual(web.calls, [GREENHOUSE_API, "https://job-boards.greenhouse.io/robots.txt", board])
+
+    async def test_html_board_leaves_a_missing_page_as_board_missing(self):
+        # The live case: the API and the board page both answer 404.
+        board = "https://job-boards.greenhouse.io/examplecorp"
+        for page in ((404, fixture_text("greenhouse_board_missing.html")), (200, fixture_text("greenhouse_board_missing.html"))):
+            with self.subTest(status=page[0]):
+                self.cache = Path(tempfile.mkdtemp(dir=self.cache))
+                found = await detect_company(row(careers_url=board), self.fetcher(FakeWeb({board: page})))
+                self.assertEqual((found.status, found.method, found.fetched), ("board_missing", "url_pattern", None))
+
+    async def test_html_board_honours_robots(self):
+        board = "https://job-boards.greenhouse.io/examplecorp"
+        web = FakeWeb({"https://job-boards.greenhouse.io/robots.txt": (200, "User-agent: *\nDisallow: /\n"),
+                       board: (200, fixture_text("greenhouse_board_page.html"))})
+        found = await detect_company(row(careers_url=board), self.fetcher(web))
+        self.assertEqual(found.status, "board_missing")
+        self.assertNotIn(board, web.calls)
+
     async def test_a_board_whose_api_fails_is_detected_not_confirmed(self):
         web = FakeWeb({ASHBY_API: (503, "maintenance")})
         found = await detect_company(row(careers_url="https://jobs.ashbyhq.com/example"), self.fetcher(web))
