@@ -211,17 +211,20 @@ An application is **shortlisted** iff it has at least one funnel event with `eve
 
 ## 5. Batch relevance labelling from a frozen copy of the index
 
-**Freeze** with `scripts/freeze_index.py`:
-- It copies `data/radar.sqlite3` with the SQLite backup API, a consistent copy that includes WAL
-  content, to `data/eval/frozen/radar_<UTC stamp>.sqlite3`.
-- It writes a manifest next to the copy, `radar_<stamp>.manifest.json`, holding:
-  - the stamp and the SHA-256 of the copy;
-  - the source path;
-  - the `schema_migrations` versions and the row counts by status (from `len()` of queried rows,
-    never estimates);
-  - the app's git commit, the vocabulary version and the `cv_version` of the profile used.
-- It then marks the copy read-only (`os.chmod(path, stat.S_IREAD)`).
-- It never modifies `data/radar.sqlite3`, and it refuses to run in `DEMO_MODE`.
+**Freeze** with `scripts/freeze_index.py` (built in commit 7):
+- It copies `data/radar.sqlite3` (`radar_store.DB_PATH`) with the SQLite backup API, a consistent
+  copy that includes WAL content, to `data/eval/frozen/<UTC stamp>/radar.sqlite3`.
+- The copy is switched to rollback-journal mode, so it is one self-contained file with no `-wal` or
+  `-shm` beside it.
+- It writes `manifest.json` in the same folder, holding:
+  - the file name, the source path and the UTC stamp;
+  - the SHA-256 of the copy;
+  - the row count of every table, read from the copy, never estimated;
+  - the app's git short SHA (null without git).
+- It marks the copy and the manifest read-only (`os.chmod(path, stat.S_IREAD)`).
+- It refuses to overwrite an existing folder, never modifies `data/radar.sqlite3`, and refuses to
+  run in `DEMO_MODE`.
+- The vocabulary version and the profile used are recorded per batch (commit 8), not in this manifest.
 
 **Read-only in use:**
 - The labelling code opens a frozen copy only by URI
