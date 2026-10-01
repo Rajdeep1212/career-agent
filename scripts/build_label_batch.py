@@ -12,7 +12,8 @@ writes data/eval/batches/<batch id>/:
     meta.json    what the batch was built from, per-search counts, and the file hashes.
 
 Labels are per job. Besides the jobs each search shows, a seeded sample of the jobs its eligibility
-check excluded is added, so the labels can also judge the filter.
+check excluded is added, so the labels can also judge the filter. Freshness is judged on the day the
+copy was frozen (India time); jobs it hides as stale or closed are not in the batch.
 
 The frozen copy is opened read-only and must match its manifest before and after. The search's own
 writes (session, history, cache) go to a scratch folder that is removed. A batch is never overwritten.
@@ -28,7 +29,7 @@ import shutil
 import stat
 import sys
 from contextlib import ExitStack
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -37,8 +38,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app.core.config import settings  # noqa: E402
+from app.models.schemas import JobPosting  # noqa: E402
 from app.providers import radar_provider  # noqa: E402
 from app.services import career_agent  # noqa: E402
+from app.services.freshness import IST  # noqa: E402
 from app.services.skills import VOCABULARY_VERSION  # noqa: E402
 from app.storage import career_events, career_store, db, history, radar_store, search_cache  # noqa: E402
 from app.storage.preference_store import preferences_for  # noqa: E402
@@ -81,51 +84,52 @@ def _manifest(frozen: Path) -> dict:
     return manifest
 
 
-def _run_search(search: Search, seed: int) -> tuple[dict, list[dict]]:
+def snapshot_day(manifest: dict) -> date:
+    """The frozen copy's own "today": the India calendar day it was frozen on."""
+    frozen_at = datetime.strptime(manifest["frozen_at_utc"], "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+    return frozen_at.astimezone(IST).date()
+
+
+def _run_search(search: Search, seed: int, today: date) -> tuple[dict, list[dict]]:
     """One search: its meta entry, and an entry per job it contributes to the batch."""
     search_id, query, role, sample_size = search
-    evaluated = []
-    evaluate = career_agent.evaluate_job
-
-    def recording(profile, job, preferences, intent):
-        result, eligibility, match = evaluate(profile, job, preferences, intent)
-        evaluated.append((job, result, eligibility))
-        return result, eligibility, match
-
-    # The search returns only what it shows; the excluded jobs are recorded as it evaluates them.
-    with patch.object(career_agent, "evaluate_job", recording):
-        response = asyncio.run(career_agent.CareerAgent(providers=[radar_provider.RadarProvider()])
-                               .search(query, include_seen=True))
+    response = asyncio.run(career_agent.CareerAgent(providers=[radar_provider.RadarProvider()])
+                           .search(query, include_seen=True, today=today, return_excluded=True))
     intent, diagnostics = response["intent"], response["diagnostics"]
     if intent["locations"] != ["India"] or intent.get("locations_from_preferences"):
         raise ValueError(f"Search {search_id} must name India in its text and nothing else; got {intent['locations']}.")
     if diagnostics["errors"] or diagnostics["provider_requests"]:
         raise RuntimeError(f"Search {search_id} did not run cleanly offline: {diagnostics['errors']}")
-    by_id = {result["id"]: (job, result) for job, result, _eligibility in evaluated}
-    entries = [dict(job_id=result["id"], search=search_id, stage="post_filter", rank=rank)
-               for rank, result in enumerate(response["results"], start=1)]
-    pool = sorted(result["id"] for job, result, eligibility in evaluated
-                  if eligibility.status == "excluded" and job.verification_state != "CLOSED")
-    sampled = random.Random(f"{seed}:{search_id}").sample(pool, min(sample_size, len(pool)))
-    entries += [dict(job_id=job_id, search=search_id, stage="excluded_sample", rank=None) for job_id in sorted(sampled)]
-    for entry in entries:
-        job, result = by_id[entry["job_id"]]
-        entry.update(listing=job.model_dump(mode="json"), total_score=result["total_score"],
-                     eligibility_status=result["eligibility_status"], eligibility_summary=result["eligibility_summary"])
+    shown, excluded = response["results"], response["excluded"]
+    # Stale and closed jobs are not labelled at all; the sample judges the eligibility check only.
+    pool = {result["id"]: result for result in excluded if result["excluded_by"] == "eligibility"}
+    sampled = sorted(random.Random(f"{seed}:{search_id}").sample(sorted(pool), min(sample_size, len(pool))))
+    entries = [dict(search=search_id, stage="post_filter", rank=rank, result=result) for rank, result in enumerate(shown, start=1)]
+    entries += [dict(search=search_id, stage="excluded_sample", rank=None, result=pool[job_id]) for job_id in sampled]
     # Postings carry mixed UTC offsets; the calendar date is what the cap cut-off needs.
-    posted = [str(job.posted_date)[:10] for job, _result, _eligibility in evaluated if job.posted_date]
+    posted = [str(result["posted_date"])[:10] for result in shown + excluded if result.get("posted_date")]
     cap = radar_provider.MAX_RESULTS
-    statuses = [result["eligibility_status"] for result in response["results"]]
+    statuses = [result["eligibility_status"] for result in shown]
     meta = dict(id=search_id, query=query, role=role, locations=intent["locations"], role_families=intent.get("role_families"),
                 index_matches=diagnostics["provider_results"], match_cap=cap, cap_hit=diagnostics["provider_results"] >= cap,
-                oldest_posted_date=min(posted) if posted else None, without_posted_date=len(evaluated) - len(posted),
-                excluded_by_eligibility=len(pool), results=len(response["results"]),
+                oldest_posted_date=min(posted) if posted else None, without_posted_date=len(shown) + len(excluded) - len(posted),
+                stale_hidden=diagnostics["stale_hidden"], excluded_by_eligibility=len(pool), results=len(shown),
+                check_before_applying=diagnostics["check_before_applying"],
                 eligible=statuses.count("eligible"), uncertain=statuses.count("uncertain"),
                 excluded_sample_requested=sample_size, excluded_sampled=len(sampled))
     return meta, entries
 
 
-def _collect(frozen: Path, scratch: Path, searches: list[Search], seed: int) -> tuple[list[dict], list[dict]]:
+def _record(result: dict, seed: int) -> dict:
+    """The key line of one job: the listing as the index had it, apart from what the heuristics said."""
+    listing = JobPosting.model_validate(result).model_dump(mode="json")
+    return dict(item_id=_sha256(f"{seed}:{result['id']}")[:12], job_id=result["id"], job=listing,
+                job_sha256=_sha256(_canonical(listing)), surfaced_by=[], total_score=result["total_score"],
+                score_claim_level="L0 (deterministic heuristic score)", eligibility_status=result["eligibility_status"],
+                eligibility_summary=result["eligibility_summary"], freshness=result["freshness"])
+
+
+def _collect(frozen: Path, scratch: Path, searches: list[Search], seed: int, today: date) -> tuple[list[dict], list[dict]]:
     """Run every search against the frozen copy; return the per-search meta and one record per distinct job."""
     manifest = json.loads((frozen / "manifest.json").read_text(encoding="utf-8"))
     index = frozen / manifest["file"]
@@ -138,14 +142,10 @@ def _collect(frozen: Path, scratch: Path, searches: list[Search], seed: int) -> 
         stack.callback(db.reset_cache)
         metas, jobs = [], {}
         for search in searches:
-            meta, entries = _run_search(search, seed)
+            meta, entries = _run_search(search, seed, today)
             metas.append(meta)
             for entry in entries:
-                record = jobs.setdefault(entry["job_id"], dict(
-                    item_id=_sha256(f"{seed}:{entry['job_id']}")[:12], job_id=entry["job_id"], job=entry["listing"],
-                    job_sha256=_sha256(_canonical(entry["listing"])), surfaced_by=[], total_score=entry["total_score"],
-                    score_claim_level="L0 (deterministic heuristic score)", eligibility_status=entry["eligibility_status"],
-                    eligibility_summary=entry["eligibility_summary"]))
+                record = jobs.setdefault(entry["result"]["id"], _record(entry["result"], seed))
                 record["surfaced_by"].append({key: entry[key] for key in ("search", "stage", "rank")})
     return metas, sorted(jobs.values(), key=lambda record: record["item_id"])
 
@@ -170,9 +170,11 @@ def build(frozen: Path, root: Path | None = None, *, seed: int, batch_id: str | 
     created_root = not root.exists()
     scratch.mkdir(parents=True)
     try:
-        metas, records = _collect(frozen, scratch, searches, seed)
+        today = snapshot_day(manifest)
+        metas, records = _collect(frozen, scratch, searches, seed, today)
         _manifest(frozen)
         meta = dict(
+            today=today.isoformat(), max_age_days=settings.max_age_days, check_age_days=settings.check_age_days,
             batch_id=batch_id, created_at_utc=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
             frozen=dict(stamp=frozen.name, sha256=manifest["sha256"]), label_unit="job", rubric_version=RUBRIC_VERSION,
             seed=seed, ranker_version=career_events.ranker_version(), vocabulary_version=str(VOCABULARY_VERSION),
@@ -216,6 +218,8 @@ if __name__ == "__main__":
         print(f"Batch: {built}")
     for entry in report["searches"]:
         print(f"{entry['id']} | {entry['query']} | index matches {entry['index_matches']} (cap hit: "
-              f"{'yes' if entry['cap_hit'] else 'no'}, oldest {entry['oldest_posted_date']}) | results {entry['results']} "
+              f"{'yes' if entry['cap_hit'] else 'no'}, oldest {entry['oldest_posted_date']}) | hidden as stale "
+              f"{entry['stale_hidden']} | results {entry['results']} (check before applying {entry['check_before_applying']}) "
               f"| excluded {entry['excluded_by_eligibility']}, sampled {entry['excluded_sampled']}")
+    print(f"today: {report['today']}")
     print(f"counts: {report['counts']}")

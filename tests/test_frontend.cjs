@@ -446,6 +446,16 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   assert.match(threeWay, /tag warn">Eligibility: Uncertain/);
   assert.match(threeWay, /tag bad">Eligibility: Excluded/);
   assert.match(threeWay, /uncertain: quoted &#039;1-2 years preferred&#039;/);
+  // Freshness: jobs not confirmed open and posted 31-60 days ago form one "check before applying" group at the end.
+  const grouped = vm.runInContext(`jobCardsMarkup([
+    { id: '${'1'.repeat(64)}', title: 'Fresh role', company: 'X', freshness: { state: 'unknown', decision: 'show', age_days: 5, summary: 'Posted 5 days ago; not confirmed open in the last 48 hours.' } },
+    { id: '${'2'.repeat(64)}', title: 'Older role', company: 'X', freshness: { state: 'unknown', decision: 'check', age_days: 45, summary: 'Check before applying: posted 45 days ago and not confirmed open.' } },
+    { id: '${'3'.repeat(64)}', title: 'Oldest role', company: 'X', freshness: { state: 'unknown', decision: 'check', age_days: 58, summary: 'Check before applying: posted 58 days ago and not confirmed open.' } }])`, d.context);
+  assert.equal(grouped.match(/class="result-group"/g).length, 1);
+  assert.ok(grouped.indexOf('Fresh role') < grouped.indexOf('result-group') && grouped.indexOf('result-group') < grouped.indexOf('Older role'));
+  assert.match(grouped, /tag warn">Check before applying: posted 45 days ago and not confirmed open\./);
+  assert.doesNotMatch(grouped, /Posted 5 days ago; not confirmed/);
+  assert.doesNotMatch(threeWay, /result-group/);
   assert.equal(vm.runInContext(`describeEvidence({ outcome: 'excluded', reason: 'Requires at least 5 years; your limit is 1.', quote: '5+ years experience required' })`, d.context),
     "excluded: quoted '5+ years experience required' (Requires at least 5 years; your limit is 1.)");
 

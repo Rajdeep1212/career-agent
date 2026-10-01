@@ -72,11 +72,15 @@ class BuildLabelBatchTests(unittest.TestCase):
                 index = len(jobs)
                 jobs.append(posting(entry, job_id=str(index), title=title, location='Pune, India', description=description,
                                     url=f'https://job-boards.greenhouse.io/b/jobs/{index}', posted=posted))
+        # Last listed three days before the snapshot day (2026-10-01), so none is confirmed open and age decides.
         add('AI Engineer', FRESHER, 3, '2026-09-20')
-        add('AI Engineer', SENIOR, 8, '2026-08-01')
+        add('AI Engineer', SENIOR, 8, '2026-09-05')
+        add('AI Engineer', FRESHER, 2, '2026-08-15')    # 47 days: "check before applying"
+        add('AI Engineer', FRESHER, 2, '2026-06-01')    # stale: hidden, never labelled
+        add('AI Engineer', SENIOR, 1, '2026-06-01')     # stale and ineligible: not in the excluded pool
         add('Sales Executive', 'Freshers welcome: 0-1 years of experience. Sell to local shops.', 2, '2026-09-25')
         add('Sales Executive', SENIOR, 1, '2026-09-10')
-        radar_store.record_listing(entry.id, jobs, complete=True, today=date(2026, 10, 1))
+        radar_store.record_listing(entry.id, jobs, complete=True, today=date(2026, 9, 28))
         db.reset_cache()
         self.frozen = _load('freeze_index').freeze(self.live['radar'], self.root / 'eval' / 'frozen', stamp='20261001T000000Z')
         self.batches = self.root / 'eval' / 'batches'
@@ -110,7 +114,9 @@ class BuildLabelBatchTests(unittest.TestCase):
         self.assertEqual(len({job['item_id'] for job in jobs}), len(jobs))
         shown = [job for job in jobs if any(entry['stage'] == 'post_filter' for entry in job['surfaced_by'])]
         sampled = [job for job in jobs if all(entry['stage'] == 'excluded_sample' for entry in job['surfaced_by'])]
-        self.assertEqual((len(shown), len(sampled)), (5, 6), '3 AI + 2 sales shown; 5 of 8 and 1 of 1 excluded sampled')
+        self.assertEqual((len(shown), len(sampled)), (7, 6), '5 AI + 2 sales shown; 5 of 8 and 1 of 1 excluded sampled')
+        self.assertEqual(sorted(job['freshness']['decision'] for job in jobs), ['check'] * 2 + ['show'] * 11,
+                         'no stale job is in the batch')
         for job in shown:
             self.assertIn(job['eligibility_status'], ('eligible', 'uncertain'))
             self.assertTrue(all(isinstance(entry['rank'], int) and entry['rank'] >= 1 for entry in job['surfaced_by']))
@@ -123,7 +129,12 @@ class BuildLabelBatchTests(unittest.TestCase):
                 json.dumps(job['job'], sort_keys=True, separators=(',', ':')).encode()).hexdigest())
             self.assertIn('L0', job['score_claim_level'])
         ranks = sorted(entry['rank'] for job in shown for entry in job['surfaced_by'] if entry['search'] == 'A')
-        self.assertEqual(ranks, [1, 2, 3])
+        self.assertEqual(ranks, [1, 2, 3, 4, 5])
+
+    def test_excluded_jobs_come_from_the_search_itself(self):
+        source = (ROOT / 'scripts' / 'build_label_batch.py').read_text(encoding='utf-8')
+        self.assertIn('return_excluded=True', source)
+        self.assertNotIn('evaluate_job', source, 'no runtime wrapper around the search internals')
 
     def test_the_blind_view_hides_everything_the_ranker_said(self):
         folder = self.build()
@@ -156,17 +167,19 @@ class BuildLabelBatchTests(unittest.TestCase):
         self.assertRegex(meta['cv_version'], r'^[0-9a-f]{64}$')
         self.assertRegex(meta['preferences_sha256'], r'^[0-9a-f]{64}$')
         self.assertTrue(meta['vocabulary_version'])
-        self.assertEqual(meta['counts'], {'distinct_jobs': 11, 'post_filter_jobs': 5, 'excluded_sample_jobs': 6})
+        self.assertEqual(meta['counts'], {'distinct_jobs': 13, 'post_filter_jobs': 7, 'excluded_sample_jobs': 6})
+        self.assertEqual((meta['today'], meta['max_age_days'], meta['check_age_days']), ('2026-10-01', 30, 60),
+                         'freshness is judged on the day the copy was frozen, in India time')
         self.assertEqual(meta['files'], {name: _sha(folder / name) for name in ('blind.jsonl', 'jobs.jsonl')})
         first, control = meta['searches']
         self.assertEqual({key: first[key] for key in ('id', 'query', 'role', 'locations', 'index_matches', 'match_cap', 'cap_hit',
-                                                      'oldest_posted_date', 'excluded_by_eligibility', 'results',
-                                                      'excluded_sample_requested', 'excluded_sampled')},
+                                                      'oldest_posted_date', 'stale_hidden', 'excluded_by_eligibility', 'results',
+                                                      'check_before_applying', 'excluded_sample_requested', 'excluded_sampled')},
                          {'id': 'A', 'query': 'AI Engineer jobs for freshers in India', 'role': 'target', 'locations': ['India'],
-                          'index_matches': 11, 'match_cap': radar_provider.MAX_RESULTS, 'cap_hit': False,
-                          'oldest_posted_date': '2026-08-01', 'excluded_by_eligibility': 8, 'results': 3,
-                          'excluded_sample_requested': 5, 'excluded_sampled': 5})
-        self.assertEqual(first['eligible'] + first['uncertain'], 3)
+                          'index_matches': 16, 'match_cap': radar_provider.MAX_RESULTS, 'cap_hit': False,
+                          'oldest_posted_date': '2026-06-01', 'stale_hidden': 3, 'excluded_by_eligibility': 8, 'results': 5,
+                          'check_before_applying': 2, 'excluded_sample_requested': 5, 'excluded_sampled': 5})
+        self.assertEqual(first['eligible'] + first['uncertain'], 5)
         self.assertEqual((control['id'], control['results'], control['excluded_sampled'], control['excluded_sample_requested']),
                          ('D', 2, 1, 2), 'a pool smaller than the sample is taken whole')
 

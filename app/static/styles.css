@@ -328,6 +328,8 @@ body { overflow-x:hidden; }
 .job-card:hover { border-color:#40516a; }
 .job-card.selected { border-color:var(--primary); background:var(--color-surface-2); }
 .card-state-row { display:flex; flex-wrap:wrap; gap:6px; }
+.result-group { grid-column:1 / -1; margin:14px 0 0; font-size:15px; }
+.result-group .muted { font-weight:400; font-size:13px; margin-left:6px; }
 .tag.bad { color:#ffb2bb; border-color:#75414a; background:#301a20; }
 .search-details { margin-top:var(--space-4); border-top:1px solid var(--line); padding-top:var(--space-3); }
 .search-details section { padding:var(--space-3) 0; border-bottom:1px solid var(--line); }

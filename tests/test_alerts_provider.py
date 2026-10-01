@@ -14,6 +14,7 @@ from app.services.career_agent import CareerAgent
 from app.sources.adapters import posting
 from app.sources.alerts.ingest import ingest_raw
 from app.storage import alert_store, career_store, db, history, preference_store, profile_store, radar_store
+from fresh_helpers import pin_today
 from radar_helpers import company
 from test_search_cache import CountingProvider
 
@@ -36,6 +37,7 @@ class AlertsProviderTests(unittest.IsolatedAsyncioTestCase):
             self.addCleanup(patcher.stop)
         db.reset_cache()
         self.addCleanup(db.reset_cache)
+        pin_today(self, date(2026, 9, 25))   # the day the official job was listed
         # No page may be fetched in these tests (LinkedIn links are never opened).
         patcher = patch.object(application_verifier, "safe_get", AsyncMock(side_effect=AssertionError("page fetched")))
         patcher.start()
@@ -59,15 +61,20 @@ class AlertsProviderTests(unittest.IsolatedAsyncioTestCase):
     async def test_matched_alert_jobs_become_official_and_the_rest_are_labeled_unverified(self):
         self._index_official_ml_job()
         ingest_raw([("dropbox", (FIXTURES / "linkedin_alert.eml").read_bytes())])
-        response = await CareerAgent([RadarProvider(), AlertsProvider()]).search("machine learning engineer", include_seen=True)
+        response = await CareerAgent([RadarProvider(), AlertsProvider()]).search("machine learning engineer", include_seen=True,
+                                                                                return_excluded=True)
         results = {result["title"]: result for result in response["results"]}
         official = results["Machine Learning Engineer"]
         self.assertEqual(official["source"], "Company Radar")
         self.assertEqual(official["verification_state"], "ACTIVE_VERIFIED")
         self.assertEqual([ref["source"] for ref in official["sources"]], ["LinkedIn alert"])
         self.assertEqual(response["diagnostics"]["provider_requests"], 0)
-        alert_only = [result for result in response["results"] if result["source"] == "LinkedIn alert"]
+        # Alert emails carry no posted date and their pages are never opened, so freshness hides them.
+        self.assertEqual([result for result in response["results"] if result["source"] == "LinkedIn alert"], [])
+        alert_only = [result for result in response["excluded"] if result["source"] == "LinkedIn alert"]
         self.assertTrue(alert_only)
+        self.assertEqual({result["excluded_by"] for result in alert_only}, {"freshness"})
+        self.assertEqual(response["diagnostics"]["stale_hidden"], len(alert_only))
         for result in alert_only:
             self.assertEqual(result["verification_state"], "UNVERIFIED")
             self.assertIn("never opened automatically", result["verification_reason"])
@@ -77,8 +84,9 @@ class AlertsProviderTests(unittest.IsolatedAsyncioTestCase):
         ingest_raw([("dropbox", (FIXTURES / "linkedin_alert.eml").read_bytes())])
         preference_store.save_preferences(preference_store.preferences_for(profile_store.load_profile()).model_copy(
             update={"verification_limit": 1}))
-        response = await CareerAgent([AlertsProvider()]).search("find ai ml jobs", include_seen=True)
-        reasons = {result["verification_reason"] for result in response["results"]}
+        response = await CareerAgent([AlertsProvider()]).search("find ai ml jobs", include_seen=True, return_excluded=True)
+        reasons = {result["verification_reason"] for result in response["results"] + response["excluded"]}
+        self.assertTrue(reasons)
         self.assertNotIn("Not checked: this search reached the configured verification budget.", reasons)
 
     async def test_alert_jobs_do_not_turn_off_the_empty_index_fallback(self):

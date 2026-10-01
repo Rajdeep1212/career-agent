@@ -93,6 +93,10 @@ class Settings(BaseSettings):
     # Days after applying with no response before an application counts as NO_RESPONSE rather than
     # PENDING_CENSORED (unknown, never negative). docs/M2_PLAN.md §1.1.
     response_window_days: int = Field(default=21, ge=1, le=365)
+    # Freshness (app/services/freshness.py): a job not confirmed open in the last 48 hours is shown when
+    # posted within max_age_days, shown under "check before applying" up to check_age_days, else hidden.
+    max_age_days: int = Field(default=30, ge=1, le=365)
+    check_age_days: int = Field(default=60, ge=1, le=730)
     # Pre-M1B location of the seen-job history; copied once into data_dir. Empty disables.
     legacy_history_path: str = str(BASE_DIR / "app" / "storage" / "job_history.sqlite3")
 

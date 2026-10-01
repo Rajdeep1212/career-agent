@@ -12,6 +12,7 @@ from app.services.career_agent import CareerAgent
 from app.services.search_planner import plan_local_queries, plan_search_queries
 from app.sources.adapters import posting
 from app.storage import career_store, db, history, preference_store, profile_store, radar_store
+from fresh_helpers import pin_today
 from radar_helpers import company
 from test_radar_provider import FRESHER, FailingProvider
 
@@ -58,6 +59,7 @@ class LocalSearchCoverageTests(unittest.IsolatedAsyncioTestCase):
             self.addCleanup(patcher.stop)
         db.reset_cache()
         self.addCleanup(db.reset_cache)
+        pin_today(self)   # the day the fixture jobs were listed
         profile_store.save_profile(CandidateProfile(graduation_year=2025, experience_years=0, skills=['Python', 'PyTorch'],
                                                     preferred_roles=['Machine Learning Engineer'], preferred_locations=SAVED))
         entry = company({"type": "greenhouse", "board": "b"}, id="b", name="Example")

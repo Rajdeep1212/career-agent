@@ -126,6 +126,8 @@ class JobPosting(BaseModel):
     verification_state: VerificationState = "UNVERIFIED"
     verification_reason: str = "Not checked yet."
     verification_checked_at: str | None = None
+    last_listed_on: str | None = None   # day its source feed last listed it (Company Radar)
+    captured_at: str | None = None      # when the user saved the page themselves
     sources: list[JobSourceRef] = Field(default_factory=list)  # other listings merged into this one
 
 

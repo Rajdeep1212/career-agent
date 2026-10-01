@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch, AsyncMock
 from app.models.schemas import JobPosting, CandidateProfile
 from app.storage import history, profile_store, preference_store, career_store
+from fresh_helpers import POSTED, pin_today
 
 
 class FakeProvider:
@@ -21,9 +22,10 @@ class CareerAgentTests(unittest.IsolatedAsyncioTestCase):
         for module,name,value in [(history,'DB_PATH',directory/'history.db'),(career_store,'DB_PATH',directory/'agent.db'),
             (profile_store,'PROFILE_PATH',directory/'profile.json'),(preference_store,'PREFERENCES_PATH',directory/'prefs.json')]:
             p=patch.object(module,name,value);p.start();self.addCleanup(p.stop)
+        pin_today(self)
         profile_store.save_profile(CandidateProfile(name='Fictional Student',graduation_year=2025,skills=['Python','SQL','Excel'],experience_years=0))
         self.job=JobPosting(company='Example',title='Data Analyst',location='Kolkata',skills=['SQL','Excel'],
-            description='Freshers welcome, 2025 graduates',fresher_allowed=True,application_url='https://example.com/jobs/123')
+            description='Freshers welcome, 2025 graduates',fresher_allowed=True,application_url='https://example.com/jobs/123',posted_date=POSTED)
 
     async def test_multi_query_not_raw_prompt_and_diagnostics(self):
         from app.services.career_agent import CareerAgent

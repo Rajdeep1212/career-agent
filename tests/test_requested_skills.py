@@ -62,13 +62,16 @@ class RequestedSkillsMatchingTests(unittest.TestCase):
         self.assertLessEqual(match(posting, intent).overall_score, 100)
 
 
+POSTED = '2026-09-20'   # recent on the pinned day (fresh_helpers.FIXTURE_TODAY)
+
+
 class Aggregator:
     name = 'Aggregator'
 
     async def search_planned(self, planned):
         return [JobPosting(company='Example', title='Applied Scientist', location='Bengaluru, India',
                            description='Freshers welcome. Build RAG systems with LangChain.',
-                           application_url='https://aggregator.example/jobs/1')]
+                           application_url='https://aggregator.example/jobs/1', posted_date=POSTED)]
 
 
 class OffRoleTests(_Isolated):
@@ -77,6 +80,8 @@ class OffRoleTests(_Isolated):
 
         from app.services import application_verifier
         from app.services.career_agent import CareerAgent
+        from fresh_helpers import pin_today
+        pin_today(self)
         patcher = patch.object(application_verifier, 'safe_get', AsyncMock(side_effect=OSError('offline')))
         patcher.start()
         self.addCleanup(patcher.stop)

@@ -158,8 +158,10 @@ def list_jobs() -> list[JobPosting]:
     if not DB_PATH.exists():
         return []
     with _connect() as conn:
-        rows = conn.execute("SELECT job_json FROM alert_jobs ORDER BY last_seen_at DESC").fetchall()
-    return [JobPosting.model_validate_json(row["job_json"]) for row in rows]
+        rows = conn.execute("SELECT job_json, kind, last_seen_at FROM alert_jobs ORDER BY last_seen_at DESC").fetchall()
+    # Only a page the user saved themselves carries its capture time (freshness keeps it shown for a week).
+    return [JobPosting.model_validate_json(row["job_json"]).model_copy(
+        update={"captured_at": row["last_seen_at"] if row["kind"] == "capture" else None}) for row in rows]
 
 
 def new_since(since: str) -> list[JobPosting]:

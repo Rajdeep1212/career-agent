@@ -102,6 +102,7 @@ def _job_from_row(row) -> JobPosting:
         "application_status": "active" if active else "closed",
         "verification_reason": row["status_reason"],
         "verification_checked_at": row["last_checked_on"],
+        "last_listed_on": row["last_listed_on"],
         "official_application": True,
     })
 

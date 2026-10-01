@@ -15,6 +15,7 @@ from app.models.schemas import CandidateProfile, JobPosting
 from app.providers.base import JobProvider
 from app.services.career_agent import CareerAgent
 from app.storage import career_store, db, history, preference_store, profile_store
+from fresh_helpers import POSTED, pin_today
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "jobs" / "fresher_search_30.json"
 
@@ -36,7 +37,9 @@ class FixtureProvider(JobProvider):
     name = "Fixture"
 
     def __init__(self):
-        self.jobs = [JobPosting.model_validate(item) for item in json.loads(FIXTURE.read_text(encoding="utf-8"))]
+        # The fixture predates the freshness rule and carries no dates; give every job a recent one.
+        self.jobs = [JobPosting.model_validate({"posted_date": POSTED, **item})
+                     for item in json.loads(FIXTURE.read_text(encoding="utf-8"))]
 
     async def search(self, query, page=1):
         return [job.model_copy(deep=True) for job in self.jobs]
@@ -60,6 +63,7 @@ class FresherSearchRegressionTests(unittest.IsolatedAsyncioTestCase):
             self.addCleanup(patcher.stop)
         db.reset_cache()
         self.addCleanup(db.reset_cache)
+        pin_today(self)
         profile_store.save_profile(CandidateProfile(
             name="Test Student", degree="B.Tech", graduation_year=2025,
             skills=["Python", "SQL", "PyTorch", "LangChain", "RAG", "FastAPI"],

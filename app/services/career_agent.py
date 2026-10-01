@@ -24,6 +24,7 @@ from app.services.job_identity import deduplicate_jobs, job_identity, resolve_wi
 from app.sources.registry import alias_map, read_config
 from app.services.application_verifier import never_fetched, verify_application
 from app.services.eligibility import evaluate_eligibility
+from app.services.freshness import freshness, today_ist
 from app.services.matching import match_job
 from app.storage import career_store, history, radar_store, search_cache
 from app.storage.profile_store import load_profile
@@ -42,6 +43,7 @@ def _summary(diagnostics):
             f"{d['already_seen']} already seen, {d['closed']} closed, "
             f"{d['eligibility_rejected']} excluded by explicit disqualifiers, "
             f"{d.get('intent_rejected',0)} outside requested roles, "
+            f"{d.get('stale_hidden',0)} hidden as stale (old or undated, and not confirmed open), "
             f"{d.get('below_match_threshold',0)} below the match threshold. "
             f"{d['final_recommendations']} recommendations "
             f"({d.get('eligible_results',0)} eligible, {d.get('uncertain_results',0)} uncertain, shown after eligible). "
@@ -89,13 +91,18 @@ _TIERS={'eligible':0,'uncertain':1}
 
 
 def _rank_key(result):
-    """Eligible before uncertain; higher heuristic score first within each tier."""
-    return (_TIERS.get(result.get('eligibility_status','eligible'),1), -result['total_score'])
+    """The "check before applying" group last; eligible before uncertain; higher heuristic score first."""
+    return (_needs_check(result), _TIERS.get(result.get('eligibility_status','eligible'),1), -result['total_score'])
+
+
+def _needs_check(result):
+    return (result.get('freshness') or {}).get('decision')=='check'
 
 
 def _tier_counts(results):
     statuses=[r.get('eligibility_status','eligible') for r in results]
-    return dict(eligible_results=statuses.count('eligible'),uncertain_results=statuses.count('uncertain'))
+    return dict(eligible_results=statuses.count('eligible'),uncertain_results=statuses.count('uncertain'),
+                check_before_applying=sum(_needs_check(r) for r in results))
 
 
 _PROFILE_LOCATION_REFERENCE = re.compile(
@@ -238,8 +245,14 @@ class CareerAgent:
                     providers=list(dict.fromkeys(p.name for p in providers)),requests_by_provider=shares,
                     quotas={name:quota for name,quota in quotas.items() if quota},reuses_results=False)
 
-    async def search(self, query, *, include_seen=False, session_id=None, strict_mode=None, refresh=False):
+    async def search(self, query, *, include_seen=False, session_id=None, strict_mode=None, refresh=False,
+                     today=None, return_excluded=False):
+        """`today` (default: the current date in India) is the day freshness is judged on. With
+        `return_excluded`, the returned response (never the stored one) also lists every evaluated job
+        that is not shown, each with `excluded_by`: freshness, closed, eligibility or off_role."""
         started=time.monotonic()
+        today=today or today_ist()
+        excluded=[]
         profile,preferences,previous,intent,profile_key,reuse=self._interpret(query,session_id,strict_mode)
         session_id=session_id or str(uuid.uuid4())
         if reuse:
@@ -263,7 +276,8 @@ class CareerAgent:
             unique_jobs=0,already_seen=0,active_verified=0,likely_active=0,unverified=0,closed=0,
             eligibility_rejected=0,intent_rejected=0,ranked_results=0,final_recommendations=0,
             below_match_threshold=0,provider_counts={},errors=[],provider_errors=[],skipped_requests=0,
-            filtered_examples=[],reused_results=False,matched_official=0,cache_hits=0,aggregator_skipped=0)
+            filtered_examples=[],reused_results=False,matched_official=0,cache_hits=0,aggregator_skipped=0,
+            stale_hidden=0)
         blocked=set()
         jobs=[]
         if not providers:diagnostics['errors'].append('No configured provider is available.')
@@ -368,18 +382,28 @@ class CareerAgent:
         ranked=[]
         for job in checked:
             result,eligibility,match=evaluate_job(profile,job,preferences,intent)
+            fresh=freshness(job,today)
+            result['freshness']=fresh.as_dict()
             job_family=family_for_job_title(job.title)
             off_role=bool(intent.roles_requested and match.role_score==0
                           and not (job_family and job_family['family'] in intent.role_families)
                           and not match.components.get('requested_skills'))
+            # "Open today" comes first: a stale job is hidden whatever its fit. Closed jobs keep their own count.
+            if fresh.decision=='hide' and fresh.state!='closed':
+                diagnostics['stale_hidden']+=1
+                excluded.append({**result,'excluded_by':'freshness'})
+                continue
             if not eligibility.eligible:
-                if job.verification_state!='CLOSED':diagnostics['eligibility_rejected']+=1
+                closed=job.verification_state=='CLOSED'
+                if not closed:diagnostics['eligibility_rejected']+=1
                 if len(diagnostics['filtered_examples'])<10:
                     diagnostics['filtered_examples'].append({'title':job.title,'reasons':eligibility.hard_rejections,
                                                              'summary':eligibility.summary})
+                excluded.append({**result,'excluded_by':'closed' if closed else 'eligibility'})
                 continue
             if off_role:
                 diagnostics['intent_rejected']+=1
+                excluded.append({**result,'excluded_by':'off_role'})
                 continue
             ranked.append(result)
         ranked.sort(key=_rank_key)
@@ -398,4 +422,4 @@ class CareerAgent:
         career_store.save_session(session_id,intent.model_dump(),response)
         logger.info('career_search %s',json.dumps({'session_id':session_id,**{k:diagnostics[k] for k in
             ('generated_queries','provider_requests','provider_results','unique_jobs','eligibility_rejected','ranked_results','final_recommendations','latency_ms')}}))
-        return _public(response)
+        return {**_public(response),'excluded':excluded} if return_excluded else _public(response)

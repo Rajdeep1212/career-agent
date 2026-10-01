@@ -14,6 +14,7 @@ from app.services.job_identity import city_key, company_key, resolve_with_index,
 from app.sources.adapters import RADAR_SOURCE, posting
 from app.sources.registry import alias_map, load_seed
 from app.storage import career_store, db, history, preference_store, profile_store, radar_store
+from fresh_helpers import pin_today
 from radar_helpers import company
 
 D1 = date(2026, 9, 26)
@@ -122,6 +123,7 @@ class SearchIntegrationTests(unittest.IsolatedAsyncioTestCase):
                                                     skills=["Python", "RAG"], preferred_locations=["Bengaluru"],
                                                     preferred_roles=["Software Engineer"]))
         radar_store.record_listing("databricks", [OFFICIAL], complete=True, today=D1)
+        pin_today(self, D1)
 
     async def test_search_merges_aggregator_copies_and_records_presence(self):
         with patch("app.services.career_agent.verify_application", side_effect=_unchanged), \
