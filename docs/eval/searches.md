@@ -1,9 +1,48 @@
 # Evaluation searches
 
-The query strings below are fixed: reuse them character for character. Which of them make up the
-labelling search list is still the owner's decision (docs/ROADMAP_QUEUE.md Q2).
+## Search list (final, confirmed by the owner on 2026-10-01)
 
-## How they are run
+Use these strings character for character. They replace S1–S6 below.
+
+| ID | Query string | Covers | Seeded excluded samples |
+|---|---|---|---|
+| A | `AI Engineer jobs for freshers in India` | target: AI / GenAI / LLM / NLP / Data Scientist / ML family | 15 |
+| B | `Software Engineer fresher jobs in India` | target: software and Python backend family | 15 |
+| C | `Data Analyst jobs for freshers in India` | target: Data Analyst | 15 |
+| D | `Sales Executive jobs in India` | control | 10 |
+
+Rules:
+
+- "in India" stays in every string. Saved cities are never used for evaluation batches; the batch
+  builder refuses a search whose location is not exactly `['India']`.
+- The 300-match cap is not raised. `meta.json` records, per search, the match count, whether the cap
+  was hit, and the date of the oldest included posting.
+- A search with few results is kept, not swapped. C returns 3 jobs after the eligibility check.
+- Labels are per job. Each batch also takes a seeded sample of the jobs each search's eligibility
+  check excluded, so the labels can judge the filter.
+
+Counts on the frozen copy (dry run of `scripts/build_label_batch.py`, seed 20261001, 2026-10-01):
+
+| ID | Index matches | Cap hit | Oldest included posting | Excluded as ineligible | Results | Excluded sampled |
+|---|---|---|---|---|---|---|
+| A | 100 | no | 2020-03-13 | 75 | 25 | 15 |
+| B | 300 | yes | 2026-03-10 | 251 | 49 | 15 |
+| C | 25 | no | 2026-01-06 | 22 | 3 | 15 |
+| D | 112 | no | 2023-12-12 | 84 | 28 | 10 |
+
+Expected batch: **160 distinct jobs** = 105 shown after the eligibility check + 55 seeded excluded samples.
+
+**Finding (recorded, not fixed now):** every AI-family string (AI, GenAI, LLM, NLP, Data Scientist,
+Machine Learning) returns one identical set of jobs, and "Python backend developer" returns the same
+set as "Software Engineer". The index matches on role family and does not tell sub-roles apart. The
+M3 requirement cards address this.
+
+## History: the Q1 count run
+
+Kept as a record of how the list above was chosen. The strings in this section are no longer the
+search list.
+
+### How they were run
 
 - Index: `data/eval/frozen/20261001T032740Z/radar.sqlite3`
   (sha256 `08c5dc21420df1330f01321c98d25b5c213f3f1577e8729c15a377682825b2f4`), opened with
@@ -19,7 +58,7 @@ labelling search list is still the owner's decision (docs/ROADMAP_QUEUE.md Q2).
 - "Index matches" is the count before the eligibility check, "results" the count after it. The
   Radar provider returns at most 300 matches; the app shows at most 50 results.
 
-## S1–S6
+### S1–S6
 
 S1–S5 are the strings of the first count run (commit `6b789bb` report); S6 is new.
 
@@ -57,7 +96,7 @@ Before the eligibility check:
 Distinct jobs across S1–S6: **112** after the eligibility check (74 without the two sales controls),
 **512** before it.
 
-## Alternative strings
+### Alternative strings
 
 Run in the same session because S1–S5 above do not cover Data Analyst, Data Scientist or backend
 roles. None names a location, so all use the saved-preference locations.

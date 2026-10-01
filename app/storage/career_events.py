@@ -156,10 +156,15 @@ def _canonical(value) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"))
 
 
+def profile_hash(profile: dict) -> str:
+    """The cv_version a profile would get, without storing anything."""
+    return _sha256(_canonical(profile))
+
+
 def profile_version(conn: sqlite3.Connection, profile: dict) -> str:
     """The cv_version of a profile, storing the profile the first time it is seen."""
     payload = _canonical(profile)
-    cv_version = _sha256(payload)
+    cv_version = profile_hash(profile)
     conn.execute("INSERT OR IGNORE INTO profile_versions VALUES (?, ?, ?)", (cv_version, payload, _now()))
     return cv_version
 
