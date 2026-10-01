@@ -43,6 +43,10 @@ The copy's last sync (2026-09-28) is more than 48 hours before its snapshot day,
 would show the stale-sync notice. If the last sync day counted as confirmed open instead, nothing
 would be hidden as stale and the batch would be 140 jobs (105 shown + 35 samples).
 
+Decision (Rajdeep, 2026-10-01): a stale sync is announced only. The age rule keeps hiding and
+grouping jobs exactly as above and the banner reports the last sync time with the hidden and check
+counts; a stale sync never counts as verification. The batch stays at 106 jobs.
+
 Before the freshness rule (same dry run at `e814378`):
 
 | ID | Index matches | Cap hit | Oldest included posting | Excluded as ineligible | Results | Excluded sampled |
