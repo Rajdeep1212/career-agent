@@ -6,10 +6,10 @@ Use these strings character for character. They replace S1–S6 below.
 
 | ID | Query string | Covers | Seeded excluded samples |
 |---|---|---|---|
-| A | `AI Engineer jobs for freshers in India` | target: AI / GenAI / LLM / NLP / Data Scientist / ML family | 15 |
-| B | `Software Engineer fresher jobs in India` | target: software and Python backend family | 15 |
-| C | `Data Analyst jobs for freshers in India` | target: Data Analyst | 15 |
-| D | `Sales Executive jobs in India` | control | 10 |
+| A | `AI Engineer jobs for freshers in India` | target: AI / GenAI / LLM / NLP / Data Scientist / ML family | 10 |
+| B | `Software Engineer fresher jobs in India` | target: software and Python backend family | 10 |
+| C | `Data Analyst jobs for freshers in India` | target: Data Analyst | 10 |
+| D | `Sales Executive jobs in India` | control | 5 |
 
 Rules:
 
@@ -31,12 +31,17 @@ Counts on the frozen copy with the freshness rule (dry run of `scripts/build_lab
 
 | ID | Index matches | Cap hit | Oldest match | Hidden as stale | Excluded as ineligible | Results | of which "check before applying" | Excluded sampled |
 |---|---|---|---|---|---|---|---|---|
-| A | 100 | no | 2020-03-13 | 41 | 46 | 13 | 6 | 15 |
-| B | 300 | yes | 2026-03-10 | 74 | 187 | 39 | 12 | 15 |
-| C | 25 | no | 2026-01-06 | 5 | 17 | 3 | 0 | 15 |
-| D | 112 | no | 2023-12-12 | 42 | 54 | 16 | 9 | 10 |
+| A | 100 | no | 2020-03-13 | 41 | 46 | 13 | 6 | 10 |
+| B | 300 | yes | 2026-03-10 | 74 | 187 | 39 | 12 | 10 |
+| C | 25 | no | 2026-01-06 | 5 | 17 | 3 | 0 | 10 |
+| D | 112 | no | 2023-12-12 | 42 | 54 | 16 | 9 | 5 |
 
-Expected batch: **126 distinct jobs** = 71 shown + 55 seeded excluded samples.
+Expected batch: **106 distinct jobs** = 71 shown + 35 seeded excluded samples (Q2b2; it was 126 with
+samples of 15/15/15/10).
+
+The copy's last sync (2026-09-28) is more than 48 hours before its snapshot day, so a live search
+would show the stale-sync notice. If the last sync day counted as confirmed open instead, nothing
+would be hidden as stale and the batch would be 140 jobs (105 shown + 35 samples).
 
 Before the freshness rule (same dry run at `e814378`):
 
