@@ -21,7 +21,24 @@ Rules:
 - Labels are per job. Each batch also takes a seeded sample of the jobs each search's eligibility
   check excluded, so the labels can judge the filter.
 
-Counts on the frozen copy (dry run of `scripts/build_label_batch.py`, seed 20261001, 2026-10-01):
+- Freshness (Q2b, `app/services/freshness.py`) is judged on the day the copy was frozen, in India time
+  (2026-10-01). Jobs it hides as stale or closed are not labelled; the excluded sample is drawn only
+  from fresh jobs the eligibility check excluded.
+
+Counts on the frozen copy with the freshness rule (dry run of `scripts/build_label_batch.py`, seed
+20261001). No job in the copy was listed within 48 hours of the snapshot (all were last listed on
+2026-09-28), so age alone decides:
+
+| ID | Index matches | Cap hit | Oldest match | Hidden as stale | Excluded as ineligible | Results | of which "check before applying" | Excluded sampled |
+|---|---|---|---|---|---|---|---|---|
+| A | 100 | no | 2020-03-13 | 41 | 46 | 13 | 6 | 15 |
+| B | 300 | yes | 2026-03-10 | 74 | 187 | 39 | 12 | 15 |
+| C | 25 | no | 2026-01-06 | 5 | 17 | 3 | 0 | 15 |
+| D | 112 | no | 2023-12-12 | 42 | 54 | 16 | 9 | 10 |
+
+Expected batch: **126 distinct jobs** = 71 shown + 55 seeded excluded samples.
+
+Before the freshness rule (same dry run at `e814378`):
 
 | ID | Index matches | Cap hit | Oldest included posting | Excluded as ineligible | Results | Excluded sampled |
 |---|---|---|---|---|---|---|
@@ -30,7 +47,7 @@ Counts on the frozen copy (dry run of `scripts/build_label_batch.py`, seed 20261
 | C | 25 | no | 2026-01-06 | 22 | 3 | 15 |
 | D | 112 | no | 2023-12-12 | 84 | 28 | 10 |
 
-Expected batch: **160 distinct jobs** = 105 shown after the eligibility check + 55 seeded excluded samples.
+That batch would have been 160 distinct jobs = 105 shown after the eligibility check + 55 seeded excluded samples.
 
 **Finding (recorded, not fixed now):** every AI-family string (AI, GenAI, LLM, NLP, Data Scientist,
 Machine Learning) returns one identical set of jobs, and "Python backend developer" returns the same
