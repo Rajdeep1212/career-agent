@@ -1,0 +1,32 @@
+{
+  "run_at": "2026-10-01T16:48:25+00:00",
+  "companies": 262,
+  "with_hit": 25,
+  "confirmed": 12,
+  "probable": 15,
+  "single_confirmed_companies": 12,
+  "slugs_tried": 374,
+  "requests": 4,
+  "cache_hits": 1497,
+  "delay_seconds": 2.0,
+  "stopped": {
+    "workable": "apply.workable.com answered HTTP 429 in the first run; not queried again"
+  },
+  "not_sent": {
+    "workable": 374
+  },
+  "errors": {},
+  "first_run": {
+    "run_at": "2026-10-01T16:45:48+00:00",
+    "requests": 1607,
+    "stopped": {
+      "workable": "apply.workable.com answered HTTP 429; skipping it for the rest of this run."
+    },
+    "not_sent": {
+      "workable": 264
+    },
+    "errors": {
+      "greenhouse": 1
+    }
+  }
+}
