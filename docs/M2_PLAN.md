@@ -331,6 +331,9 @@ frozen copy and reported with the confirmation request; none is known yet.
 **M2b, after the core and the harness** (decision Q10): Kanban, the due follow-ups panel, the stale
 banner, `.ics` export, and CSV import/export with anonymize.
 
+**Deferred:**
+- index.html uses Inter; hook flags it; revisit with the M2b UI polish.
+
 ## 8. Decisions, risks and open questions
 
 ### Decisions (owner, 2026-09-30)
