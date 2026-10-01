@@ -98,7 +98,7 @@ The job and features as they were when the event happened (§5.0 "Reproducible f
 | `captured_at` TEXT NOT NULL (UTC) | |
 | `job_json` TEXT NOT NULL | frozen raw job, exactly as stored at that moment |
 | `job_sha256` TEXT NOT NULL | hash of `job_json` |
-| `cv_version` TEXT NOT NULL → `profile_versions` | |
+| `cv_version` TEXT NULL → `profile_versions` | NULL on backfilled snapshots (`captured_late=1`): the CV in use at that time is unknown. Always set on snapshots taken at event time. |
 | `feature_schema_version`, `vocabulary_version`, `ranker_version`, `model_version` | `model_version` NULL until M4. `ranker_version` is a code constant `"v1"` plus `+<short git SHA>` when git is available, else `"v1"`; it may be NULL for backfilled rows (decision Q5: no `app/core/scoring/` file in M2) |
 | `features_json` TEXT NOT NULL | the L0 match components and eligibility at capture time, labelled L0 |
 | `captured_late` INTEGER NOT NULL DEFAULT 0 | 1 when the snapshot was taken after the fact (backfill); excluded from training by default |
@@ -176,7 +176,8 @@ An application is **shortlisted** iff it has at least one funnel event with `eve
 - **Undo:** `POST /applications/{application_id}/events/{event_id}/undo` with its own `request_id`.
   - It appends `undone` and recomputes the caches.
   - It is idempotent: undoing an already-undone event is a 200 no-op.
-  - It is allowed for any funnel or thumbs event of that job.
+  - It is allowed for any funnel or response event of that job. A thumbs label is not undone here:
+    it is removed with `label: clear` (§4).
   - The UI offers Undo in the confirmation toast for 10 seconds, and later from the application's history.
 - **UI:**
   - "Mark applied" on search-result cards and tracker cards. The button is disabled while the request
@@ -190,19 +191,21 @@ An application is **shortlisted** iff it has at least one funnel event with `eve
 
 ## 4. Thumbs labels (in-app)
 
-- `POST /jobs/{job_id}/relevance` with `{label: up|down|clear, request_id, context}`. `context` holds the
-  search query or session id, the 1-based rank position, the ranker or scoring version and the
-  `cv_version`. The origin check is the same as §3.
+- `POST /jobs/{job_id}/relevance` with `{label: up|down|clear, request_id, context}`. The client sends
+  the search session id and the 1-based result position; the server adds the scale, the rubric
+  version and the ranker version. The card sends no query text: the search is identified by its
+  session id. (The API accepts an optional `query` field, which the UI does not use.) The CV version is on the label's snapshot. The origin check is the same as §3.
 - Stored as `thumbs_up` / `thumbs_down` / `thumbs_cleared` events with a snapshot. The current label is
-  the latest non-undone thumbs event; `clear` means no label. Every label's `context_json` records
+  the latest thumbs event; `clear` appends `thumbs_cleared` and means no label. Every label's `context_json` records
   `scale: "thumbs"` and `rubric_version: "thumbs-v1"` (decision Q6).
 - **Two scales, never mixed** (decision Q6): live thumbs (binary) and the batch labels (graded 0–3,
   §5). No code path converts one into the other, and the harness reports them separately.
 - They are **ranking feedback, not outcomes** (decision A; "ranking from outcomes" was rejected).
   They never change ranking at runtime in M2.
 - **Harness feed:** a script `scripts/export_labels.py` writes `data/eval/labels/inapp_<UTC>.jsonl`.
-  Each line holds the snapshot id, `job_sha256`, label, query, position, ranker version,
-  `cv_version` and `captured_at`. The harness reads that export, not the live tables.
+  Each line holds the snapshot id, `job_sha256`, label, scale, rubric version, search session id,
+  position, ranker version, `cv_version` (a hash, never CV text), `captured_at` and the job's title,
+  company, location and description as snapshotted. The harness reads that export, not the live tables.
 - In-app thumbs are **biased**: they are only given on what the current ranker showed. The harness
   reports them separately from the batch labels (§5), which are the primary ground truth (§6.2 D-rel).
 
@@ -235,9 +238,9 @@ An application is **shortlisted** iff it has at least one funnel event with `eve
 - A batch file is never edited after it is issued. Several batches may be open at once
   ("parallel"), labelled in any order.
 
-**Search list** (decision Q4, confirmed by the owner on 2026-10-01). Up to 100 results each from the
-frozen index gives about 500 query–job pairs. Result counts per search are measured when the copy is
-frozen (commit 7); none is known yet.
+**Search list** (decision Q4). **Proposed, not yet confirmed by the owner.** Up to 100 results each
+from the frozen index would give about 500 query–job pairs. The owner confirms the list after seeing
+the result counts per search measured on the frozen copy (commit 7).
 
 | # | Search | Kind |
 |---|---|---|
@@ -256,7 +259,7 @@ recorded in every batch file, so a batch can be rebuilt from the same frozen cop
 - The table is `batch_labels(id, snapshot_stamp, batch_id, query_id, job_key, label 0–3,
   scale='graded_0_3', rubric_version, labeller, set='gold'|'batch', labelled_at, relabel_of NULL)`.
   It is append-only through the same kind of triggers.
-- **Rubric `r1`** (decided 2026-10-01): one question, "would I apply?", answered 0–3.
+- **Rubric `r1`** (proposed, not yet confirmed by the owner): one question, "would I apply?", answered 0–3.
 
   | Label | Meaning |
   |---|---|
@@ -267,11 +270,15 @@ recorded in every batch file, so a batch can be rebuilt from the same frozen cop
 
   `rubric_version='r1'` is stored on every label. Changing the wording creates `r2`; labels under
   different rubric versions are never pooled.
-- **Batch labelling** (decided 2026-10-01): parallel subagents label the batches against rubric `r1`
-  and a **fixed profile summary** kept in `data/eval/`. The summary has no phone number or email
-  address. The same summary file, identified by its hash, is used for every batch and recorded with
-  each label, along with `labeller='subagent:<model>'`. Before it is used, see the open question below
-  about what the summary may contain.
+- **Batch labelling:** parallel subagents label the batches against the confirmed rubric and a
+  **target profile** kept under `data/eval/` (not in git).
+  - Privacy decision (owner, 2026-10-01): the owner hand-writes the target profile. It holds roles,
+    fresher level, India and core skills, with no text copied from the CV, no employers and no
+    contact details. Nobody else drafts it.
+  - Hosted labellers may see that profile only. They never see the CV file or any text extracted
+    from it (`CLAUDE.md`, hard constraints).
+  - The same profile file, identified by its hash, is used for every batch and recorded with each
+    label, along with `labeller='subagent:<model>'`.
 - **Gold subset:** the owner labels about 100 pairs themselves (`set='gold'`), stratified across the
   five searches, **blind**: without seeing any subagent label. The subagents also label the gold
   pairs, blind to the gold labels (`set='batch'`).
@@ -284,7 +291,8 @@ recorded in every batch file, so a batch can be rebuilt from the same frozen cop
 **UI and export (decision Q9):**
 - A page in the existing web UI, shown only when `EVAL_TOOLS=true` and never in the hosted demo.
   Keys 0–3 label the pair, then it moves to the next.
-- A CLI, `scripts/export_labels.py`, exports to `data/eval/exports/*.jsonl`.
+- A CLI, `scripts/export_labels.py`, exports the live thumbs to `data/eval/labels/inapp_<UTC>.jsonl`
+  (built in commit 6). The graded batch labels get their own export in commit 8.
 - Labelling files stay under `data/eval/`, outside the app databases.
 
 ## 6. Tests to write first (per feature)
@@ -360,9 +368,9 @@ banner, `.ics` export, and CSV import/export with anonymize.
 | Q1 | Key the event log by job (`job_events`). |
 | Q2 | Fold `DISCOVERED` into `SAVED`. Drop `OUTREACH_*` as statuses; outreach is events. |
 | Q3 | Add a `recruiter_reply` event. It counts as a response (ends censoring) but not as shortlisted. |
-| Q4 | Batches come from the frozen index: 3 target searches (GenAI/LLM Engineer, AI Engineer, NLP Engineer) and 2 controls (Sales Executive, and a broad "Software Engineer fresher India" search), up to 100 results each (about 500 pairs). The list in §5 was confirmed by the owner on 2026-10-01. |
+| Q4 | Batches come from the frozen index: 3 target searches (GenAI/LLM Engineer, AI Engineer, NLP Engineer) and 2 controls (Sales Executive, and a broad "Software Engineer fresher India" search), up to 100 results each (about 500 pairs). The list in §5 is proposed; the owner confirms it after the result counts from the frozen copy. |
 | Q5 | No scoring refactor and no `app/core/scoring/v1.json` in M2. `ranker_version` is a code constant, `"v1"` plus the short git SHA when available, and null-safe. |
-| Q6 | Two scales, never mixed: live thumbs (`thumbs`, `thumbs-v1`) and graded 0–3 batch labels (`graded_0_3`, rubric versioned). Scale and rubric version are stored on every label. The owner's gold subset is about 100 pairs, labelled blind; agreement is reported before any batch label is trusted. Decided 2026-10-01: the graded rubric is `r1` ("would I apply?", §5), and parallel subagents label the batches against `r1` and a fixed profile summary with no phone number or email address. |
+| Q6 | Two scales, never mixed: live thumbs (`thumbs`, `thumbs-v1`) and graded 0–3 batch labels (`graded_0_3`, rubric versioned). Scale and rubric version are stored on every label. The owner's gold subset is about 100 pairs, labelled blind; agreement is reported before any batch label is trusted. The graded rubric `r1` ("would I apply?", §5) is proposed and not yet confirmed. Decided: parallel subagents label the batches against the confirmed rubric and the owner's hand-written target profile (privacy decision below). |
 | Q7 | A removed job with tracker history gets a `removed_from_results` note event, and all history is kept. Without history, nothing is recorded. |
 | Q8 | Backdating up to 365 days; future dates are rejected. |
 | Q9 | A local page in the existing web UI (keys 0–3), plus a CLI export. Labelling files stay in `data/eval/`, outside the app databases. |
@@ -370,17 +378,9 @@ banner, `.ics` export, and CSV import/export with anonymize.
 
 ### Open questions
 
-- **What may the fixed profile summary contain?** `CLAUDE.md` has the hard constraint "Hosted models
-  never see real CV content", and labelling subagents are hosted models. A summary written from the
-  real CV is CV content, even without a phone number or email address. To settle before commit 8,
-  one of:
-  1. the owner writes a short summary of target roles and skills by hand and confirms it may be
-     shown to hosted models, and the constraint in `CLAUDE.md` is amended to say so;
-  2. batch labelling runs on a local model through Ollama instead (`labeller='model:<name>'`);
-  3. the summary is generic (target roles and "fresher, India" only), with no skills or projects
-     taken from the CV.
-
-  Until this is decided, no profile summary is written and no batch is labelled.
+- None open on labelling privacy: it was decided on 2026-10-01 (§5, "Batch labelling"). The target
+  profile file does not exist yet; the owner writes it before commit 8.
+- The search list S1–S5 and rubric `r1` await the owner's confirmation (§5).
 - Subagent labels never count as ground truth. They are usable only after the agreement gate passes
   for rubric `r1`, and the gold labels remain the reference.
 

@@ -19,8 +19,9 @@ signals, and outreach grounded only in real CV and job-post facts.
 - Never fabricate CV content or claims.
 - Secrets stay in `.env`. Never log, print or commit them.
 - Gmail scope is `gmail.send` only. Changing it needs the owner's explicit approval.
-- Hosted models never see real CV content. Gemini stays gated to synthetic evaluation. Ollama (local)
-  is the default when a model is enabled.
+- Hosted models never see the CV file or any text extracted from it. A target profile written and
+  approved by Rajdeep (stored under data/eval/, not in git) may be shared with labelling subagents.
+  Gemini stays gated to synthetic evaluation. Ollama (local) is the default when a model is enabled.
 - The app must keep running locally on Windows (see the `.ps1` scripts).
 - Ask before adding paid APIs or new dependencies.
 
