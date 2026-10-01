@@ -161,6 +161,25 @@ class SafeHTTPTests(unittest.IsolatedAsyncioTestCase):
         with self.transport(lambda request: httpx.Response(302, headers={"location": "http://169.254.169.254/latest/meta-data"})), self.assertRaises(self.safe.UnsafeURLError):
             await self.safe.safe_get("https://example.com/jobs/1")
 
+    async def test_a_refused_redirect_target_is_never_requested(self):
+        requested = []
+
+        def handler(request):
+            requested.append(request.headers["host"])
+            return httpx.Response(302, headers={"location": "https://www.linkedin.com/company/example/jobs"})
+        with self.transport(handler), self.assertRaises(self.safe.UnsafeURLError):
+            await self.safe.safe_get("https://example.com/careers", redirect_allowed=lambda url: "linkedin.com" not in url)
+        self.assertEqual(requested, ["example.com"])
+
+    async def test_an_allowed_redirect_is_followed(self):
+        def handler(request):
+            if request.headers["host"] == "example.com":
+                return httpx.Response(302, headers={"location": "https://jobs.example.org/board"})
+            return httpx.Response(200, text="board")
+        with self.transport(handler):
+            response = await self.safe.safe_get("https://example.com/careers", redirect_allowed=lambda url: True)
+        self.assertEqual((str(response.request.url), response.text), ("https://jobs.example.org/board", "board"))
+
     async def test_same_host_redirect_revalidates_dns(self):
         self.resolver.side_effect = [["93.184.216.34"], ["127.0.0.1"]]
         with self.transport(lambda request: httpx.Response(302, headers={"location": "/new"})), self.assertRaises(self.safe.UnsafeURLError):

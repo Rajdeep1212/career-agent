@@ -2,6 +2,7 @@
 import asyncio
 import ipaddress
 import socket
+from collections.abc import Callable
 from urllib.parse import urljoin, urlsplit
 
 import httpx
@@ -69,14 +70,17 @@ async def _destination(url: str) -> tuple[httpx.URL, str, str]:
 
 
 async def safe_get(url: str, *, timeout: float = 15.0, max_redirects: int = 4, max_bytes: int = 1_000_000,
-                   headers: dict[str, str] | None = None) -> httpx.Response:
+                   headers: dict[str, str] | None = None,
+                   redirect_allowed: Callable[[str], bool] | None = None) -> httpx.Response:
     """Fetch a public page; total deadline includes DNS, redirects and reading.
 
     No environment proxies, cookies shared across hops, TLS bypass, automatic
     redirects or unbounded response buffering are allowed. Compressed responses
     are rejected because hostile expansion would undermine the body-size limit.
     `headers` may set User-Agent, Accept and conditional-request headers; Host
-    and Accept-Encoding stay fixed.
+    and Accept-Encoding stay fixed. `redirect_allowed` is asked about every
+    redirect target before it is requested; a refused target raises
+    UnsafeURLError.
     """
     extra = {name: value for name, value in (headers or {}).items() if name.lower() not in ("host", "accept-encoding")}
 
@@ -93,6 +97,8 @@ async def safe_get(url: str, *, timeout: float = 15.0, max_redirects: int = 4, m
                         if not target or hop == max_redirects:
                             raise UnsafeURLError("Redirect limit or invalid redirect.")
                         current = urljoin(current, target)
+                        if redirect_allowed is not None and not redirect_allowed(current):
+                            raise UnsafeURLError("Redirect target is not allowed.")
                         continue
                     if response.headers.get("content-encoding", "identity").lower() not in {"", "identity"}:
                         raise UnsafeURLError("Compressed response cannot be safely inspected.")
