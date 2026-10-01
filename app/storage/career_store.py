@@ -125,6 +125,18 @@ def job_events(job_id: str) -> list[dict]:
         return career_events.events_for_job(conn, job_id)
 
 
+def note_removed_from_results(job_id: str, source: str) -> dict | None:
+    """A note in the log when a job with history is removed from results; its history is kept, and a
+    job with no history records nothing (docs/M2_PLAN.md decision Q7)."""
+    with _connection() as conn:
+        if not career_events.events_for_job(conn, job_id):
+            return None
+        application = conn.execute('SELECT id FROM career_applications WHERE job_id=?', (job_id,)).fetchone()
+        return career_events.append_event(
+            conn, job_id, 'removed_from_results', application_id=application['id'] if application else None,
+            note=f'Removed from results (source: {source}). Tracker history kept; this is not a withdrawal.')
+
+
 def _response_window() -> int:
     # Some tests import this module under a minimal settings stand-in without the field.
     return getattr(settings, 'response_window_days', 21)
@@ -419,6 +431,11 @@ def link_outreach(application_id, draft_id, short_message, contact_id=None) -> N
         existing = conn.execute('SELECT application_id FROM career_outreach WHERE draft_id=?', (draft_id,)).fetchone()
         if existing and existing['application_id'] != application_id:
             raise ValueError('Draft already belongs to another application')
+        if existing is None:
+            # Outreach is an event, not a status (docs/M2_PLAN.md decision Q2); once per draft.
+            job_id = conn.execute('SELECT job_id FROM career_applications WHERE id=?', (application_id,)).fetchone()['job_id']
+            career_events.append_event(conn, job_id, 'outreach_prepared', application_id=application_id,
+                                       context={'draft_id': draft_id})
         conn.execute('''INSERT INTO career_outreach
                         (draft_id, application_id, contact_id, short_message, created_at, sent_at)
                         VALUES (?, ?, ?, ?, ?, NULL)
@@ -433,9 +450,14 @@ def link_outreach(application_id, draft_id, short_message, contact_id=None) -> N
 def mark_outreach_sent(draft_id) -> None:
     """Called only after the existing mail sender confirms sending."""
     with _connection() as conn:
-        row = conn.execute('SELECT application_id FROM career_outreach WHERE draft_id=?', (draft_id,)).fetchone()
+        row = conn.execute('''SELECT o.application_id, o.sent_at, a.job_id FROM career_outreach o
+                              JOIN career_applications a ON a.id = o.application_id WHERE o.draft_id=?''',
+                           (draft_id,)).fetchone()
         if row is None:
             return
         stamp = _now()
+        if row['sent_at'] is None:
+            career_events.append_event(conn, row['job_id'], 'outreach_sent', application_id=row['application_id'],
+                                       context={'draft_id': draft_id})
         conn.execute('UPDATE career_outreach SET sent_at=COALESCE(sent_at, ?) WHERE draft_id=?', (stamp, draft_id))
         conn.execute("UPDATE career_applications SET outreach_state='SENT', updated_at=? WHERE id=?", (stamp, row['application_id']))

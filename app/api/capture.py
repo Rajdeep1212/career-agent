@@ -112,4 +112,6 @@ def remove_job(job_id: str, request: Request):
         raise HTTPException(status_code=404, detail="No saved or alert job with this id.")
     if not alert_store.delete(JobPosting.model_validate(stored)):
         raise HTTPException(status_code=404, detail="This job was already removed.")
+    # The tracker keeps its history; a job that has any gets a note in its log.
+    career_store.note_removed_from_results(job_id, stored.get("source") or "unknown")
     return {"removed": True, "id": job_id}
