@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from app.sources.company_seed import COLUMNS, EXPECTED_ROWS, fetch_allowed, read_seed
+from app.sources.company_seed import COLUMNS, EXPECTED_ROWS, fetch_allowed, read_seed, update_rows
 
 ROOT = Path(__file__).resolve().parents[1]
 GOOD = {"company": "Example Labs", "list_type": "startup", "category": "startup", "national_top": "yes",
@@ -76,6 +76,38 @@ class ReadSeedTests(unittest.TestCase):
             self.assertFalse(fetch_allowed(url), url)
         for url in ("https://careers.example.com/", "https://boards.greenhouse.io/example", "https://notlinkedin.com/jobs"):
             self.assertTrue(fetch_allowed(url), url)
+
+
+class UpdateRowsTests(unittest.TestCase):
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.path = Path(directory.name) / "companies_seed.csv"
+        self.lines = [",".join(COLUMNS),
+                      'Example Labs,startup,startup,yes,Pune,Pune,AI,"Listed, twice",https://lists.example/a,,unknown',
+                      "Other Corp,startup,scaleup,,,,Fintech,Listed,https://lists.example/b,https://old.example/careers,greenhouse"]
+        self.path.write_bytes(("\r\n".join(self.lines) + "\r\n").encode("utf-8"))
+
+    def test_only_the_named_cells_change_and_every_other_byte_stays(self):
+        changed = update_rows(self.path, {"Other Corp": {"careers_url": "https://www.other.example/careers/", "ats": "unknown"}})
+        self.assertEqual(changed, ["Other Corp"])
+        expected = self.lines[:2] + ["Other Corp,startup,scaleup,,,,Fintech,Listed,https://lists.example/b,https://www.other.example/careers/,unknown"]
+        self.assertEqual(self.path.read_bytes(), ("\r\n".join(expected) + "\r\n").encode("utf-8"))
+
+    def test_a_quoted_row_keeps_its_quoting(self):
+        update_rows(self.path, {"Example Labs": {"careers_url": "https://jobs.lever.co/examplelabs", "ats": "lever"}})
+        self.assertIn('Example Labs,startup,startup,yes,Pune,Pune,AI,"Listed, twice",https://lists.example/a,https://jobs.lever.co/examplelabs,lever',
+                      self.path.read_text(encoding="utf-8"))
+
+    def test_an_unknown_company_or_column_changes_nothing(self):
+        before = self.path.read_bytes()
+        with self.assertRaises(ValueError):
+            update_rows(self.path, {"Missing Ltd": {"ats": "lever"}})
+        with self.assertRaises(ValueError):
+            update_rows(self.path, {"Other Corp": {"company": "Renamed"}})
+        self.assertEqual(self.path.read_bytes(), before)
+        self.assertEqual(update_rows(self.path, {"Other Corp": {"ats": "greenhouse"}}), [])
+        self.assertEqual(self.path.read_bytes(), before)
 
 
 class RepositorySeedTests(unittest.TestCase):

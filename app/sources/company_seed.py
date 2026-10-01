@@ -88,6 +88,38 @@ def _row_problems(values: dict[str, str]) -> list[str]:
     return problems
 
 
+def update_rows(path: Path, updates: dict[str, dict[str, str]]) -> list[str]:
+    """Set careers_url and/or ats for the named companies; every other line of the file keeps its bytes.
+
+    Returns the companies whose line changed. An unknown company or any other column raises ValueError
+    and nothing is written."""
+    columns = {column for values in updates.values() for column in values}
+    if columns - {"careers_url", "ats"}:
+        raise ValueError(f"only careers_url and ats can be updated, not {', '.join(sorted(columns - {'careers_url', 'ats'}))}")
+    lines = Path(path).read_bytes().decode("utf-8").splitlines(keepends=True)
+    missing, changed = set(updates), []
+    for index, line in enumerate(lines[1:], start=1):
+        body = line.rstrip("\r\n")
+        cells = next(csv.reader([body]), [])
+        if len(cells) != len(COLUMNS) or cells[0].strip() not in updates:
+            continue
+        company = cells[0].strip()
+        missing.discard(company)
+        new = list(cells)
+        for column, value in updates[company].items():
+            new[COLUMNS.index(column)] = value
+        if new != cells:
+            buffer = io.StringIO()
+            csv.writer(buffer, lineterminator="").writerow(new)
+            lines[index] = buffer.getvalue() + line[len(body):]
+            changed.append(company)
+    if missing:
+        raise ValueError(f"not in the seed list: {', '.join(sorted(missing))}")
+    if changed:
+        Path(path).write_bytes("".join(lines).encode("utf-8"))
+    return changed
+
+
 def read_seed(path: Path, *, expected_rows: int = EXPECTED_ROWS) -> SeedFile:
     raw = Path(path).read_bytes()
     seed = SeedFile(sha256=hashlib.sha256(raw).hexdigest())
