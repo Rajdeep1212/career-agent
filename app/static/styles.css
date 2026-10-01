@@ -190,6 +190,7 @@ textarea:focus, input:focus, select:focus { border-color:var(--primary); box-sha
   color:var(--muted);
 }
 .status.error { border-color:#6d3240; color:#ffabb5; }
+.status.warn { border-color:#6b5524; color:#f2cf7a; }
 .status.success { border-color:#276448; color:#7ae2ac; }
 .hidden { display:none !important; }
 

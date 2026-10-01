@@ -8,6 +8,7 @@ from app.models.schemas import JobPosting
 from app.providers.base import JobProvider, ProviderError
 from urllib.parse import urlsplit
 from app.services.job_requirements import extract_requirements
+from app.services.freshness import resolve_relative, today_ist
 from app.services.skills import extract_skills
 from app.storage import provider_usage
 
@@ -63,6 +64,14 @@ def _extract_items(payload: dict) -> list[dict]:
     return data if isinstance(data, list) else []
 
 
+def _posted(item: dict) -> str | None:
+    """The exact timestamp when given; else relative text ("3 days ago") resolved on the day it is fetched."""
+    if item.get("job_posted_at_datetime_utc"):
+        return str(item["job_posted_at_datetime_utc"])
+    day = resolve_relative(item.get("job_posted_at"), today_ist())
+    return day.isoformat() if day else None
+
+
 def normalize_item(item: dict) -> JobPosting:
     description = str(item.get("job_description") or "")[:60000]
     title = str(item.get("job_title") or "Unknown role")[:300]
@@ -96,7 +105,7 @@ def normalize_item(item: dict) -> JobPosting:
         skills=extract_skills(combined), application_url=apply_url,
         source="JSearch/RapidAPI", source_job_id=str(item["job_id"]) if item.get("job_id") else None,
         employment_type=str(item["job_employment_type"]) if item.get("job_employment_type") else None,
-        salary=salary, posted_date=str(item.get("job_posted_at_datetime_utc") or item.get("job_posted_at") or "") or None,
+        salary=salary, posted_date=_posted(item),
     )
 
 

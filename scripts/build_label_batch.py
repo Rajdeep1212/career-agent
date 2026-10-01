@@ -50,10 +50,10 @@ from app.storage.profile_store import load_profile  # noqa: E402
 RUBRIC_VERSION = "r1"
 # (id, query, role, excluded jobs to sample). Fixed by the owner on 2026-10-01; see docs/eval/searches.md.
 SEARCHES = [
-    ("A", "AI Engineer jobs for freshers in India", "target", 15),
-    ("B", "Software Engineer fresher jobs in India", "target", 15),
-    ("C", "Data Analyst jobs for freshers in India", "target", 15),
-    ("D", "Sales Executive jobs in India", "control", 10),
+    ("A", "AI Engineer jobs for freshers in India", "target", 10),
+    ("B", "Software Engineer fresher jobs in India", "target", 10),
+    ("C", "Data Analyst jobs for freshers in India", "target", 10),
+    ("D", "Sales Executive jobs in India", "control", 5),
 ]
 # Listing fields only: nothing the ranker or the eligibility check produced.
 BLIND_FIELDS = ("title", "company", "location", "work_mode", "employment_type", "posted_date", "salary", "description",

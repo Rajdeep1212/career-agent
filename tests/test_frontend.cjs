@@ -160,7 +160,8 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
     queries: [{ query: 'Junior designer Pune', reason: 'Matches your design skills' }],
     role_suggestions: [{ family: 'Design', titles: ['UX Designer'], reason: 'Figma in your CV', evidence: ['Figma'] }],
     diagnostics: { fetched: 12, normalized: 10, deduplicated: 8, eligible: 1, ranked: 1, provider_counts: { jsearch: 12 }, errors: [], latency_ms: 20 },
-    summary: 'One recommendation is ready.'
+    summary: 'One recommendation is ready.',
+    sync_notice: 'The job index was last synced on 2026-09-28 (3 days ago). Use Sync now to refresh.'
   };
   let chatCall = 0;
   const chatReplies = [
@@ -197,6 +198,9 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   assert.match(d.elements.get('searchDiagnostics').innerHTML, /12/);
   assert.match(d.elements.get('searchQueries').innerHTML, /Junior designer Pune/);
   assert.match(d.elements.get('executionSummary').textContent, /One recommendation/);
+  // A stale index sync is announced above the results instead of jobs vanishing silently.
+  assert.match(d.elements.get('syncNotice').textContent, /last synced on 2026-09-28 \(3 days ago\)/);
+  assert.equal(d.elements.get('syncNotice').classList.contains('hidden'), false);
   assert.match(d.elements.get('workspaceJobResults').innerHTML, /Junior Designer/);
   assert.match(d.elements.get('conversation').innerHTML, /job-artifact|Junior Designer/);
   assert.doesNotMatch(d.elements.get('conversation').innerHTML, /<img/);
@@ -456,6 +460,10 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   assert.match(grouped, /tag warn">Check before applying: posted 45 days ago and not confirmed open\./);
   assert.doesNotMatch(grouped, /Posted 5 days ago; not confirmed/);
   assert.doesNotMatch(threeWay, /result-group/);
+  // An alert-email job with no posted date shows the day its email arrived.
+  const seenOn = vm.runInContext(`jobCardsMarkup([{ id: '${'4'.repeat(64)}', title: 'Alert role', company: 'X', seen_on: '2026-09-27' }])`, d.context);
+  assert.match(seenOn, /Seen on 27 Sep 2026/);
+  assert.doesNotMatch(grouped, /Seen on/);
   assert.equal(vm.runInContext(`describeEvidence({ outcome: 'excluded', reason: 'Requires at least 5 years; your limit is 1.', quote: '5+ years experience required' })`, d.context),
     "excluded: quoted '5+ years experience required' (Requires at least 5 years; your limit is 1.)");
 

@@ -266,6 +266,14 @@ def runs(*, day: date | None = None) -> list[dict]:
     return [dict(row) for row in rows]
 
 
+def last_sync_day() -> str | None:
+    """The day of the latest successful sync run; never creates the database."""
+    if not DB_PATH.exists():
+        return None
+    with _connect() as conn:
+        return conn.execute("SELECT MAX(day) FROM radar_sync_runs WHERE status IN ('ok', 'partial')").fetchone()[0]
+
+
 def last_sync() -> dict | None:
     with _connect() as conn:
         row = conn.execute("SELECT MAX(finished_at) AS finished_at, COUNT(DISTINCT company_id) AS companies FROM radar_sync_runs "

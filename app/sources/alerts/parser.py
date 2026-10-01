@@ -19,6 +19,7 @@ from bs4 import BeautifulSoup, Tag
 
 from app.models.schemas import JobPosting
 from app.providers.common import build_posting
+from app.services.freshness import day_of, resolve_relative
 
 SOURCES = {"linkedin": "LinkedIn alert", "naukri": "Naukri alert", "indeed": "Indeed alert"}
 PLATFORM_NAMES = {"linkedin": "LinkedIn", "naukri": "Naukri", "indeed": "Indeed"}
@@ -61,7 +62,15 @@ class ParsedAlert:
                                     location=job.location or "Not specified", description=description, url=job.url,
                                     job_id=job.job_id)
             mode = "remote" if re.search(r"\bremote\b", job.location, re.I) else "hybrid" if re.search(r"\bhybrid\b", job.location, re.I) else None
-            result.append(posting.model_copy(update={"work_mode": mode}) if mode else posting)
+            # The email's arrival date is the job's "seen on" date; a line such as "Posted 3 days ago" is counted from it.
+            update: dict = {"seen_on": self.received_at}
+            arrived = day_of(self.received_at)
+            posted = next(filter(None, (resolve_relative(line, arrived) for line in job.extra)), None) if arrived else None
+            if posted:
+                update["posted_date"] = posted.isoformat()
+            if mode:
+                update["work_mode"] = mode
+            result.append(posting.model_copy(update=update))
         return result
 
 

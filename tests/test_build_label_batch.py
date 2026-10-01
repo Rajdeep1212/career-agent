@@ -99,10 +99,10 @@ class BuildLabelBatchTests(unittest.TestCase):
 
     def test_the_real_search_list_is_the_confirmed_one(self):
         self.assertEqual(self.builder.SEARCHES, [
-            ('A', 'AI Engineer jobs for freshers in India', 'target', 15),
-            ('B', 'Software Engineer fresher jobs in India', 'target', 15),
-            ('C', 'Data Analyst jobs for freshers in India', 'target', 15),
-            ('D', 'Sales Executive jobs in India', 'control', 10)])
+            ('A', 'AI Engineer jobs for freshers in India', 'target', 10),
+            ('B', 'Software Engineer fresher jobs in India', 'target', 10),
+            ('C', 'Data Analyst jobs for freshers in India', 'target', 10),
+            ('D', 'Sales Executive jobs in India', 'control', 5)])
         self.assertEqual(self.builder.RUBRIC_VERSION, 'r1')
 
     def test_the_batch_is_one_line_per_distinct_job(self):

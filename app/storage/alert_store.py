@@ -5,6 +5,7 @@ pages, its canonical URL. The same job from two platforms (same company, title
 and city) is stored once, with the other listing added to its sources[].
 Processed emails are remembered by Message-ID so re-runs skip them.
 """
+import re
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -58,6 +59,35 @@ def _connect():
     return db.connect(DB_PATH)
 
 
+# Alert jobs stored before `seen_on` existed carry their email's arrival date only in this note
+# (written by app/sources/alerts/parser.py).
+_RECEIVED_NOTE = re.compile(r"job alert received (\d{1,2} [A-Za-z]{3} \d{4})\.")
+
+
+def _seen_on(job: JobPosting) -> str | None:
+    if job.seen_on:
+        return job.seen_on
+    note = _RECEIVED_NOTE.search(job.description)
+    try:
+        return datetime.strptime(note[1], "%d %b %Y").date().isoformat() if note else None
+    except ValueError:
+        return None
+
+
+def _moment(value: str | None) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(str(value))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def _later(first: str | None, second: str | None) -> str | None:
+    """The later of two arrival times; an unreadable one loses."""
+    known = [(moment, value) for value in (first, second) if value and (moment := _moment(value))]
+    return max(known)[1] if known else None
+
+
 def identity_key(job: JobPosting) -> str:
     """Company, title and city folded the same way as Radar identity resolution."""
     return "|".join((company_key(job.company), title_key(job.title), city_key(job.location) or ""))
@@ -106,6 +136,7 @@ def upsert(jobs: list[JobPosting], *, kind: str) -> UpsertResult:
                                    source_job_id=job.source_job_id)
                 if ref not in stored.sources:
                     stored.sources.append(ref)
+            stored.seen_on = _later(stored.seen_on, job.seen_on)   # a later alert email moves "seen on" forward
             conn.execute("UPDATE alert_jobs SET job_json=?, last_seen_at=?, times_seen=times_seen+1 WHERE key=?",
                          (stored.model_dump_json(), now, existing["key"]))
             result.duplicates += 1
@@ -159,9 +190,14 @@ def list_jobs() -> list[JobPosting]:
         return []
     with _connect() as conn:
         rows = conn.execute("SELECT job_json, kind, last_seen_at FROM alert_jobs ORDER BY last_seen_at DESC").fetchall()
-    # Only a page the user saved themselves carries its capture time (freshness keeps it shown for a week).
-    return [JobPosting.model_validate_json(row["job_json"]).model_copy(
-        update={"captured_at": row["last_seen_at"] if row["kind"] == "capture" else None}) for row in rows]
+    # Only a page the user saved themselves carries its capture time (freshness keeps it shown for a week);
+    # only an alert-email job carries the day its email arrived.
+    jobs = []
+    for row in rows:
+        job, saved = JobPosting.model_validate_json(row["job_json"]), row["kind"] == "capture"
+        jobs.append(job.model_copy(update={"captured_at": row["last_seen_at"] if saved else None,
+                                           "seen_on": None if saved else _seen_on(job)}))
+    return jobs
 
 
 def new_since(since: str) -> list[JobPosting]:

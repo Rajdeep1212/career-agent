@@ -69,13 +69,13 @@ class AlertsProviderTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(official["verification_state"], "ACTIVE_VERIFIED")
         self.assertEqual([ref["source"] for ref in official["sources"]], ["LinkedIn alert"])
         self.assertEqual(response["diagnostics"]["provider_requests"], 0)
-        # Alert emails carry no posted date and their pages are never opened, so freshness hides them.
-        self.assertEqual([result for result in response["results"] if result["source"] == "LinkedIn alert"], [])
-        alert_only = [result for result in response["excluded"] if result["source"] == "LinkedIn alert"]
+        # Alert emails carry no posted date; the day the email arrived dates them ("seen on").
+        alert_only = [result for result in response["results"] if result["source"] == "LinkedIn alert"]
         self.assertTrue(alert_only)
-        self.assertEqual({result["excluded_by"] for result in alert_only}, {"freshness"})
-        self.assertEqual(response["diagnostics"]["stale_hidden"], len(alert_only))
+        self.assertEqual([result for result in response["excluded"] if result["excluded_by"] == "freshness"], [])
         for result in alert_only:
+            self.assertTrue(result["seen_on"])
+            self.assertEqual((result["freshness"]["dated_by"], result["freshness"]["decision"]), ("seen_on", "show"))
             self.assertEqual(result["verification_state"], "UNVERIFIED")
             self.assertIn("never opened automatically", result["verification_reason"])
             self.assertIn(result["eligibility_status"], ("eligible", "uncertain"))

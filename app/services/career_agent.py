@@ -24,7 +24,7 @@ from app.services.job_identity import deduplicate_jobs, job_identity, resolve_wi
 from app.sources.registry import alias_map, read_config
 from app.services.application_verifier import never_fetched, verify_application
 from app.services.eligibility import evaluate_eligibility
-from app.services.freshness import freshness, today_ist
+from app.services.freshness import VERIFIED_WITHIN_DAYS, freshness, today_ist
 from app.services.matching import match_job
 from app.storage import career_store, history, radar_store, search_cache
 from app.storage.profile_store import load_profile
@@ -139,6 +139,28 @@ def _split(providers):
 
 JSEARCH_NAME=JSearchProvider.name
 DAILY_MAX_AGE_DAYS=3
+
+
+def _stale_sync(local, today):
+    """{last_sync_day, days_ago} when the Company Radar index was last synced over 48 hours ago, else None."""
+    if not any(p.name==RADAR_SOURCE for p in local):
+        return None
+    try:
+        last=radar_store.last_sync_day()
+        days=(today-date.fromisoformat(last)).days if last else 0
+    except Exception:
+        logger.exception('the last Company Radar sync day could not be read')
+        return None
+    return dict(last_sync_day=last,days_ago=days) if days>VERIFIED_WITHIN_DAYS else None
+
+
+def _sync_notice(diagnostics):
+    stale=diagnostics.get('stale_sync')
+    if not stale:
+        return None
+    return (f"The job index was last synced on {stale['last_sync_day']} ({stale['days_ago']} days ago). Jobs count as confirmed "
+            f"open for 48 hours after a sync; without one, age decides: {diagnostics.get('stale_hidden',0)} hidden as stale and "
+            f"{diagnostics.get('check_before_applying',0)} to check before applying. Use Sync now to refresh.")
 
 
 def _index_ready(local):
@@ -409,6 +431,8 @@ class CareerAgent:
         ranked.sort(key=_rank_key)
         results=[r for r in ranked if r['total_score']>=intent.minimum_match_score][:50]
         diagnostics.update(_tier_counts(results))
+        diagnostics['stale_sync']=_stale_sync(local,today)
+        notice=_sync_notice(diagnostics)
         diagnostics.update(ranked_results=len(ranked),final_recommendations=len(results),
             below_match_threshold=sum(r['total_score']<intent.minimum_match_score for r in ranked),
             latency_ms=round((time.monotonic()-started)*1000))
@@ -417,7 +441,8 @@ class CareerAgent:
             profile=profile.model_dump(),preferences=preferences.model_dump(),session_id=session_id,
             intent=intent.model_dump(),role_suggestions=[r.model_dump() for r in roles],
             queries=[q.model_dump() for q in queries],diagnostics=diagnostics,
-            results=results,result_count=len(results),verified_count=counts['ACTIVE_VERIFIED'],summary=_summary(diagnostics),
+            results=results,result_count=len(results),verified_count=counts['ACTIVE_VERIFIED'],
+            summary=(notice+' ' if notice else '')+_summary(diagnostics),sync_notice=notice,
             _ranked_candidates=ranked,_profile_key=profile_key)
         career_store.save_session(session_id,intent.model_dump(),response)
         logger.info('career_search %s',json.dumps({'session_id':session_id,**{k:diagnostics[k] for k in
