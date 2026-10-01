@@ -13,6 +13,7 @@ let pendingDraftId = null;
 let pendingTurn = null;
 let pendingResumeTurn = null;
 let applicationsByJob = new Map();
+let relevanceByJob = new Map();   // job id -> 'up' | 'down' (live thumbs; feedback only)
 const jobsById = new Map();
 const conversation = [];
 const applicationStatuses = ['SAVED', 'APPLIED', 'ONLINE_TEST', 'INTERVIEW', 'OFFER', 'REJECTED', 'WITHDRAWN', 'SKIPPED'];
@@ -396,6 +397,7 @@ async function refreshApplicationIndex() {
   const data = await api('/applications');
   trackerEntries = Array.isArray(data) ? data : data.applications || [];
   applicationsByJob = new Map(trackerEntries.filter(entry => entry.job_id).map(entry => [entry.job_id, entry]));
+  try { relevanceByJob = new Map(Object.entries((await api('/jobs/relevance')).labels || {})); } catch { /* labels are optional */ }
   return trackerEntries;
 }
 
@@ -657,7 +659,7 @@ function describeEvidence(item) {
 }
 
 function jobCardsMarkup(jobs, compact = false) {
-  return jobs.map(job => {
+  return jobs.map((job, index) => {
     if (job?.id) jobsById.set(job.id, job);
     const match = job.match || {};
     const eligibility = job.eligibility || {};
@@ -675,7 +677,7 @@ function jobCardsMarkup(jobs, compact = false) {
       <div class="card-state-row"><span class="tag ${state === 'ACTIVE_VERIFIED' ? 'good' : 'warn'}">Verification: ${escapeHtml(state.replaceAll('_', ' '))}</span><span class="tag ${ELIGIBILITY_LABELS[eligibilityStatus(job)][1]}">Eligibility: ${ELIGIBILITY_LABELS[eligibilityStatus(job)][0]}</span><span class="tag">Tracker: ${escapeHtml(trackerState.replaceAll('_', ' '))}</span>${outreachState !== 'NONE' ? `<span class="tag">Outreach: ${escapeHtml(outreachState)}</span>` : ''}</div>
       <div><strong class="muted">Matched skills</strong><div class="skill-row">${tags(match.matched_skills || job.matched_skills, 'good') || '<span class="muted">No explicit skill match</span>'}</div></div>
       ${compact ? '' : `<div class="verification"><p>${escapeHtml(job.verification_reason || 'Application page has not been verified.')}</p>${eligibilitySummary(job) ? `<p class="eligibility-summary">${escapeHtml(eligibilitySummary(job))}</p>` : ''}</div><p>${escapeHtml(match.explanation || 'Review the listed requirements before applying.')}</p>${match.transferable_skills?.length ? `<div><strong class="muted">Transferable skills</strong><div class="skill-row">${tags(match.transferable_skills)}</div></div>` : ''}${(match.missing_skills || job.missing_skills)?.length ? `<div><strong class="muted">Missing skills</strong><div class="skill-row">${tags(match.missing_skills || job.missing_skills, 'warn')}</div></div>` : ''}<details><summary>Match evidence and eligibility</summary><p>${escapeHtml(eligibilitySummary(job) || 'No eligibility evidence recorded.')} ${escapeHtml(eligibility.confidence ? 'Confidence: ' + eligibility.confidence : '')}</p><ul>${textList([...(match.strengths || []), ...(match.gaps || []), ...(eligibility.positive_signals || []), ...(eligibility.warnings || []), ...(eligibility.hard_rejections || []), ...(job.reasons || [])])}</ul></details>`}
-      <div class="card-actions"><button class="primary" data-job-id="${storedId}" onclick="selectJobById('${storedId}')" ${storedId ? '' : 'disabled'}>View details</button><button class="secondary" onclick="saveJobById('${storedId}')" ${storedId ? '' : 'disabled'}>${application ? 'Saved' : 'Save'}</button><button class="secondary" onclick="markAppliedById('${storedId}')" ${storedId ? '' : 'disabled'}>${application?.applied_at ? 'Applied ✓' : 'Mark applied'}</button>${url ? `<a class="secondary" target="_blank" rel="noopener noreferrer" href="${escapeHtml(url)}">Open job</a>` : '<span class="muted">Application link unavailable</span>'}<button class="secondary" onclick="startJobOutreach('${storedId}')" ${storedId ? '' : 'disabled'}>Prepare outreach</button>${storedId && REMOVABLE_SOURCES.has(job.source) ? `<button class="secondary" onclick="removeJobById('${storedId}')">Remove</button>` : ''}</div>
+      <div class="card-actions"><button class="primary" data-job-id="${storedId}" onclick="selectJobById('${storedId}')" ${storedId ? '' : 'disabled'}>View details</button><button class="secondary" onclick="saveJobById('${storedId}')" ${storedId ? '' : 'disabled'}>${application ? 'Saved' : 'Save'}</button><button class="secondary" onclick="markAppliedById('${storedId}')" ${storedId ? '' : 'disabled'}>${application?.applied_at ? 'Applied ✓' : 'Mark applied'}</button>${storedId ? thumbButtons(storedId, index + 1) : ''}${url ? `<a class="secondary" target="_blank" rel="noopener noreferrer" href="${escapeHtml(url)}">Open job</a>` : '<span class="muted">Application link unavailable</span>'}<button class="secondary" onclick="startJobOutreach('${storedId}')" ${storedId ? '' : 'disabled'}>Prepare outreach</button>${storedId && REMOVABLE_SOURCES.has(job.source) ? `<button class="secondary" onclick="removeJobById('${storedId}')">Remove</button>` : ''}</div>
     </article>`;
   }).join('');
 }
@@ -797,6 +799,22 @@ async function refreshAfterTrackerEvent() {
   if (window.lastJobs) renderJobs(window.lastJobs);
   if ($('trackerView').classList.contains('active')) await loadTracker();
 }
+
+// Thumbs up/down: feedback for evaluating the ranker later. It never changes ranking or the tracker.
+const THUMBS = [['up', '👍', 'Relevant to me'], ['down', '👎', 'Not relevant to me']];
+const thumbButtons = (id, position) => THUMBS.map(([label, icon, text]) =>
+  `<button class="secondary thumb" type="button" title="${text}" aria-label="${text}" aria-pressed="${relevanceByJob.get(id) === label}" onclick="rateJob('${id}', '${label}', ${position})">${icon}</button>`).join('');
+
+window.rateJob = (id, label, position) => oncePerAction(`thumb:${id}`, async () => {
+  try {
+    const send = relevanceByJob.get(id) === label ? 'clear' : label;   // the active thumb again clears it
+    const data = await api(`/jobs/${encodeURIComponent(id)}/relevance`, jsonOptions('POST', {
+      label: send, request_id: newRequestId(), context: { position: position || null, search_session_id: searchSessionId }
+    }));
+    if (data.label) relevanceByJob.set(id, data.label); else relevanceByJob.delete(id);
+    if (window.lastJobs) renderJobs(window.lastJobs);
+  } catch (error) { showStatus($('resultActionStatus'), error.message, 'error'); }
+});
 
 window.markAppliedById = id => oncePerAction(`applied:${id}`, async () => {
   if (!id) return;

@@ -609,3 +609,5 @@ button:disabled { cursor:not-allowed; opacity:.55; }
 .undo-toast { position:fixed; left:50%; bottom:16px; transform:translateX(-50%); z-index:60; display:flex;
   gap:12px; align-items:center; max-width:calc(100vw - 32px); padding:10px 14px; background:var(--panel);
   color:var(--text); border:1px solid var(--line); border-radius:var(--radius-md); box-shadow:var(--shadow); }
+/* Thumbs on job cards: the pressed one uses the same colours as a positive tag */
+.thumb[aria-pressed="true"] { color:#8ce7b7; border-color:#285f49; background:#10271f; }

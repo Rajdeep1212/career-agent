@@ -15,6 +15,7 @@ from app.storage import career_events, db
 
 DB_PATH = Path(settings.data_dir) / 'agent.sqlite3'
 _STATUSES = get_args(ApplicationStatus)
+Snapshot = tuple[dict, dict]   # (profile, L0 features) captured with an event
 
 
 def _now():
@@ -160,6 +161,78 @@ def _application(conn, row) -> dict | None:
     return result
 
 
+def record_thumb(job_id: str, label: str, *, request_id: str, context: dict | None = None,
+                 snapshot: Snapshot | None = None) -> dict:
+    """A live thumbs up/down label on any stored job, saved or not (docs/M2_PLAN.md §4). The latest
+    label wins and `clear` removes it; a repeat records nothing. Labels never change ranking or the
+    tracker."""
+    if label not in career_events.THUMB_LABELS:
+        raise ValueError('The label must be up, down or clear')
+    event_type = career_events.THUMB_LABELS[label]
+    with _connection() as conn:
+        if conn.execute('SELECT 1 FROM career_jobs WHERE id=?', (job_id,)).fetchone() is None:
+            raise LookupError('Job not found')
+        events = career_events.events_for_job(conn, job_id)
+        current = career_events.thumb_label(career_events.current_thumb_event(events))
+        if _replayed(conn, request_id, job_id, event_type) is not None:
+            return {'job_id': job_id, 'label': current, 'already_recorded': False, 'replayed': True}
+        if (label == 'clear' and current is None) or label == current:
+            return {'job_id': job_id, 'label': current, 'already_recorded': True, 'replayed': False}
+        application = conn.execute('SELECT id FROM career_applications WHERE job_id=?', (job_id,)).fetchone()
+        snapshot_id = (career_events.capture_snapshot(conn, job_id, profile=snapshot[0], features=snapshot[1])
+                       if snapshot else None)
+        details = {key: value for key, value in (context or {}).items() if value is not None}
+        details.update(scale=career_events.THUMBS_SCALE, rubric_version=career_events.THUMBS_RUBRIC_VERSION,
+                       ranker_version=career_events.ranker_version())
+        career_events.append_event(conn, job_id, event_type, application_id=application['id'] if application else None,
+                                   request_id=request_id, snapshot_id=snapshot_id, context=details)
+        return {'job_id': job_id, 'label': None if label == 'clear' else label, 'already_recorded': False,
+                'replayed': False}
+
+
+def _labelled_jobs(conn) -> list[tuple[str, dict]]:
+    """(job id, current thumbs event) for every job that has a current label."""
+    job_ids = [row['job_id'] for row in conn.execute(
+        "SELECT DISTINCT job_id FROM job_events WHERE event_type IN ('thumbs_up', 'thumbs_down') ORDER BY job_id")]
+    found = []
+    for job_id in job_ids:
+        event = career_events.current_thumb_event(career_events.events_for_job(conn, job_id))
+        if event is not None:
+            found.append((job_id, event))
+    return found
+
+
+def thumbs() -> dict[str, str]:
+    """The current label of every labelled job."""
+    with _connection() as conn:
+        return {job_id: career_events.thumb_label(event) or '' for job_id, event in _labelled_jobs(conn)}
+
+
+def thumb_export_rows() -> list[dict]:
+    """One row per current label for the evaluation harness. The CV appears only as its version hash."""
+    rows = []
+    with _connection() as conn:
+        for job_id, event in _labelled_jobs(conn):
+            context = json.loads(event['context_json'] or '{}')
+            snapshot = conn.execute('SELECT * FROM job_snapshots WHERE id=?', (event['snapshot_id'],)).fetchone()
+            job = json.loads(snapshot['job_json']) if snapshot else {}
+            rows.append({
+                'job_id': job_id, 'label': career_events.thumb_label(event),
+                'scale': context.get('scale'), 'rubric_version': context.get('rubric_version'),
+                'labelled_at': event['occurred_at'], 'event_id': event['id'],
+                'search_session_id': context.get('search_session_id'), 'position': context.get('position'),
+                'ranker_version': context.get('ranker_version'),
+                'snapshot_id': event['snapshot_id'],
+                'job_sha256': snapshot['job_sha256'] if snapshot else None,
+                'cv_version': snapshot['cv_version'] if snapshot else None,
+                'vocabulary_version': snapshot['vocabulary_version'] if snapshot else None,
+                'captured_at': snapshot['captured_at'] if snapshot else None,
+                'title': job.get('title'), 'company': job.get('company'), 'location': job.get('location'),
+                'source': job.get('source'), 'description': job.get('description'),
+            })
+    return rows
+
+
 _RESPONSE_COUNTS = {'RESPONDED': 'responded', 'NO_RESPONSE': 'no_response', 'PENDING_CENSORED': 'pending_censored'}
 
 
@@ -212,7 +285,6 @@ def _status(value):
 
 # The funnel event that sets each status.
 _STATUS_EVENTS = {status: event for event, status in career_events.FUNNEL_EVENTS.items()}
-Snapshot = tuple[dict, dict]   # (profile, L0 features) captured with a status event
 
 
 def _refresh_cache(conn, application_id: str, job_id: str) -> None:

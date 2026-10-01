@@ -618,6 +618,37 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   assert.equal(outcomePost?.[2].event_type, 'interview');
   assert.ok(outcomePost?.[2].request_id);
 
+  // Thumbs up/down on a job card: one click labels, the same click again clears; the card shows the state.
+  const thumbJobId = 'e'.repeat(64);
+  let thumbLabel = null;
+  d = await dashboard({ configured: true, connected: false }, '', false, {
+    '/applications': [],
+    '/jobs/relevance': () => ({ scale: 'thumbs', rubric_version: 'thumbs-v1', labels: thumbLabel ? { [thumbJobId]: thumbLabel } : {} }),
+    [`/jobs/${thumbJobId}/relevance`]: options => {
+      const sent = JSON.parse(options.body).label;
+      thumbLabel = sent === 'clear' ? null : sent;
+      return { job_id: thumbJobId, label: thumbLabel, already_recorded: false, replayed: false };
+    }
+  });
+  const thumbCards = [{ id: 'f'.repeat(64), title: 'Data Analyst', company: 'OtherCo', source: 'Company Radar', match: {}, eligibility: {} },
+                      { id: thumbJobId, title: 'NLP Engineer', company: 'ExampleCo', source: 'Company Radar', match: {}, eligibility: {} }];
+  d.context.renderJobs(thumbCards);
+  const thumbHtml = () => d.elements.get('workspaceJobResults').innerHTML;
+  assert.match(thumbHtml(), new RegExp(`rateJob\\('${thumbJobId}', 'up', 2\\)`));
+  assert.match(thumbHtml(), new RegExp(`rateJob\\('${thumbJobId}', 'down', 2\\)`));
+  assert.doesNotMatch(thumbHtml(), /aria-pressed="true"/);
+  await d.context.window.rateJob(thumbJobId, 'up', 2);
+  let thumbPosts = d.calls.filter(([path, method]) => path === `/jobs/${thumbJobId}/relevance` && method === 'POST');
+  assert.equal(thumbPosts.length, 1);
+  assert.equal(thumbPosts[0][2].label, 'up');
+  assert.equal(thumbPosts[0][2].context.position, 2);
+  assert.ok(thumbPosts[0][2].request_id);
+  assert.match(thumbHtml(), new RegExp(`aria-pressed="true"[^>]*onclick="rateJob\\('${thumbJobId}', 'up', 2\\)"`));
+  await d.context.window.rateJob(thumbJobId, 'up', 2);
+  thumbPosts = d.calls.filter(([path, method]) => path === `/jobs/${thumbJobId}/relevance` && method === 'POST');
+  assert.equal(thumbPosts[1][2].label, 'clear', 'clicking the active thumb clears it');
+  assert.doesNotMatch(thumbHtml(), /aria-pressed="true"/);
+
   // The tracker shows the funnel as counts (L0), never as an estimate, and tags shortlisted applications.
   d = await dashboard({ configured: true, connected: false }, '', false, {
     '/applications': [{ id: 'app-9', job_id: applyJobId, status: 'INTERVIEW', notes: '', response_state: 'RESPONDED', shortlisted: true,

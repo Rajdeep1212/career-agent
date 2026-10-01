@@ -227,6 +227,23 @@ def first_applied_at(events: list[dict]) -> str | None:
     return applied[0]["occurred_at"] if applied else None
 
 
+# Live relevance labels (docs/M2_PLAN.md §4). A separate scale from the graded 0-3 batch labels; the
+# two are never converted into each other.
+THUMBS_SCALE = "thumbs"
+THUMBS_RUBRIC_VERSION = "thumbs-v1"
+THUMB_LABELS = {"up": "thumbs_up", "down": "thumbs_down", "clear": "thumbs_cleared"}
+
+
+def current_thumb_event(events: list[dict]) -> dict | None:
+    """The standing thumbs_up or thumbs_down event that is the job's current label, if any."""
+    thumbs = [event for event in _standing(events) if event["event_type"] in THUMBS_EVENTS]
+    return thumbs[-1] if thumbs and thumbs[-1]["event_type"] != "thumbs_cleared" else None
+
+
+def thumb_label(event: dict | None) -> str | None:
+    return {"thumbs_up": "up", "thumbs_down": "down"}.get(event["event_type"]) if event else None
+
+
 # Reaching any of these stages is what "shortlisted" means (docs/M2_PLAN.md §2).
 SHORTLIST_EVENTS = ("online_test", "interview", "offer")
 

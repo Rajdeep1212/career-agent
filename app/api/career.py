@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.core.origin_security import has_exact_local_origin
 from app.models.career import ApplicationStatus, ContactCandidate
 from app.services.job_snapshot import snapshot_inputs
-from app.storage import career_store
+from app.storage import career_events, career_store
 
 
 router = APIRouter(tags=['Career'])
@@ -105,6 +105,21 @@ class OutcomeRequest(_TrackerEventRequest):
 class UndoRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     request_id: RequestId
+
+
+class RelevanceContext(BaseModel):
+    """Where the labelled job was shown; kept with the label for the evaluation harness."""
+    model_config = ConfigDict(extra='forbid')
+    search_session_id: str | None = Field(default=None, max_length=128)
+    position: int | None = Field(default=None, ge=1, le=1000)
+    query: str | None = Field(default=None, max_length=500)
+
+
+class RelevanceRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    label: Literal['up', 'down', 'clear']
+    request_id: RequestId
+    context: RelevanceContext = Field(default_factory=RelevanceContext)
 
 
 def _public_url(value: str) -> bool:
@@ -229,6 +244,24 @@ def record_outcome(application_id: str, request: OutcomeRequest, http_request: R
 def undo_event(application_id: str, event_id: int, request: UndoRequest, http_request: Request):
     require_tracker_origin(http_request)
     return _event_response(lambda: career_store.undo_event(application_id, event_id, request_id=request.request_id))
+
+
+@router.get('/jobs/relevance')
+def job_relevance_labels():
+    """Current live thumbs labels. A separate scale from graded evaluation labels (docs/M2_PLAN.md §4)."""
+    return {'scale': career_events.THUMBS_SCALE, 'rubric_version': career_events.THUMBS_RUBRIC_VERSION,
+            'labels': career_store.thumbs()}
+
+
+@router.post('/jobs/{job_id}/relevance')
+def rate_job(job_id: str, request: RelevanceRequest, http_request: Request):
+    """Thumbs up, down or clear on a stored job. Feedback only: it never changes ranking or the tracker."""
+    require_tracker_origin(http_request)
+    if career_store.get_job(job_id) is None:
+        raise HTTPException(status_code=404, detail='Job not found')
+    snapshot = None if request.label == 'clear' else _snapshot(job_id)
+    return _event_response(lambda: career_store.record_thumb(
+        job_id, request.label, request_id=request.request_id, context=request.context.model_dump(), snapshot=snapshot))
 
 
 @router.patch('/applications/{application_id}')
