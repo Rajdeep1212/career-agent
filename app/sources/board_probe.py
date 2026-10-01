@@ -5,7 +5,8 @@ Lever, Ashby, SmartRecruiters and the Workable careers widget. No web page is re
 
 A slug that answers with jobs is a hit, and a hit is only as good as its evidence:
 
-- `confirmed`: the API returned jobs, the name matches, and at least one job is in India.
+- `confirmed`: the API returned jobs, the name matches, at least one job is in India, and the newest
+  posting is not more than 180 days old (an abandoned account still returns its last postings).
 - `probable`: the API returned jobs, but the name does not fully match or no job is in India.
 
 Name evidence: Greenhouse, SmartRecruiters and Workable return the organisation's name. Lever and
@@ -20,6 +21,7 @@ import csv
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import date, datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
 
@@ -31,6 +33,7 @@ from app.sources.registry import DEFAULT_INDIA_FILTER
 
 ATS = ["greenhouse", "lever", "ashby", "smartrecruiters", "workable"]
 MAX_SLUGS = 4
+STALE_DAYS = 180
 REVIEW_COLUMNS = ["company", "city", "ats", "slug", "status", "jobs_total", "jobs_india", "evidence"]
 BOARD_URL = {"greenhouse": "https://boards.greenhouse.io/{}", "lever": "https://jobs.lever.co/{}",
              "ashby": "https://jobs.ashbyhq.com/{}", "smartrecruiters": "https://jobs.smartrecruiters.com/{}",
@@ -115,6 +118,21 @@ class _Board:
     name: str | None        # the organisation name the API returned; None when it returns none
     texts: list[str]        # job descriptions, for the APIs that return no name
     key: str                # the board id for the public URL
+    posted: list = field(default_factory=list)      # each job's posting date as the API gave it
+
+
+def _newest(values: list) -> date | None:
+    """The latest posting date among ISO strings and epoch milliseconds; None when no value can be read."""
+    days = []
+    for value in values:
+        try:
+            if isinstance(value, (int, float)):
+                days.append(datetime.fromtimestamp(value / 1000, tz=timezone.utc).date())
+            elif value:
+                days.append(date.fromisoformat(str(value)[:10]))
+        except (ValueError, OverflowError, OSError):
+            continue
+    return max(days) if days else None
 
 
 async def _json(fetcher: DetectFetcher, url: str):
@@ -132,7 +150,7 @@ async def _greenhouse(slug: str, fetcher: DetectFetcher) -> _Board | None:
         board = await _json(fetcher, f"https://boards-api.greenhouse.io/v1/boards/{quote(slug)}")
         name = str(board.get("name") or "") if isinstance(board, dict) else ""
     india = [job for job in jobs if _INDIA.search(str((job.get("location") or {}).get("name") or ""))]
-    return _Board(len(jobs), len(india), name, [], slug)
+    return _Board(len(jobs), len(india), name, [], slug, [job.get("first_published") or job.get("updated_at") for job in jobs])
 
 
 async def _lever(slug: str, fetcher: DetectFetcher) -> _Board | None:
@@ -140,7 +158,8 @@ async def _lever(slug: str, fetcher: DetectFetcher) -> _Board | None:
     if not isinstance(jobs, list) or not jobs:
         return None
     india = [job for job in jobs if _INDIA.search(lever._locations(job)) or str(job.get("country") or "").upper() == "IN"]
-    return _Board(len(jobs), len(india), None, [str(job.get("descriptionPlain") or "") for job in jobs], slug)
+    return _Board(len(jobs), len(india), None, [str(job.get("descriptionPlain") or "") for job in jobs], slug,
+                  [job.get("createdAt") for job in jobs])
 
 
 async def _ashby(slug: str, fetcher: DetectFetcher) -> _Board | None:
@@ -150,7 +169,8 @@ async def _ashby(slug: str, fetcher: DetectFetcher) -> _Board | None:
     if not listed:
         return None
     india = [job for job in listed if any(_INDIA.search(place) for place in ashby._locations(job))]
-    return _Board(len(listed), len(india), None, [str(job.get("descriptionPlain") or "") for job in listed], slug)
+    return _Board(len(listed), len(india), None, [str(job.get("descriptionPlain") or "") for job in listed], slug,
+                  [job.get("publishedAt") for job in listed])
 
 
 async def _smartrecruiters(slug: str, fetcher: DetectFetcher) -> _Board | None:
@@ -164,7 +184,7 @@ async def _smartrecruiters(slug: str, fetcher: DetectFetcher) -> _Board | None:
     india = india_page.get("content") if isinstance(india_page, dict) else None
     # Both counts are of one page of at most 100 postings.
     return _Board(len(jobs), len(india) if isinstance(india, list) else 0, str(company.get("name") or ""), [],
-                  str(company.get("identifier") or slug))
+                  str(company.get("identifier") or slug), [job.get("releasedDate") for job in jobs])
 
 
 async def _workable(slug: str, fetcher: DetectFetcher) -> _Board | None:
@@ -173,13 +193,14 @@ async def _workable(slug: str, fetcher: DetectFetcher) -> _Board | None:
     if not isinstance(jobs, list) or not jobs:
         return None
     india = [job for job in jobs if _INDIA.search(" ".join(str(job.get(key) or "") for key in ("country", "city", "state")))]
-    return _Board(len(jobs), len(india), str(payload.get("name") or ""), [], slug)
+    return _Board(len(jobs), len(india), str(payload.get("name") or ""), [], slug,
+                  [job.get("published_on") or job.get("created_at") for job in jobs])
 
 
 _READERS = {"greenhouse": _greenhouse, "lever": _lever, "ashby": _ashby, "smartrecruiters": _smartrecruiters, "workable": _workable}
 
 
-def _judge(row: SeedRow, board: _Board) -> tuple[str, str]:
+def _judge(row: SeedRow, board: _Board, today: date) -> tuple[str, str]:
     """(status, evidence) for a board that returned jobs."""
     if board.name is not None:
         match = name_match(row.company, board.name)
@@ -191,7 +212,10 @@ def _judge(row: SeedRow, board: _Board) -> tuple[str, str]:
         match = "exact" if mentions else "none"
         named = f"the API returns no organisation name; the company name appears in {mentions} of {len(board.texts)} job descriptions"
     india = f"{board.india} of {board.total} jobs in India" if board.india else f"no India job among {board.total}"
-    return ("confirmed" if match == "exact" and board.india else "probable"), f"{named}; {india}"
+    newest = _newest(board.posted)
+    stale = newest is not None and (today - newest).days > STALE_DAYS
+    age = "" if newest is None else f"; newest posting {newest}" + (f" is more than {STALE_DAYS} days old" if stale else "")
+    return ("confirmed" if match == "exact" and board.india and not stale else "probable"), f"{named}; {india}{age}"
 
 
 async def probe_company(row: SeedRow, fetcher: DetectFetcher, run: ProbeRun | None = None) -> list[ProbeHit]:
@@ -208,7 +232,7 @@ async def probe_company(row: SeedRow, fetcher: DetectFetcher, run: ProbeRun | No
             run.errors[ats] = run.errors.get(ats, 0) + 1
             return
         if board:
-            status, evidence = _judge(row, board)
+            status, evidence = _judge(row, board, fetcher._now().date())
             hits[ats] = ProbeHit(row.line, row.company, row.list_type, row.city, ats, slug, status, board.total, board.india,
                                  evidence, BOARD_URL[ats].format(board.key))
 
@@ -225,8 +249,10 @@ async def probe_company(row: SeedRow, fetcher: DetectFetcher, run: ProbeRun | No
 
 
 async def probe_all(rows: list[SeedRow], fetcher: DetectFetcher,
-                    progress: Callable[[SeedRow, list[ProbeHit]], None] | None = None) -> ProbeRun:
-    run = ProbeRun()
+                    progress: Callable[[SeedRow, list[ProbeHit]], None] | None = None,
+                    skip: dict[str, str] | None = None) -> ProbeRun:
+    """`skip` maps an API to the reason it is not queried in this run (for one that answered 429 earlier)."""
+    run = ProbeRun(stopped=dict(skip or {}))
     for row in rows:
         hits = await probe_company(row, fetcher, run)
         run.companies += 1

@@ -11,6 +11,7 @@ re-run within --max-age-hours sends nothing new. See app/sources/ats_detect.py f
 """
 import argparse
 import asyncio
+import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,7 +21,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app.core.config import settings  # noqa: E402
-from app.sources.ats_detect import STATUSES, Detection, DetectFetcher, detect_all, render_report  # noqa: E402
+from app.sources.ats_detect import STATUSES, Detection, DetectFetcher, detect_all, pollable, render_report  # noqa: E402
+from app.sources.board_probe import read_review  # noqa: E402
 from app.sources.company_seed import EXPECTED_ROWS, read_seed  # noqa: E402
 
 
@@ -37,6 +39,8 @@ def main(argv: list[str] | None = None, *, fetcher: DetectFetcher | None = None)
     parser.add_argument("--validate-only", action="store_true", help="check the CSV and send no request")
     parser.add_argument("--delay", type=float, default=1.5, help="seconds between requests to one host")
     parser.add_argument("--max-age-hours", type=float, default=168.0, help="reuse cached answers younger than this")
+    parser.add_argument("--baseline-pollable", type=int, default=8,
+                        help="pollable companies before the slug probe (8 in the Q2c run, commit 5fbdd0a)")
     args = parser.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(errors="replace")
@@ -57,9 +61,16 @@ def main(argv: list[str] | None = None, *, fetcher: DetectFetcher | None = None)
         seed_name = args.csv.resolve().relative_to(ROOT).as_posix()
     except ValueError:
         seed_name = args.csv.name
+    # The slug-probe review file (scripts/probe_boards.py) sits beside the seed list; its section is added when it exists.
+    review_path = args.csv.with_name("companies_probe_review.csv")
+    review = read_review(review_path) if review_path.exists() else None
+    summary_path = review_path.with_suffix(".meta.json")
+    probe = json.loads(summary_path.read_text(encoding="utf-8")) if summary_path.exists() else None
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(render_report(seed, results, run_at=datetime.now(timezone.utc), requests=fetcher.requests,
-                                         cache_hits=fetcher.cache_hits, seed_name=seed_name), encoding="utf-8")
+                                         cache_hits=fetcher.cache_hits, seed_name=seed_name, review=review, probe=probe,
+                                         baseline_pollable=args.baseline_pollable), encoding="utf-8")
+    print(f"pollable {len(pollable(results))}")
     print(" | ".join(f"{status} {len([found for found in results if found.status == status])}" for status in STATUSES))
     print(f"requests sent {fetcher.requests}, cache hits {fetcher.cache_hits}; report: {args.report}")
     return 0

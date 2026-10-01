@@ -42,7 +42,9 @@ def main(argv: list[str] | None = None, *, fetcher: DetectFetcher | None = None)
     parser.add_argument("--expect-rows", type=int, default=EXPECTED_ROWS)
     parser.add_argument("--delay", type=float, default=2.0, help="seconds between requests to one host")
     parser.add_argument("--max-age-hours", type=float, default=168.0, help="reuse cached answers younger than this")
-    parser.add_argument("--apply-confirmed", action="store_true", help="write confirmed boards into the seed list")
+    parser.add_argument("--skip", action="append", default=[], metavar="ATS=REASON",
+                        help="do not query this API in this run, e.g. one that answered HTTP 429 earlier")
+    parser.add_argument("--apply-confirmed",action="store_true", help="write confirmed boards into the seed list")
     args = parser.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(errors="replace")
@@ -59,7 +61,8 @@ def main(argv: list[str] | None = None, *, fetcher: DetectFetcher | None = None)
 
     rows = [row for row in seed.rows if not row.careers_url]
     fetcher = fetcher or DetectFetcher(delay=args.delay, max_age_hours=args.max_age_hours)
-    run = asyncio.run(probe_all(rows, fetcher, progress=_progress))
+    skip = dict(item.split("=", 1) if "=" in item else (item, "skipped on request") for item in args.skip)
+    run = asyncio.run(probe_all(rows, fetcher, progress=_progress, skip=skip))
     write_review(args.review, run.hits)
     confirmed = len([hit for hit in run.hits if hit.status == "confirmed"])
     updates = confirmed_updates(run.hits)
@@ -68,7 +71,13 @@ def main(argv: list[str] | None = None, *, fetcher: DetectFetcher | None = None)
                "single_confirmed_companies": len(updates), "slugs_tried": run.slugs_tried, "requests": fetcher.requests,
                "cache_hits": fetcher.cache_hits, "delay_seconds": fetcher.delay, "stopped": run.stopped, "not_sent": run.not_sent,
                "errors": run.errors}
-    args.review.with_suffix(".meta.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    summary_path = args.review.with_suffix(".meta.json")
+    if summary_path.exists():
+        # A re-run answered from the cache sends little; keep what the first run sent and where it was stopped.
+        earlier = json.loads(summary_path.read_text(encoding="utf-8"))
+        summary["first_run"] = earlier.get("first_run") or {key: earlier.get(key) for key in
+                                                            ("run_at", "requests", "stopped", "not_sent", "errors")}
+    summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(f"{run.companies} companies probed, {run.with_hit} with a board: confirmed {confirmed}, probable {len(run.hits) - confirmed}")
     print(f"requests sent {fetcher.requests}, cache hits {fetcher.cache_hits}; stopped {run.stopped or 'none'}; errors {run.errors or 'none'}")
     if args.apply_confirmed:

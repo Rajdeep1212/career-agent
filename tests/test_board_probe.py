@@ -158,6 +158,27 @@ class ProbeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((hit.ats, hit.slug, hit.status, hit.jobs_total, hit.jobs_india), ("workable", "example-labs", "confirmed", 2, 1))
         self.assertEqual(hit.board_url, "https://apply.workable.com/example-labs")
 
+    async def test_a_board_whose_newest_posting_is_over_180_days_old_is_only_probable(self):
+        # Found in the live run: SmartRecruiters accounts abandoned years ago still return their last posting.
+        def account(released):
+            posting = {"id": "1", "name": "Engineer", "company": {"identifier": "ExampleLabs", "name": "Example Labs"},
+                       "location": {"city": "Pune", "country": "in"}, "releasedDate": released}
+            page = json.dumps({"totalFound": 1, "content": [posting]})
+            return FakeWeb({SMART.format("examplelabs"): (200, page), SMART_INDIA.format("examplelabs"): (200, page)})
+        old = (await probe_company(row("Example Labs"), self.fetcher(account("2018-01-17T09:00:00.000Z"))))[0]
+        self.assertEqual(old.status, "probable")
+        self.assertIn("newest posting 2018-01-17 is more than 180 days old", old.evidence)
+        self.directory = self.directory / "second"
+        recent = (await probe_company(row("Example Labs"), self.fetcher(account("2026-09-18T09:00:00.000Z"))))[0]   # run day: 2026-10-01
+        self.assertEqual(recent.status, "confirmed")
+        self.assertIn("newest posting 2026-09-18", recent.evidence)
+        self.directory = self.directory / "third"
+        stale = lever_postings(("Bangalore", "IN", "Example Labs builds evaluation tools."))
+        stale = json.dumps([{**job, "createdAt": 1500000000000} for job in json.loads(stale)])                    # 2017-07-14
+        hit = (await probe_company(row("Example Labs"), self.fetcher(FakeWeb({LEVER.format("examplelabs"): (200, stale)}))))[0]
+        self.assertEqual(hit.status, "probable")
+        self.assertIn("newest posting 2017-07-14", hit.evidence)
+
     async def test_an_empty_board_or_account_is_not_a_hit(self):
         web = FakeWeb({WORKABLE.format("examplelabs"): (200, json.dumps({"name": "Example Labs", "jobs": []})),
                        GREENHOUSE.format("examplelabs"): (200, json.dumps({"jobs": []})),
@@ -179,6 +200,12 @@ class ProbeTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(run.not_sent["lever"], 0)
         self.assertEqual([(hit.company, hit.status) for hit in run.hits], [("Other Corp", "confirmed")])
         self.assertEqual((run.companies, run.with_hit), (2, 1))
+
+    async def test_a_skipped_api_is_never_requested_and_is_reported_as_stopped(self):
+        web = FakeWeb({})
+        run = await probe_all([row("Example Labs")], self.fetcher(web), skip={"workable": "answered HTTP 429 in the first run"})
+        self.assertFalse([call for call in web.calls if "workable" in call])
+        self.assertEqual((run.stopped, run.not_sent), ({"workable": "answered HTTP 429 in the first run"}, {"workable": 3}))
 
     async def test_requests_to_one_api_are_two_seconds_apart(self):
         slept = []
@@ -277,6 +304,17 @@ class ScriptTests(unittest.TestCase):
         self.assertTrue(lines[1].endswith(",https://boards.greenhouse.io/examplelabs,greenhouse"))
         self.assertTrue(lines[2].endswith(",,unknown"))
         self.assertIn("seed updated: Example Labs", output)
+
+    def test_a_cached_re_run_keeps_the_first_runs_request_counts(self):
+        self.run_main()
+        sent = self.fetcher.requests
+        clock = Clock()
+        self.fetcher = DetectFetcher(get=self.web.get, delay=2.0, clock=clock.time, sleep=clock.sleep,
+                                     cache_dir=self.directory / "cache", now=clock.utcnow)
+        code, _ = self.run_main("--skip", "workable=answered HTTP 429 in the first run")
+        summary = json.loads((self.directory / "review.meta.json").read_text(encoding="utf-8"))
+        self.assertEqual((code, summary["requests"], summary["first_run"]["requests"]), (0, 0, sent))
+        self.assertEqual(summary["stopped"], {"workable": "answered HTTP 429 in the first run"})
 
     def test_demo_mode_is_refused(self):
         from unittest.mock import patch

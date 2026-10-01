@@ -275,7 +275,8 @@ def _table(header: list[str], rows: Iterable[Iterable]) -> list[str]:
 
 
 def render_report(seed: SeedFile, results: list[Detection], *, run_at: datetime, requests: int, cache_hits: int,
-                  seed_name: str) -> str:
+                  seed_name: str, review: list[dict[str, str]] | None = None, probe: dict | None = None,
+                  baseline_pollable: int | None = None) -> str:
     by_status = {status: [found for found in results if found.status == status] for status in STATUSES}
     found_ats = by_status["confirmed"] + by_status["detected"]
     list_types = sorted({found.list_type for found in results})
@@ -298,8 +299,9 @@ def render_report(seed: SeedFile, results: list[Detection], *, run_at: datetime,
                      for status in STATUSES]
                     + [["Total", len(results), *[len([f for f in results if f.list_type == kind]) for kind in list_types]]])
     lines += [f"Requests sent: {requests}. Answers taken from the on-disk cache: {cache_hits}.", "",
-              "`no_careers_url` rows were not checked: the list gives no careers address and no board name is guessed from a "
-              "company name.", "", "## ATS found", ""]
+              "`no_careers_url` rows have no page to read. " +
+              ("They were probed by slug instead; see the slug probe section." if review is not None
+               else "They were not checked: no board name is guessed from a company name."), "", "## ATS found", ""]
     ats_counts = Counter(found.ats for found in found_ats)
     lines += _table(["ATS", "Companies", "Confirmed by API"],
                     [[name, count, len([f for f in by_status["confirmed"] if f.ats == name])] for name, count in ats_counts.most_common()])
@@ -323,4 +325,55 @@ def render_report(seed: SeedFile, results: list[Detection], *, run_at: datetime,
     lines += _table(["Company", "Careers URL"], [[f.company, f.careers_url] for f in by_status["not_detected"]])
     lines += ["## Not read", ""]
     lines += _table(["Company", "Careers URL", "Why"], [[f.company, f.careers_url, f.note] for f in by_status["not_read"]])
+    if review is not None:
+        lines += _probe_section(seed, results, review, probe or {}, baseline_pollable)
     return "\n".join(lines)
+
+
+def pollable(results: list[Detection]) -> list[Detection]:
+    """Companies whose board a Company Radar adapter can poll: confirmed through a public API, not from a page."""
+    return [found for found in results if found.status == "confirmed" and found.ats in _ADAPTERS and found.method != "html_board"]
+
+
+def _probe_section(seed: SeedFile, results: list[Detection], review: list[dict[str, str]], probe: dict,
+                   baseline_pollable: int | None) -> list[str]:
+    confirmed = [item for item in review if item["status"] == "confirmed"]
+    probable = [item for item in review if item["status"] == "probable"]
+    names = list(dict.fromkeys(item["ats"] for item in review))
+    lines = ["## Slug probe for rows without a careers_url (Q2c2)", "",
+             "`python scripts/probe_boards.py` tried up to four slugs made from each company name against the public job APIs "
+             "of Greenhouse, Lever, Ashby, SmartRecruiters and Workable; no web page was read. `confirmed`: the API returned "
+             "jobs, the name matches, at least one job is in India and the newest posting is at most 180 days old. `probable`: "
+             "jobs, but the name does not fully match, no job is in India, or the board looks abandoned.Lever and Ashby return no organisation name, so there the company name must appear in the "
+             "job descriptions. Every hit is in `seeds/companies_probe_review.csv`; only companies with exactly one confirmed "
+             "board were written into the seed list, and probable rows wait for review.", ""]
+    lines += _table(["ATS", "Confirmed", "Probable"],
+                    [[name, len([i for i in confirmed if i["ats"] == name]), len([i for i in probable if i["ats"] == name])]
+                     for name in names] + [["Total", len(confirmed), len(probable)]])
+    stopped = "; ".join(f"{name}: {why} ({probe.get('not_sent', {}).get(name, 0)} slugs not tried)"
+                        for name, why in probe.get("stopped", {}).items()) or "none"
+    errors = ", ".join(f"{name} {count}" for name, count in probe.get("errors", {}).items()) or "none"
+    lines += [f"Probe run {probe.get('run_at', 'unknown')}: {probe.get('companies', 0)} companies, {probe.get('with_hit', 0)} with at "
+              f"least one board, {probe.get('slugs_tried', 0)} slugs tried, {probe.get('delay_seconds', '?')} s between requests to "
+              f"one host. Requests sent: {probe.get('requests', 0)}; from the cache: {probe.get('cache_hits', 0)}.",
+              f"APIs stopped on HTTP 429: {stopped}. Failed requests: {errors}.", ""]
+    first = probe.get("first_run")
+    if first:
+        lines[-1:] = [f"The first run ({first.get('run_at')}) sent {first.get('requests')} requests; it stopped "
+                      f"{', '.join(f'{name} ({count} slugs not tried)' for name, count in (first.get('not_sent') or {}).items()) or 'no API'}"
+                      " on HTTP 429. Later runs answer from the cache and do not query a stopped API again.", ""]
+    ready = pollable(results)
+    before = "unknown" if baseline_pollable is None else str(baseline_pollable)
+    lines += ["## Pollable companies", "",
+              f"Pollable companies: before {before}, after {len(ready)}. Pollable means the board's public API returned a job "
+              "list and the Company Radar has an adapter for it (Greenhouse, Lever, Ashby, SmartRecruiters).", ""]
+    lines += _table(["List", "Pollable"], [[kind, count] for kind, count in Counter(f.list_type for f in ready).most_common()])
+    city_of = {row.line: row.city_group for row in seed.rows}
+    cities = Counter(city.strip() or "(not stated)" for f in ready for city in (city_of.get(f.line) or "").split(";"))
+    lines += ["A company listed in two cities counts in both.", ""]
+    lines += _table(["City", "Pollable"], [[city, count] for city, count in cities.most_common()])
+    others = [f for f in results if f not in ready and (f.method == "html_board" or
+                                                         (f.ats == "workable" and f.company in {i["company"] for i in confirmed}))]
+    lines += ["Confirmed but not pollable yet (Workable has no adapter; a board read from its page has no API):", ""]
+    lines += _table(["Company", "ATS", "Status", "Method"], [[f.company, f.ats, f.status, f.method] for f in others])
+    return lines
