@@ -155,6 +155,12 @@ def applications():
     return public_career_data(career_store.list_applications())
 
 
+@router.get('/tracker/funnel')
+def tracker_funnel():
+    """Descriptive counts from the event log (claim level L0), never estimates."""
+    return public_career_data(career_store.funnel())
+
+
 @router.get('/applications/{application_id}')
 def get_application(application_id: str):
     result = career_store.get_application(application_id)

@@ -141,10 +141,56 @@ def _application(conn, row) -> dict | None:
     events = career_events.events_for_job(conn, row['job_id'])
     result['response_state'] = career_events.response_state(events, now=datetime.now(timezone.utc),
                                                             window_days=_response_window())
+    result['shortlisted'] = career_events.is_shortlisted(events)
     latest = _latest_tracker_event(events)
     result['last_event'] = ({key: latest[key] for key in ('id', 'event_type', 'occurred_at')}
                             if latest is not None else None)
     return result
+
+
+_RESPONSE_COUNTS = {'RESPONDED': 'responded', 'NO_RESPONSE': 'no_response', 'PENDING_CENSORED': 'pending_censored'}
+
+
+def funnel(*, now: datetime | None = None) -> dict:
+    """Counts over the event log (claim level L0): how many applications reached each stage.
+
+    An application counts as applied while an applied event stands. The shortlist rate is given over
+    all applied applications, and over the resolved ones: a young application with no response is
+    unknown, never negative, so it is left out of the resolved rate (docs/M2_PLAN.md §2).
+    """
+    now = now or datetime.now(timezone.utc)
+    window = _response_window()
+    counts = dict.fromkeys(('tracked', 'applied', 'responded', 'no_response', 'pending_censored',
+                            'shortlisted', 'offers', 'rejected', 'withdrawn'), 0)
+    with _connection() as conn:
+        for row in conn.execute('SELECT job_id FROM career_applications').fetchall():
+            events = career_events.events_for_job(conn, row['job_id'])
+            counts['tracked'] += 1
+            state = career_events.response_state(events, now=now, window_days=window)
+            if state is None:
+                continue
+            counts['applied'] += 1
+            counts[_RESPONSE_COUNTS[state]] += 1
+            types = career_events.standing_types(events)
+            counts['shortlisted'] += career_events.is_shortlisted(events)
+            counts['offers'] += 'offer' in types
+            counts['rejected'] += 'rejected' in types
+            counts['withdrawn'] += 'withdrawn' in types
+    resolved = counts['applied'] - counts['pending_censored']
+
+    def rate(denominator: int) -> float | None:
+        return round(counts['shortlisted'] / denominator, 4) if denominator else None
+
+    return {
+        'claim_level': 'L0',
+        'note': 'Counts from your own tracker, not an estimate or a prediction.',
+        'response_window_days': window,
+        'counts': counts,
+        'shortlist_rate': {
+            'of_applied': {'shortlisted': counts['shortlisted'], 'applied': counts['applied'], 'rate': rate(counts['applied'])},
+            'of_resolved': {'shortlisted': counts['shortlisted'], 'resolved': resolved, 'rate': rate(resolved)},
+        },
+    }
 
 
 def _status(value):

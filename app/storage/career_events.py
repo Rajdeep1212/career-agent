@@ -227,6 +227,21 @@ def first_applied_at(events: list[dict]) -> str | None:
     return applied[0]["occurred_at"] if applied else None
 
 
+# Reaching any of these stages is what "shortlisted" means (docs/M2_PLAN.md §2).
+SHORTLIST_EVENTS = ("online_test", "interview", "offer")
+
+
+def standing_types(events: list[dict]) -> set[str]:
+    """The types of the events that are not undone."""
+    return {event["event_type"] for event in _standing(events)}
+
+
+def is_shortlisted(events: list[dict]) -> bool:
+    """True once an online test, interview or offer stands in the log; a later rejection keeps it true,
+    a recruiter reply alone does not count. Derived at read time, never stored."""
+    return not standing_types(events).isdisjoint(SHORTLIST_EVENTS)
+
+
 # A response ends censoring; it is any of these after the first application (docs/M2_PLAN.md §1.1).
 RESPONSE_TYPES = ("recruiter_reply", "online_test", "interview", "offer", "rejected")
 

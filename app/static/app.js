@@ -871,13 +871,28 @@ async function saveStoredJob(job) {
   } catch (error) { showStatus($('resultActionStatus'), error.message, 'error'); }
 };
 
+// The funnel is a set of counts from the event log (L0): plain numbers, never a percentage or a chance.
+async function renderFunnel() {
+  let funnel = null;
+  try { funnel = await api('/tracker/funnel'); } catch { funnel = null; }
+  const counts = funnel?.counts;
+  if (!counts?.applied) { $('trackerFunnel').classList.add('hidden'); return; }
+  const parts = [`Applied ${counts.applied}`, `Responded ${counts.responded}`,
+    `Shortlisted ${counts.shortlisted} of ${counts.applied} applied`];
+  if (counts.pending_censored) parts.push(`${counts.pending_censored} still waiting`);
+  if (counts.no_response) parts.push(`${counts.no_response} with no response after ${funnel.response_window_days} days`);
+  $('trackerFunnel').textContent = `${parts.join(' · ')}. Counts from your tracker (${funnel.claim_level}), not an estimate.`;
+  $('trackerFunnel').classList.remove('hidden');
+}
+
 async function loadTracker() {
   try {
     await refreshApplicationIndex();
+    await renderFunnel();
     $('trackerList').innerHTML = trackerEntries.length ? trackerEntries.map((entry, index) => {
       const job = entry.job || entry;
       const url = safeExternalUrl(job.application_url);
-      return `<article class="tracker-card"><div class="panel-head"><div><h3>${escapeHtml(job.title || entry.job_title || 'Saved opportunity')}</h3><p>${escapeHtml(job.company || entry.company || '')}</p></div>${url ? `<a class="secondary" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open job</a>` : ''}</div>${RESPONSE_LABELS[entry.response_state] ? `<p><span class="tag">${escapeHtml(RESPONSE_LABELS[entry.response_state])}</span></p>` : ''}<label for="trackerState${index}">Application status</label><select id="trackerState${index}">${applicationStatuses.map(status => `<option value="${status}" ${entry.status === status ? 'selected' : ''}>${status.replaceAll('_', ' ')}</option>`).join('')}</select><label for="trackerNotes${index}">Your notes</label><textarea id="trackerNotes${index}" rows="3">${escapeHtml(entry.notes || '')}</textarea><div class="card-actions section-gap">${OUTCOME_BUTTONS.map(([type, label]) => `<button class="secondary" onclick="recordOutcome('${escapeHtml(entry.id)}', '${type}')">${label}</button>`).join('')}${entry.last_event ? `<button class="secondary" onclick="undoEvent('${escapeHtml(entry.id)}', ${Number(entry.last_event.id)})">Undo ${escapeHtml(eventLabel(entry.last_event.event_type))}</button>` : ''}</div><div class="card-actions section-gap"><button class="primary" onclick="updateApplication(${index})">Save changes</button><button class="secondary" onclick="composeTrackedEmail(${index})">Prepare outreach</button></div><p class="muted">Last updated: ${escapeHtml(formatDate(entry.updated_at || entry.created_at) || 'Unknown')}</p></article>`;
+      return `<article class="tracker-card"><div class="panel-head"><div><h3>${escapeHtml(job.title || entry.job_title || 'Saved opportunity')}</h3><p>${escapeHtml(job.company || entry.company || '')}</p></div>${url ? `<a class="secondary" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open job</a>` : ''}</div>${RESPONSE_LABELS[entry.response_state] || entry.shortlisted ? `<p>${RESPONSE_LABELS[entry.response_state] ? `<span class="tag">${escapeHtml(RESPONSE_LABELS[entry.response_state])}</span>` : ''}${entry.shortlisted ? '<span class="tag good">Shortlisted</span>' : ''}</p>` : ''}<label for="trackerState${index}">Application status</label><select id="trackerState${index}">${applicationStatuses.map(status => `<option value="${status}" ${entry.status === status ? 'selected' : ''}>${status.replaceAll('_', ' ')}</option>`).join('')}</select><label for="trackerNotes${index}">Your notes</label><textarea id="trackerNotes${index}" rows="3">${escapeHtml(entry.notes || '')}</textarea><div class="card-actions section-gap">${OUTCOME_BUTTONS.map(([type, label]) => `<button class="secondary" onclick="recordOutcome('${escapeHtml(entry.id)}', '${type}')">${label}</button>`).join('')}${entry.last_event ? `<button class="secondary" onclick="undoEvent('${escapeHtml(entry.id)}', ${Number(entry.last_event.id)})">Undo ${escapeHtml(eventLabel(entry.last_event.event_type))}</button>` : ''}</div><div class="card-actions section-gap"><button class="primary" onclick="updateApplication(${index})">Save changes</button><button class="secondary" onclick="composeTrackedEmail(${index})">Prepare outreach</button></div><p class="muted">Last updated: ${escapeHtml(formatDate(entry.updated_at || entry.created_at) || 'Unknown')}</p></article>`;
     }).join('') : '<p class="muted">No saved applications yet. Save an opportunity from Recommendations to start tracking it.</p>';
     if (window.lastJobs) renderJobs(window.lastJobs);
     renderConversation();

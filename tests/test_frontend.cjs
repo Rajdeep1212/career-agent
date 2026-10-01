@@ -605,6 +605,8 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
                                     already_recorded: false, replayed: false }
   });
   await vm.runInContext('loadTracker()', d.context);
+  // No applications yet in the funnel response: the summary stays hidden rather than showing zeros.
+  assert.equal(d.elements.get('trackerFunnel').classList.contains('hidden'), true);
   const trackerHtml = d.elements.get('trackerList').innerHTML;
   for (const outcome of ['recruiter_reply', 'online_test', 'interview', 'offer', 'rejected', 'withdrawn']) {
     assert.match(trackerHtml, new RegExp(`recordOutcome\\('app-9', '${outcome}'\\)`), outcome);
@@ -615,6 +617,24 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   const outcomePost = d.calls.find(([path]) => path === '/applications/app-9/events');
   assert.equal(outcomePost?.[2].event_type, 'interview');
   assert.ok(outcomePost?.[2].request_id);
+
+  // The tracker shows the funnel as counts (L0), never as an estimate, and tags shortlisted applications.
+  d = await dashboard({ configured: true, connected: false }, '', false, {
+    '/applications': [{ id: 'app-9', job_id: applyJobId, status: 'INTERVIEW', notes: '', response_state: 'RESPONDED', shortlisted: true,
+                        last_event: { id: 44, event_type: 'interview' }, job: { title: 'NLP Engineer', company: 'ExampleCo' } }],
+    '/tracker/funnel': { claim_level: 'L0', response_window_days: 21,
+      counts: { tracked: 7, applied: 5, responded: 3, no_response: 1, pending_censored: 1, shortlisted: 1, offers: 0, rejected: 1, withdrawn: 0 },
+      shortlist_rate: { of_applied: { shortlisted: 1, applied: 5, rate: 0.2 }, of_resolved: { shortlisted: 1, resolved: 4, rate: 0.25 } } }
+  });
+  await vm.runInContext('loadTracker()', d.context);
+  const funnelText = d.elements.get('trackerFunnel').textContent;
+  assert.equal(d.elements.get('trackerFunnel').classList.contains('hidden'), false);
+  assert.match(funnelText, /Applied 5/);
+  assert.match(funnelText, /Shortlisted 1 of 5 applied/);
+  assert.match(funnelText, /1 still waiting/);
+  assert.match(funnelText, /Counts from your tracker \(L0\), not an estimate/);
+  assert.doesNotMatch(funnelText, /%|chance|probab/i);
+  assert.match(d.elements.get('trackerList').innerHTML, /Shortlisted/);
 
   // Both approval views name the attached file: the Email view and the chat's final confirmation.
   const reviewDraft = { recipient: 'hr@example.org', subject: 'Application', body: 'Review me', status: 'draft' };
