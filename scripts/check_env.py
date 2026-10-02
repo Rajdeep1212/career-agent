@@ -21,7 +21,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 GB = 1024 ** 3
-RAM_TOTAL_GB, RAM_FREE_GB, CACHE_FREE_GB, REPO_FREE_GB = 8, 3, 8, 2
+# 7.5, not 8: an 8 GB machine reports about 7.7 GB usable. Free RAM is not judged here; the embedding script checks it
+# when it runs (it needs about 1 GB free).
+RAM_TOTAL_GB, CACHE_FREE_GB, REPO_FREE_GB = 7.5, 8, 2
+REPO_WARN_GB = 5       # below this the report carries a warning; below REPO_FREE_GB the check fails
 PACKAGES = ("torch", "sentence-transformers", "huggingface_hub")
 _KINDS = {2: "removable", 3: "fixed", 4: "network", 5: "optical", 6: "ramdisk"}
 
@@ -85,13 +88,13 @@ def _drive_of(measured: Measured, letter: str) -> Drive | None:
 
 
 def verdicts(measured: Measured) -> list[Line]:
-    def line(name: str, value: int | None, need_gb: int, label: str = "") -> Line:
+    def line(name: str, value: int | None, need_gb: float, label: str = "") -> Line:
         shown = "not found" if value is None else f"{gb(value)}{label}"
-        return Line(name, shown, f">= {need_gb} GB", "PASS" if value is not None and value >= need_gb * GB else "FAIL")
+        return Line(name, shown, f">= {need_gb:g} GB", "PASS" if value is not None and value >= need_gb * GB else "FAIL")
 
     cache_letter = measured.cache_path.drive[:1].upper()
     cache, repo = _drive_of(measured, cache_letter), _drive_of(measured, measured.repo_drive)
-    return [line("RAM total", measured.ram_total, RAM_TOTAL_GB), line("RAM free", measured.ram_free, RAM_FREE_GB),
+    return [line("RAM total", measured.ram_total, RAM_TOTAL_GB),
             line("Cache drive free", cache.free if cache else None, CACHE_FREE_GB, f" on {cache_letter}:"),
             line("Repo drive free", repo.free if repo else None, REPO_FREE_GB, f" on {measured.repo_drive}:"),
             Line("GPU", measured.gpu, "not required (the models run on the CPU)", "PASS")]
@@ -220,7 +223,15 @@ def render(measured: Measured, lines: list[Line], decision: CacheDecision, *, pa
             "## Requirements", ""]
     text += _table(["Requirement", "Measured", "Needed", "Verdict"], [[line.name, line.measured, line.requirement, line.verdict]
                                                                       for line in lines])
-    text += [f"Overall: {overall}. A GPU is not required.", "",
+    repo = _drive_of(measured, measured.repo_drive)
+    warning = ([f"Warning: {repo.letter}: has {gb(repo.free)} free. Below {REPO_FREE_GB} GB, stop and tell Rajdeep.", ""]
+               if repo and repo.free < REPO_WARN_GB * GB else [])
+    text += [f"Overall: {overall}. A GPU is not required.", "", *warning,
+             "Free RAM is not a requirement here. It is a runtime guard in the embedding script, which needs about 1 GB free "
+             "when it starts.", "",
+             "Decision (2026-10-03): No PyTorch. The embedding backend is FastEmbed on ONNX Runtime, default model "
+             "BAAI/bge-small-en-v1.5 (384-dim, quantised). Reason: the repo drive has about 4 GB free and a torch install would "
+             "take most of it. Nothing is installed by this check.", "",
              f"Cache placement: {decision.action}" + (f" ({decision.path})" if decision.path else "") + f". {decision.reason}.", "",
              "## Machine", ""]
     text += _table(["Item", "Value"], [["CPU cores", measured.cpu_cores], ["RAM total", gb(measured.ram_total)],

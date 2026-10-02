@@ -33,19 +33,25 @@ class CheckEnvTests(unittest.TestCase):
     def test_every_requirement_passes_on_a_roomy_machine_and_states_its_number(self):
         lines = self.env.verdicts(self.measured())
         self.assertEqual([(line.name, line.verdict) for line in lines],
-                         [("RAM total", "PASS"), ("RAM free", "PASS"), ("Cache drive free", "PASS"), ("Repo drive free", "PASS"),
-                          ("GPU", "PASS")])
+                         [("RAM total", "PASS"), ("Cache drive free", "PASS"), ("Repo drive free", "PASS"), ("GPU", "PASS")])
         self.assertIn("16.0 GB", lines[0].measured)
-        self.assertIn("not required", lines[4].requirement)
+        self.assertIn("not required", lines[3].requirement)
 
     def test_each_threshold_fails_just_below_it(self):
-        cases = {"RAM total": dict(ram_total=int(7.9 * GB)), "RAM free": dict(ram_free=int(2.9 * GB)),
+        cases = {"RAM total": dict(ram_total=int(7.4 * GB)),
                  "Cache drive free": dict(drives=[self.drive("C", 7.9)]), "Repo drive free": dict(drives=[self.drive("C", 1.9)])}
         for name, change in cases.items():
             failed = [line.name for line in self.env.verdicts(self.measured(**change)) if line.verdict == "FAIL"]
             self.assertIn(name, failed, name)
-        exactly = self.env.verdicts(self.measured(ram_total=8 * GB, ram_free=3 * GB, drives=[self.drive("C", 8)]))
+        exactly = self.env.verdicts(self.measured(ram_total=int(7.5 * GB), drives=[self.drive("C", 8)]))
         self.assertTrue(all(line.verdict == "PASS" for line in exactly))
+
+    def test_an_8_gb_machine_that_reports_7_7_passes_and_free_ram_is_not_a_gate(self):
+        # Decided 2026-10-03: usable RAM on an 8 GB machine is about 7.7 GB, and free RAM is checked by the embedding
+        # script when it runs (it needs about 1 GB), not by this preflight.
+        lines = self.env.verdicts(self.measured(ram_total=int(7.7 * GB), ram_free=int(0.8 * GB)))
+        self.assertTrue(all(line.verdict == "PASS" for line in lines))
+        self.assertNotIn("RAM free", [line.name for line in lines])
 
     def test_the_gpu_line_never_fails_and_never_suggests_buying_anything(self):
         for gpu in ("none", "NVIDIA GeForce RTX 3050 (4.0 GB)"):
@@ -81,14 +87,25 @@ class CheckEnvTests(unittest.TestCase):
                          Path("F:/ai-cache/huggingface"))
 
     def test_the_report_has_the_table_the_verdict_and_the_drive_decision(self):
-        measured = self.measured(ram_free=2 * GB)
+        measured = self.measured(ram_total=6 * GB, ram_free=2 * GB, drives=[self.drive("C", 4), self.drive("F", 200)],
+                                 cache_path=Path("F:/huggingface"))
         report = self.env.render(measured, self.env.verdicts(measured), self.env.decide_cache(measured), packages={"torch": None},
                                  python="3.11.16", conda_env="job-agent", checked_at="2026-10-03 10:00")
-        self.assertIn("| RAM free | 2.0 GB | >= 3 GB | FAIL |", report)
+        self.assertIn("| RAM total | 6.0 GB | >= 7.5 GB | FAIL |", report)
+        self.assertIn("| RAM free | 2.0 GB |", report)                 # shown under Machine, not judged
+        self.assertNotIn("| RAM free | 2.0 GB | >=", report)
+        self.assertIn("runtime guard", report)
+        self.assertIn("Warning: C: has 4.0 GB free. Below 2 GB, stop and tell Rajdeep.", report)
+        self.assertIn("No PyTorch", report)
+        self.assertIn("FastEmbed", report)
+        self.assertIn("BAAI/bge-small-en-v1.5", report)
         self.assertIn("| torch | not installed |", report)
         self.assertIn("Overall: FAIL", report)
         self.assertIn("Cache placement: keep", report)
         self.assertIn("| C: | fixed |", report)
+        roomy = self.measured()
+        self.assertNotIn("Warning:", self.env.render(roomy, self.env.verdicts(roomy), self.env.decide_cache(roomy), packages={},
+                                                     python="3.11.16", conda_env="job-agent", checked_at="2026-10-03 10:00"))
 
     def test_the_script_measures_this_machine_without_installing_or_deleting(self):
         source = (ROOT / "scripts" / "check_env.py").read_text(encoding="utf-8")

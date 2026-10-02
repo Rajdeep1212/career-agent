@@ -66,6 +66,7 @@ Decisions already made (do not reopen):
   - Darwinbox: no public feed; the portal is {tenant}.darwinbox.in/ms/candidate/careers. Treat as link-only until proven otherwise.
   - SuccessFactors and Eightfold: no public cross-tenant API. Use JSON-LD or an RSS/XML feed when the career site exposes one.
 - Ghost-listing evidence: a LiftmyCV study of 100,000 job IDs (Jan 2026) found 40%+ of listings had no human interaction for 30+ days; other 2026 reporting puts ghost listings near 1 in 4 on LinkedIn. This is why freshness and last_seen are gates, not decorations.
+- Embeddings (decided 3 Oct 2026): no PyTorch. The embedding backend is FastEmbed on ONNX Runtime, default model BAAI/bge-small-en-v1.5 (384-dim, quantised), run locally. Reason: C: has about 4 GB free and a torch install would take most of it. The preflight (scripts/check_env.py, docs/eval/env_check.md) needs RAM total >= 7.5 GB, cache drive free >= 8 GB and repo drive free >= 2 GB; free RAM is a runtime guard in the embedding script (about 1 GB), not a preflight gate. If C: drops below 2 GB free, stop and tell Rajdeep. Design input: docs/SEMANTIC_MATCHING_DESIGN.md.
 - No scraping of LinkedIn, Naukri, Indeed, Wellfound, Foundit, Instahyre, Internshala, GeeksforGeeks, LeetCode, Glassdoor or AmbitionBox. Use only pre-filled links, the user's own exports, and pages the user opens (bookmarklet).
 - No auto-apply. Nothing is sent, applied or deleted without Rajdeep's approval.
 - Interview features are practice-only. Never assist during a live interview or test.
