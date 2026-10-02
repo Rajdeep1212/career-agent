@@ -1,5 +1,9 @@
 # CLAUDE.md
 
+## Session start
+
+Read docs/RUNBOOK.md and follow it. Work the queue in docs/ROADMAP_QUEUE.md, one item per session.
+
 Read `docs/AUDIT_AND_ROADMAP.md` first. It is the baseline for the current state, the milestone
 order (M1 → M5) and the decisions already made. Don't re-audit the repo; update that doc instead.
 
