@@ -9,8 +9,8 @@ data/eval/labels/<batch id>.jsonl. Stop the server with Ctrl+C.
 
     python scripts/label_page.py --batch data/eval/batches/<batch id> --check
 
---check prints how many jobs were labelled in under 8 seconds and whether the file counts as complete, and exits
-with 1 when it does not. The same lines are printed when the server stops.
+--check prints how many jobs were labelled in under 8 seconds, the count per grade so far, and whether the file
+counts as complete, and exits with 1 when it does not. The same lines are printed when the server stops.
 
 It listens on this machine only and loads nothing from the network. See app/eval/label_page.py.
 """
@@ -76,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
         serve(session, args.port)
     quality = session.quality()
     print(f"{session.batch_id}: {quality['labelled']} of {quality['total']} labelled; {quality['summary']}.")
+    print(quality["shape"])
     print(quality["message"])
     return 0 if quality["accepted"] or not args.check else 1
 

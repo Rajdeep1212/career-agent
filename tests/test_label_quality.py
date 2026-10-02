@@ -135,6 +135,36 @@ class LimitOf106Tests(QualityCase):
         self.assertIn("64 of 106 labels are grade 3, more than half", problems)
 
 
+class ShapeTests(QualityCase):
+    """Run 2 failed the same way as run 1. The page now shows the grade counts after every 20 labels,
+    so a lopsided shape is visible while there is still time to slow down."""
+    total = 45
+
+    def test_the_counts_per_grade_appear_after_every_twenty_labels(self):
+        grades = [index % 4 for index in range(45)]
+        shapes = []
+        for grade in grades:
+            item = self.session.state()["item"]
+            self.clock.now += 20
+            shapes.append(self.session.label(item["item_id"], grade)["shape"])
+        self.assertEqual([index + 1 for index, shape in enumerate(shapes) if shape], [20, 40, 45])     # and at the end
+        self.assertEqual(shapes[19], "After 20 labels: 5 at grade 0, 5 at grade 1, 5 at grade 2, 5 at grade 3.")
+        self.assertEqual(shapes[39], "After 40 labels: 10 at grade 0, 10 at grade 1, 10 at grade 2, 10 at grade 3.")
+        self.assertEqual(self.session.state()["grade_counts"], {"0": 12, "1": 11, "2": 11, "3": 11})
+
+    def test_a_changed_label_is_counted_once_at_its_new_grade(self):
+        self.label_all([3] * 20, [20] * 20)
+        self.session.state(at=0)
+        self.clock.now += 20
+        state = self.session.label("item000", 0)
+        self.assertEqual(state["shape"], "After 20 labels: 1 at grade 0, 0 at grade 1, 0 at grade 2, 19 at grade 3.")
+
+    def test_the_page_has_a_line_for_it_that_stays_until_the_next_one(self):
+        page = handle(self.session, "GET", "/", HOST, b"", port=8765).body.decode("utf-8")
+        self.assertIn('id="shape"', page)
+        self.assertIn("if (next.shape)", page)          # only replaced when a new one arrives
+
+
 class ScriptTests(QualityCase):
     def load(self, name):
         spec = importlib.util.spec_from_file_location(name, ROOT / "scripts" / f"{name}.py")
@@ -162,6 +192,7 @@ class ScriptTests(QualityCase):
         code, output = self.run_script(page, ["--batch", str(self.batch), "--labels", str(self.labels), "--check"])
         self.assertEqual(code, 0)
         self.assertIn("0 of 5 labelled in under 8 seconds", output)
+        self.assertIn("Grades so far: 1 at grade 0, 1 at grade 1, 2 at grade 2, 1 at grade 3.", output)
 
     def test_the_agreement_report_refuses_gold_labels_that_fail_the_guard(self):
         hosted = self.load("hosted_labels")

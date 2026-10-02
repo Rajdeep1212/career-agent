@@ -42,8 +42,33 @@ that fails. Run 1 would have failed on both the speed rule and the one-grade rul
 The guard measures effort, not judgement. A file can pass it and still be wrong, which is why the agreement with the
 hosted labels is reported as well.
 
-## Run 2
+## Run 2 is void too (2 October 2026)
+
+File: `data/eval/labels/gold-20261001-r1.run2.jsonl` (sha256 `9ba666e02338172d`, first 16 hex). Kept, never scored against.
+It was labelled after the guard existed, and the guard refused it on both rules.
+
+| What | Measured |
+|---|---|
+| Labels | 106 of 106, in page order, none changed afterwards |
+| Time | 203 seconds in total; a median of 1.6 seconds on a job; the longest look 56.9 seconds |
+| Labelled in under 8 seconds | 105 of 106 (at most 10 allowed) |
+| Grades 0 / 1 / 2 / 3 | 2 / 12 / 33 / 59 (more than half at grade 3) |
+| Jobs with a sales title (the control) | 21, of which 11 graded 3 |
+| Sampled jobs the eligibility check excluded | 35, of which 16 graded 3 |
+
+Run 2 was faster than run 1. Like run 1 it is evidence that fast labelling produces unusable gold, and it shows
+that a check at the end is too late: the whole file was done before the refusal appeared.
+
+## What changed after run 2
+
+- The page shows the count per grade after every 20 labels ("After 20 labels: 3 at grade 0, ..."), and at the end;
+  the line stays on screen until the next one replaces it.
+- `--check` prints the same counts ("Grades so far: ...").
+- Labelling is done in sittings of 20.
+
+## Run 3
 
 `data/eval/labels/gold-20261001-r1.jsonl` was started empty on 2 October 2026. When it is complete and passes the
 guard, the agreement report is re-run against it. The hosted labels (`gold-20261001-r1.hosted.jsonl`, 212 lines,
-`subagent:claude-opus-5-5`, both orders) are already saved and are not requested again.
+`subagent:claude-opus-5-5`, both orders) are already saved and are not requested again. Until then SEM1 has no
+baseline.

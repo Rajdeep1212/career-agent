@@ -10,6 +10,7 @@ One labeller, the owner, grades each job of a batch 0-3 with rubric r1 ("would I
 - Local: scripts/label_page.py serves it on 127.0.0.1 only. The page is one document with inline CSS
   and JavaScript and a Content-Security-Policy that forbids loading anything else.
 
+- Shape: after every 20 labels, and at the end, the page shows how many jobs have each grade so far.
 - Timed: the server records the seconds between showing a job and receiving its label. `label_quality()`
   refuses to call a label file complete when more than 10 in 106 jobs were labelled in under 8 seconds, or when
   one grade takes more than half of the labels. The first run of batch gold-20261001-r1 failed both
@@ -43,6 +44,18 @@ FAST_ALLOWED = (10, 106)        # at most 10 quick labels in 106 jobs
 _LOCK = threading.Lock()
 
 
+SHAPE_EVERY = 20                # the page shows the grade counts after every 20 labels
+
+
+def grade_counts(grades) -> dict[str, int]:
+    counts = Counter(grades)
+    return {grade: counts.get(int(grade), 0) for grade in RUBRIC["grades"]}
+
+
+def _shape(counts: dict[str, int]) -> str:
+    return ", ".join(f"{count} at grade {grade}" for grade, count in counts.items()) + "."
+
+
 def label_quality(records: list[dict], total: int) -> dict:
     """Whether a label file can be called complete: every job labelled, few quick labels, no grade above half.
 
@@ -72,7 +85,8 @@ def label_quality(records: list[dict], total: int) -> dict:
                + ("" if len(problems) == 1 and missing else " Go back with the Left arrow and read those jobs again."))
     return {"total": total, "labelled": labelled, "complete": not missing, "accepted": not problems, "fast": fast,
             "fast_limit": fast_limit, "most_common_grade": grade, "most_common_count": count, "problems": problems,
-            "summary": summary, "message": message}
+            "summary": summary, "message": message, "grade_counts": grade_counts(grades.values()),
+            "shape": "Grades so far: " + _shape(grade_counts(grades.values()))}
 
 
 @dataclass
@@ -130,10 +144,14 @@ class LabelSession:
         total = len(self.items)
         if item:
             self._shown[item["item_id"]] = self._clock()
+        counts = grade_counts(label for label, _ in latest.values())
+        checkpoint = bool(latest) and (len(latest) % SHAPE_EVERY == 0 or index is None)
         return {"batch_id": self.batch_id, "total": total, "labelled": len(latest), "index": index, "done": index is None,
                 "position": f"{(index + 1) if index is not None else total} of {total}", "item": item,
                 "current_label": latest[item["item_id"]][0] if item and item["item_id"] in latest else None, "rubric": RUBRIC,
-                "quality": self.quality() if index is None else None}
+                "quality": self.quality() if index is None else None, "grade_counts": counts,
+                # The shape so far, at every twentieth label and at the end, so a lopsided run shows early.
+                "shape": f"After {len(latest)} labels: {_shape(counts)}" if checkpoint else None}
 
     def label(self, item_id: object, grade: object) -> dict:
         """Append one label and return the state at the next unlabelled job."""
@@ -213,6 +231,7 @@ _PAGE = """<!doctype html>
   header { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; align-items: baseline; border-bottom: 1px solid var(--line); padding-bottom: .5rem; }
   #position { font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; }
   #progress, #message, .keys { color: var(--soft); }
+  #shape { margin: .5rem 0; font-variant-numeric: tabular-nums; }
   #message { min-height: 1.5rem; margin: .5rem 0; }
   h1 { font-size: 1.5rem; line-height: 1.25; margin: 1rem 0 .25rem; }
   #facts { color: var(--soft); margin: 0 0 .75rem; }
@@ -234,6 +253,7 @@ _PAGE = """<!doctype html>
     <span class="keys">Keys: 0 1 2 3 to label, Left arrow or B to go back one job, Right arrow to go forward.</span>
   </header>
   <p id="message" role="status"></p>
+  <p id="shape" role="status"></p>
   <article id="job" hidden>
     <h1 id="title"></h1>
     <p id="facts"></p>
@@ -254,6 +274,7 @@ function show(next) {
   state = next;
   byId("position").textContent = next.done ? "Done: " + next.position : "Job " + next.position;
   byId("progress").textContent = next.labelled + " labelled, " + (next.total - next.labelled) + " to go";
+  if (next.shape) { byId("shape").textContent = next.shape; }
   const item = next.item;
   byId("job").hidden = !item;
   for (const row of document.querySelectorAll("#rubric li")) {
