@@ -247,6 +247,19 @@ class TargetProfileTests(ToolCase):
         self.assertEqual(sorted(profile.skills), ["PyTorch", "Python", "SQL"])
         self.assertEqual((profile.name, profile.projects, profile.experience, profile.evidence), (None, [], [], {}))
 
+    def test_a_skills_line_is_the_whole_skill_list(self):
+        # Found on the real file: "Never: sales" and a "Touched but would not claim: AWS, Kubernetes" section were read as skills.
+        from app.mcp.target_profile import load
+        self.write_target("""roles: AI Engineer
+skills: Python, FastAPI, SQL
+
+Never: sales, BPO.
+
+## Touched but would not claim
+GCP, AWS, Kubernetes, MongoDB, React.
+""")
+        self.assertEqual(load(self.target).skills, ["Python", "FastAPI", "SQL"])
+
 
 if __name__ == "__main__":
     unittest.main()

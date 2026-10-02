@@ -11,8 +11,9 @@ list marker is fine):
     degree: B.Tech
     skills: Python, SQL
 
-Skills are also taken from the rest of the text with the shared skill vocabulary. Nothing else
-is read: no name, projects, employers or evidence.
+A `skills:` line is the whole skill list. Only when there is none are skills taken from the rest
+of the text with the shared skill vocabulary. Nothing else is read: no name, projects, employers
+or evidence.
 """
 import re
 from pathlib import Path
@@ -47,7 +48,9 @@ def load(path: Path) -> CandidateProfile | None:
             free_text.append(line)
     year = re.search(r"\b(19|20)\d{2}\b", fields.get("graduation_year", ""))
     years = re.search(r"\d+(?:\.\d+)?", fields.get("experience_years", ""))
-    skills = [canonical_skill(item) for item in _items(fields.get("skills", ""))] + extract_skills("\n".join(free_text))
+    # A `skills:` line is the whole list: the rest of the file may name things the user would not claim or does not want.
+    skills = ([canonical_skill(item) for item in _items(fields["skills"])] if "skills" in fields
+              else extract_skills("\n".join(free_text)))
     return CandidateProfile(skills=list(dict.fromkeys(skills)), preferred_roles=_items(fields.get("roles", "")),
                             preferred_locations=_items(fields.get("locations", "")),
                             graduation_year=int(year.group(0)) if year else None,
