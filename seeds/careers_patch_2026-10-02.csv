@@ -1,0 +1,263 @@
+company,city,list_type,careers_url,status,ats_seen,open_roles,evidence,checked_on
+Acko,Bengaluru,startup,https://careers.kula.ai/acko,verified,other,24,"fetched; Kula-hosted ACKO careers board, 24 roles",2026-10-02
+Addverb Technologies,Noida,startup,https://careers.addverb.com/,verified,HRone,,"via homepage link: nav and footer Careers on addverb.com; page lists departments and Noida HQ, Apply Now redirects to career.hrone.cloud portal (content not readable)",2026-10-02
+AgroStar,Pune,startup,https://corporate.agrostar.in/join-us,verified,darwinbox,2,fetched; featured 2 roles; View Open Positions to agrostar.darwinbox.in,2026-10-02
+Amagi,Bengaluru,startup,https://www.amagi.com/careers,verified,own_site,unknown,"fetched; official page; /careers/open-roles shows no listings, only request-info button",2026-10-02
+Anchanto,Pune,startup,https://anchanto.com/careers/,verified,own_site,0,"fetched; ""All Openings (0)""; contact hr@anchanto.com",2026-10-02
+AppsForBharat,Bengaluru,startup,https://careers.kula.ai/appsforbharat,verified,other,39,"fetched; Kula-hosted board, 39 roles mostly Bangalore; freshteam page was empty",2026-10-02
+Aramya,Jaipur,startup,https://careers.kula.ai/aramya,verified,other,18,fetched; Kula ATS board for Aramya; 18 roles incl. Jaipur,2026-10-02
+Arohan Financial,Kolkata,startup,https://www.arohan.in/careers/current-openings/,verified,own_site,10,fetched; 10 openings Kolkata/Bangalore/TN; Apply Now buttons,2026-10-02
+Assert AI,Mumbai,startup,https://www.assertai.com/careers/,verified,unknown,0,fetched; careers page live but no listings or ATS visible in fetch,2026-10-02
+Aurassure,Bhubaneswar,startup,https://aurassure.com/career/,verified,own_site,4,"fetched; footer-linked careers page, popup forms; 4 roles (Bhubaneswar/Bengaluru)",2026-10-02
+Avataar,Bengaluru,startup,https://escapevelocity.avataar.ai/careers,verified,unknown,unknown,fetched; Avataar careers landing page; ATS and roles not visible,2026-10-02
+Bank of America,,mnc_gcc,https://careers.bankofamerica.com/en-us/job-search.html,verified,Workday,,bankofamerica.com homepage showed no careers link; guessed careers.bankofamerica.com loaded as BofA careers site with job-search link; US focused content with no India mention,2026-10-02
+Beacon.li,Hyderabad,startup,https://docs.google.com/document/d/e/2PACX-1vS0l3XtNOuJi-nGisdlZzktuNIevQBSfThCAQTkPs1hWaTPPfBDcvnmm_FUh0pvU4Eqfz4T0Aw99T56/pub,verified,other,16,beacon.li footer Careers link; fetched Google Doc Beacon Hiring Index Q1-2026 listing 16 roles,2026-10-02
+Bhanzu,Hyderabad,startup,https://bhanzu.com/careers?product=home,verified,unknown,unknown,fetched; bhanzu.com careers page with recruitment-fraud notice; listings not visible (JS),2026-10-02
+BharatPe,Gurugram,startup,https://bharatpe.com/career/,verified,darwinbox,unknown,fetched; See openings -> bharatpe.darwinbox.in/ms/candidatev2/main/careers/allJobs,2026-10-02
+Birlasoft,,mnc_gcc,https://jobs.birlasoft.com/,verified,SAP SuccessFactors,,"via homepage link: birlasoft.com ""Explore Opportunities"" button to jobs.birlasoft.com; board loaded with Jobs by Country incl. India",2026-10-02
+Bizongo,Mumbai,startup,https://www.bizongo.com/careers,verified,other,unknown,fetched; Apply now/Show Job Listing go to careers.bizongo.com (fetch of that blocked by robots/TLS),2026-10-02
+BrowserStack,Mumbai,startup,https://www.browserstack.com/careers,verified,workday,unknown,fetched; View open positions goes to browserstack.wd3.myworkdayjobs.com/External,2026-10-02
+Buyofuel,Coimbatore,startup,https://buyofuel.com/careers/,verified,own_site,1,fetched; footer-linked careers page; contact form; 1 role (Sales Lead),2026-10-02
+Capillary Technologies,Bengaluru,startup,https://www.capillarytech.com/careers/,verified,own_site,0,"fetched; official page says new careers experience coming soon, no listings",2026-10-02
+CarDekho,Jaipur,startup,https://careers.cardekho.com,verified,darwinbox,unknown,fetched; View Openings -> cardekho.darwinbox.in (careers page linked from footer),2026-10-02
+Celebal Technologies,Jaipur,startup,https://celebaltech.zohorecruit.in/jobs/Careers,verified,zoho recruit,27,"fetched; ""Work at Celebal"" Zoho Recruit; celebaltech.com/careers shows 27 jobs",2026-10-02
+Clodura.AI,Pune,startup,https://www.clodura.ai/career/,verified,own_site,1,fetched; 1 role listed; apply by email,2026-10-02
+CoinDCX,Mumbai,startup,https://careers.coindcx.com/,verified,,,"via homepage link: Careers in Company section on coindcx.com/about-us points to careers.coindcx.com; page titled CoinDCX Careers, with an Opportunities/Find Job section, no listings in fetched text",2026-10-02
+CommerceIQ,Bengaluru,startup,https://job-boards.greenhouse.io/commerceiq,verified,greenhouse,14,"fetched; Greenhouse board, 14 jobs incl. Bengaluru/Chennai",2026-10-02
+Credgenics,Hyderabad;Noida,startup,https://recruitcareers.zappyhire.com/en/credgenics,verified,other,unknown,linked from credgenics.com footer; loads as We Are Hiring page on Zappyhire; no role count,2026-10-02
+CultureAlley,Jaipur,startup,https://careers.smartrecruiters.com/helloenglish,verified,smartrecruiters,3,"fetched; Hello English (CultureAlley product) SmartRecruiters board; 3 roles, all Jaipur",2026-10-02
+Cyient,,mnc_gcc,https://www.cyient.com/careers,verified,unknown,unknown,fetched; links to careers.cyient.com/cyient/ (404 on fetch); cyient.careers also live,2026-10-02
+CynLr,Bengaluru,startup,https://cynlr.freshteam.com/jobs,verified,freshteam,40,"fetched; Freshteam board, ~40 jobs (Austin/Bengaluru/Lausanne) per page meta",2026-10-02
+Darwinbox,Hyderabad,startup,https://www.darwinbox.com/careers,verified,darwinbox,unknown,fetched; careers page; View Open Positions links to dbx.darwinbox.in/ms/candidatev2/main/careers/allJobs,2026-10-02
+Datamotive.io,Pune,startup,https://www.datamotive.io/careers,verified,own_site,unknown,fetched; careers page linked from site nav; listings not visible,2026-10-02
+Datoms,Bhubaneswar,startup,https://datoms.io/careers/,verified,other,unknown,fetched; careers page links Pyjama HR portal (app.pyjamahr.com); count not shown,2026-10-02
+Deccan AI,Hyderabad,startup,https://www.deccan.ai/open-roles,verified,keka,18,"fetched; ~18 roles; Hyderabad via deccanaiauto.keka.com, US via Dover",2026-10-02
+Delhivery,Gurugram,startup,https://www.delhivery.com/careers,verified,own_site,unknown,"fetched; Delhivery careers meta; listings JS-loaded, URL not seen in search",2026-10-02
+Deloitte,,mnc_gcc,https://southasiacareers.deloitte.com/,verified,SAP SuccessFactors,,via homepage link: deloitte.com/in nav Careers job search link to southasiacareers.deloitte.com; loaded as South Asia jobs portal (India Sri Lanka Maldives Mauritius),2026-10-02
+DevX,Ahmedabad,startup,https://www.devx.work/careers,verified,own_site,11,fetched; 11 roles listed; managed office/coworking co (Ahmedabad),2026-10-02
+Dezerv,Mumbai,startup,https://www.dezerv.in/careers/,verified,own_site,unknown,fetched; live careers page with Explore all roles; role list not rendered in fetch,2026-10-02
+Disprz,Chennai,startup,https://disprz.keka.com/careers,verified,keka,unknown,"linked from disprz.ai about page (""View open positions""); Keka board loads, JS listing",2026-10-02
+Dream11,Mumbai,startup,https://www.dreamsports.group/careers,verified,unknown,unknown,Dream Sports (parent) careers page fetched; old jobs.lever.co/dreamsports now 404; no roles shown,2026-10-02
+Dreams Technologies,Coimbatore,startup,https://dreamstechnologies.com/company/careers/,verified,own_site,5,fetched; Coimbatore openings with custom form; 5 roles,2026-10-02
+Drip Capital,Mumbai,startup,https://dripcapital.hire.trakstar.com/,verified,other,5,fetched; Trakstar Hire board; 5 roles all Mumbai,2026-10-02
+Druva,Pune,startup,https://www.druva.com/why-druva/explore/careers,verified,greenhouse,unknown,fetched; job links use gh_jid (Greenhouse); listings load dynamically,2026-10-02
+DXC Technology,,mnc_gcc,https://careers.dxc.com/,verified,workday,unknown,fetched; portal links to dxctechnology.wd1.myworkdayjobs.com; View All Jobs,2026-10-02
+E2E Networks,Delhi,startup,https://www.e2enetworks.com/careers/jobs/all,verified,,9,"via homepage link: footer Company > Careers on e2enetworks.com, then jobs/all listing; 9 roles (Delhi 4, Kancheepuram Chennai 3)",2026-10-02
+E42,Pune,startup,https://e42.ai/careers/,verified,own_site,3,"fetched; ""We have 3 open position now""",2026-10-02
+ekincare,Hyderabad,startup,https://www.ekincare.com/careers,verified,own_site,unknown,"fetched; ekincare careers; roles listed generally, apply via careers@ekincare.com",2026-10-02
+Eli Lilly and Company,,mnc_gcc,https://careers.lilly.com/us/en,verified,Phenom People,,lilly.com homepage fetch showed no careers link; lilly.com/careers redirects 302 to careers.lilly.com/us/en which loaded as Careers at Lilly with Search results link,2026-10-02
+Emergent,Bengaluru,startup,https://emergent.sh/careers,verified,greenhouse,unknown,fetched; See open positions links to Greenhouse board; count not shown,2026-10-02
+EnKash,Mumbai,startup,https://www.enkash.com/careers,verified,own_site,0,fetched; careers landing page (Find Your Opportunity); listings not visible,2026-10-02
+Eruditus,Mumbai,startup,https://careers.emeritus.org/,verified,unknown,unknown,Emeritus (Eruditus brand) careers site fetched; links to careers.emeritus.org/jobs/; ATS not identified,2026-10-02
+FarEye,Noida,startup,https://fareye.com/about/careers,verified,Darwinbox,,via homepage link: footer Company > Careers on fareye.com; page lists New Delhi HQ and links to fareye.darwinbox.in/ms/candidate/careers (that job board fetch failed on robots.txt),2026-10-02
+Fego.ai,Chennai,startup,https://www.fego.ai/careers,verified,own_site,0,"fetched; fintech culture page, no listings or ATS visible",2026-10-02
+Fibe,Pune,startup,https://www.fibe.in/careers/,verified,own_site,1,fetched; careers hub shows none; SEO Manager (Pune) job page exists; built-in form,2026-10-02
+Finova Capital,Jaipur,startup,https://finova.in/process-hiring,verified,other,0,"fetched; ""Join the Finova Family"" page; Apply Now links to hr-1.in/42fdcb; no listings",2026-10-02
+FirstCry,Pune,startup,https://www.firstcry.com/careers/,verified,own_site,0,"fetched; dept pages all ""position closed""; no ATS",2026-10-02
+Flexiloans,Mumbai,startup,https://flexiloans.com/loan/careers,verified,other,0,fetched; Klimb (jobs.klimb.io/flexiloans) resume submit; no listings shown,2026-10-02
+Flipkart,Bengaluru,startup,https://www.flipkartcareers.com/jobslist,verified,own_site,69,"fetched; ""69 Openings found"", mostly Bangalore; ATS not shown",2026-10-02
+Freight Tiger,Mumbai,startup,https://www.freighttiger.com/careers/,verified,own_site,1,fetched; 1 role listed (Partner Service Associate; Delhi/Mumbai/Bengaluru),2026-10-02
+Frontlines EduTech,Hyderabad,startup,https://careers.frontlinesedutech.com/,verified,unknown,0,fetched; careers landing says No openings right now; talent network sign-up,2026-10-02
+GetePay,Jaipur,startup,https://getepay.in/job-opening/,verified,own_site,unknown,fetched; official Job Openings page w/ WP job plugin shortcode; listings not rendered,2026-10-02
+GirnarSoft,Jaipur,startup,https://www.girnarsoft.com/careers.php,verified,own_site,0,"fetched; live careers page; says ""No open positions at the moment""",2026-10-02
+GoKwik,Delhi,startup,https://gokwik.keka.com/careers/,verified,Keka,,via homepage link: footer Company > Careers on gokwik.co goes to Keka careers portal; page loaded showing a Performance Marketing role,2026-10-02
+GreyOrange,Gurugram,startup,https://www.greyorange.com/company/careers/,verified,unknown,unknown,fetched; 'Jobs are Loading' dynamic widget; ATS not identified,2026-10-02
+Gupshup,Delhi,startup,https://www.gupshup.ai/careers,verified,,,"via homepage link: gupshup.io redirects to gupshup.ai, footer Company > Careers; page lists India and global hiring functions, contact via WhatsApp, no job board",2026-10-02
+HARMAN,Bengaluru,mnc_gcc,https://www.harman.com/careers,verified,,,harman.com homepage blocked by robots/no link read so not via homepage link; guessed harman.com/careers loaded as HARMAN careers page (students and graduates engineering design content) but no job search href visible,2026-10-02
+Hasura,Bengaluru,startup,https://promptql.io/careers,verified,other,unknown,hasura.io/careers redirects here (Hasura Inc. rebrand); links to jobs.gem.com/promptql (Gem),2026-10-02
+Hexaware Technologies,,mnc_gcc,https://hexaware.com/about-us/join-hexaware/,verified,own_site,unknown,fetched; Hexaware careers page with View Open Roles CTA; ATS not shown,2026-10-02
+HighRadius,Hyderabad,startup,https://www.highradius.com/about/career/,verified,greenhouse,90+,fetched; ~90 roles listed; job links use Greenhouse gh_jid,2026-10-02
+Hubilo,Ahmedabad,startup,https://careers.smartrecruiters.com/HubiloSoftechPrivateLimited,verified,smartrecruiters,1,"fetched; 1 role (UI/UX Designer, Ahmedabad); LinkedIn lists Hubilo as acquired by Brandlive",2026-10-02
+Icertis,Pune,startup,https://www.icertis.com/company/careers/,verified,oracle/taleo,unknown,fetched; Explore Open Roles links to iaaviz.fa.ocs.oraclecloud.com,2026-10-02
+IDfy,Mumbai,startup,https://www.idfy.com/careers/,verified,other,unknown,fetched; Open roles links to idfy.turbohire.co (TurboHire); count not visible,2026-10-02
+InCred,Mumbai,startup,https://www.incred.com/home/Career-Page/,verified,own_site,0,fetched; page says No Current Opening; email jobs@incred.com,2026-10-02
+Infra.Market,Mumbai,startup,https://infra.market/careers/,verified,workable,unknown,fetched; Explore Opportunities links to Workable (hr1.to short link); roles not visible,2026-10-02
+InMobi,Bengaluru,startup,https://job-boards.greenhouse.io/inmobi,verified,greenhouse,63,"fetched; Greenhouse board, 63 jobs, mostly Bangalore",2026-10-02
+Innovaccer,Noida,startup,https://innovaccer.com/careers/jobs,verified,workable,60+,"fetched; jobs link to apply.workable.com; India (Noida), US, UAE",2026-10-02
+InRisk Labs,Ahmedabad,startup,https://www.inrisklabs.com/careers,verified,own_site,2,"fetched; 2 roles Ahmedabad (Quant Analyst, Full Stack Engineer)",2026-10-02
+InsuranceDekho,Gurugram,startup,https://careers.insurancedekho.com/,verified,darwinbox,unknown,fetched; jobs link to insurancedekho.darwinbox.in; View All Jobs,2026-10-02
+Jar,Bengaluru,startup,https://www.myjar.app/careers,verified,other,10,fetched; Bengaluru roles; apply links go to changejar.applytojob.com (JazzHR),2026-10-02
+Kaleidofin,Chennai,startup,https://www.kaleidofin.com/careers,verified,own_site,8,fetched; ~8 roles; apply by email careers@kaleidofin.com,2026-10-02
+Keka HR,Hyderabad,startup,https://www.keka.com/careers,verified,keka,unknown,"fetched; Keka careers; View Open Roles links to hr.keka.com/careers (noindex, count unseen)",2026-10-02
+KeyValue,Kochi,startup,https://www.keyvalue.systems/careers/,verified,zoho_recruit,unknown,fetched; Explore roles -> keyvalue.zohorecruit.in/jobs/Careers,2026-10-02
+Khatabook,Bengaluru,startup,https://khatabook.com/hiring/,verified,own_site,0,"fetched; Khatabook hiring page, all department counts show (0); no ATS link visible",2026-10-02
+KPIT Technologies,,mnc_gcc,https://www.kpit.com/careers/,verified,,,kpit.com homepage fetch returned garbled content so link not read; guessed www.kpit.com/careers/ loaded as KPIT careers page with Open Positions button to kpit.com/job-listing/ (that page returned garbled content),2026-10-02
+KPMG,,mnc_gcc,https://kpmg.com/in/en/careers.html,verified,TalentRecruit (KPMG India); Oracle Cloud HCM (KGS and KDN),,via homepage link: kpmg.com/in nav and footer Careers; page loaded listing three portals: kpmgindia.talentrecruit.com/career-page (403 on fetch) and ejgk.fa.em2.oraclecloud.com CX_3 (KGS) and CX_3001 (KDN),2026-10-02
+L&T Technology Services,,mnc_gcc,https://www.ltts.com/careers,verified,successfactors,unknown,fetched; regional hub; jobs.ltts.com SuccessFactors board showed 7 Americas roles,2026-10-02
+LambdaTest,Noida,startup,https://www.testmuai.com/career/,verified,,,"via homepage link: lambdatest.com redirects to testmuai.com (TestMu AI, formerly LambdaTest, rebranded Jan 2026); footer Company > Career; page has QA job board link and talent@testmuai.com, no listings shown",2026-10-02
+Landeed,Hyderabad,startup,https://www.landeed.com/careers,verified,other,19,fetched; ~19 roles in Hyderabad; apply links go to ycombinator.com/companies/landeed/jobs,2026-10-02
+LeadSquared,Bengaluru,startup,https://leadsquared.com/careers/,verified,darwinbox,unknown,fetched; button goes to leadsquaredhrms.darwinbox.in careers; count not shown,2026-10-02
+Lemurian Labs,Hyderabad,startup,https://www.lemurianlabs.com/career,verified,unknown,unknown,fetched; careers landing says search below for openings; no listings in fetch,2026-10-02
+Lendingkart,Ahmedabad,startup,https://www.lendingkart.com/careers/,verified,own_site,8,fetched; 8 open roles; View Open Positions -> lendingkart.com/job/,2026-10-02
+Lenskart,Gurugram,startup,https://www.lenskart.com/careers-at-lenskart?tabId=allCountries,verified,other,unknown,"footer ""We Are Hiring"" link on lenskart.com; links ainterviews.com/job_board/lenskart_ho",2026-10-02
+Lentra,Pune,startup,https://lentra.ai/careers,verified,own_site,unknown,fetched; Opportunities section; apply via careers@lentra.ai,2026-10-02
+Liquidnitro Games,Hyderabad,startup,https://careers.liquidnitro.games/careers/,verified,own_site,0,fetched; page states We currently have no job openings,2026-10-02
+LogiNext,Mumbai,startup,https://www.loginextsolutions.com/careers-loginext,verified,other,unknown,fetched; Explore Opportunities goes to loginext.hire.trakstar.com (Trakstar Hire),2026-10-02
+LTIMindtree,,mnc_gcc,https://careers.ltimindtree.com/,verified,unknown,unknown,fetched; live LTIMindtree careers landing; no ATS or role count visible,2026-10-02
+Marvell Technology,,mnc_gcc,https://marvell.wd1.myworkdayjobs.com/MarvellCareers,verified,Workday,,via homepage link: marvell.com nav/footer Careers (company/careers.html) then job portal link to marvell.wd1.myworkdayjobs.com/MarvellCareers; loaded; page mentions India scholarships,2026-10-02
+MiHup,Kolkata,startup,https://mihup.keka.com/careers/,verified,keka,unknown,"fetched; Keka careers shell (noindex), linked from mihup.ai; count not visible",2026-10-02
+Mindtickle,Pune,startup,https://jobs.lever.co/mindtickle,verified,lever,17,mindtickle.com/careers 302s to Lever board; 17 roles incl Pune,2026-10-02
+Mintifi,Mumbai,startup,https://mintifi.com/careers,verified,unknown,unknown,fetched; careers page with Browse all jobs / khembedjobs embed; roles not rendered,2026-10-02
+MobileWalla,Kolkata,startup,https://www.mobilewalla.com/about/careers,verified,own_site,0,"fetched; email careers@mobilewalla.com, empty Open Positions; no Kolkata mention",2026-10-02
+MoEngage,Bengaluru,startup,https://moengage.hire.trakstar.com/,verified,other,24,"fetched; Trakstar board linked from moengage.com/careers, 24 openings",2026-10-02
+Moglix,Noida,startup,https://www.moglix.com/career,verified,other,unknown,fetched; Explore/Apply buttons -> moglix.flexiele.com/careers/moglix/jobs (Flexiele),2026-10-02
+Mphasis,,mnc_gcc,https://mphasis.ripplehire.com/ripplehire/careers,verified,other,unknown,title Mphasis Careers on Ripplehire; hot-jobs page shows ~9 roles w/ Ripplehire apply links,2026-10-02
+mPokket,Kolkata,startup,https://www.mpokket.in/career,verified,darwinbox,unknown,"fetched; ""View all jobs"" -> mpokket.darwinbox.in/ms/candidate/careers (403 to fetch)",2026-10-02
+Navi Technologies,Bengaluru,startup,https://navi.com/careers,verified,other,unknown,fetched; Navi careers hub; View Open Roles goes to TurboHire (navi.turbohire.co),2026-10-02
+Nestasia,Kolkata,startup,https://nestasia.in/pages/careers,verified,own_site,2,"fetched; 2 roles (Data Analyst, Regional Sales Mgr) Kolkata; email apply",2026-10-02
+Netradyne,Bengaluru,startup,https://www.netradyne.com/careers,verified,own_site,unknown,fetched; official Careers at Netradyne page; no listings/ATS visible,2026-10-02
+Neysa,Mumbai,startup,https://neysa.ai/careers/job-openings/,verified,own_site,22,"fetched; 22 roles (Finance, Infra, Ops, Sales) in Mumbai/Bengaluru/Delhi; own site",2026-10-02
+NTT Data India,,mnc_gcc,https://careers.nttdata.com/global/en,verified,Phenom,,via homepage link: in.nttdata.com blocked by robots.txt so used nttdata.com/global/en nav and footer Careers link (careers.services.global.ntt redirects to careers.nttdata.com); global careers portal loaded with Phenom CDN; no India-specific page seen,2026-10-02
+NXP Semiconductors,Bengaluru;Hyderabad,mnc_gcc,https://nxp.wd3.myworkdayjobs.com/careers,verified,Workday,,via homepage link: nxp.com nav Careers then careers page Job Search link to nxp.wd3.myworkdayjobs.com/careers; Workday board loaded,2026-10-02
+OfBusiness,Gurugram,startup,https://www.ofbcareers.com/,verified,own_site,unknown,careers.ofbusiness.com 302->ofbcareers.com; fetched; Explore Roles; no ATS visible,2026-10-02
+Pepperfry,Mumbai,startup,https://www.pepperfry.com/pages/careers.html?type=footer,verified,darwinbox,15,fetched; 15 roles listed; apply links to trendsys.darwinbox.in,2026-10-02
+Perceptyne,Hyderabad,startup,https://www.perceptyne.com/career,verified,keka,12-15,fetched; ~12-15 roles; apply links go to perceptyne.keka.com/careers/jobdetails,2026-10-02
+Perfios,Bengaluru,startup,https://www.perfios.com/careers,verified,own_site,unknown,fetched; official careers landing page; no job listings or ATS link visible,2026-10-02
+PetPooja,Ahmedabad,startup,https://www.petpooja.com/careers,verified,other,20+,"fetched; See Open Positions -> jobs.klimb.io/petpooja (Klimb ATS, ~20+ roles)",2026-10-02
+PharmEasy,Mumbai,startup,https://pharmeasy.in/careers/,verified,darwinbox,unknown,fetched; Start Applying goes to myhr.darwinbox.in/ms/candidate/careers,2026-10-02
+PierSight Space,Ahmedabad,startup,https://piersight.space/company/careers,verified,own_site,unknown,fetched; careers page with openings section and form; count not visible,2026-10-02
+Pine Labs,Noida,startup,https://www.pinelabs.com/careers/open-jobs,verified,darwinbox,0,fetched; 'No jobs found matching your criteria'; darwinbox register page seen in search,2026-10-02
+Plane,Hyderabad,startup,https://plane.so/careers,verified,own_site,50+,fetched; Plane careers lists ~50 roles; detail pages at plane.so/careers/<id>,2026-10-02
+PolicyBazaar,Gurugram,startup,https://www.policybazaar.com/careers/,verified,own_site,4 role categories,"fetched; custom forms, no third-party ATS; shows role categories not counts",2026-10-02
+Purplle,Mumbai,startup,https://www.purplle.com/careers,verified,own_site,0,"fetched; email-only (career@purplle.com), no job listings shown",2026-10-02
+PwC,,mnc_gcc,https://www.pwc.in/careers.html,verified,,,via homepage link: pwc.in nav Careers; careers page loaded with Experienced jobs and Campus careers links and a Current opportunities table that loads dynamically (job-search.html and experienced-jobs.html also loaded),2026-10-02
+Rapido,Bengaluru,startup,https://rapido.bike/Careers,verified,darwinbox,~21,fetched; Rapido careers; links to rapido.darwinbox.in/ms/candidate/careers (that URL gave 403),2026-10-02
+Rebel Foods,Mumbai,startup,https://careers.smartrecruiters.com/Rebelfoods,verified,smartrecruiters,1,fetched; SmartRecruiters board lists 1 role (UK); rebelfoods.com/join-our-team is email-only,2026-10-02
+Recykal,Hyderabad,startup,https://www.recykal.com/work-with-us,verified,other,unknown,fetched; Recykal Work With Us page; openings link out to company LinkedIn jobs page,2026-10-02
+Redcliffe Labs,Noida,startup,https://redcliffelabs.com/career,verified,,,"via homepage link: footer Quick Links > Career on redcliffelabs.com; page has Current Job Openings section, no listings shown",2026-10-02
+Refyne,Bengaluru,startup,https://careers.smartrecruiters.com/Refyne,verified,smartrecruiters,10,"fetched; SmartRecruiters board for Refyne, 10 roles (Bengaluru, Chennai, Goregaon)",2026-10-02
+Ringg,Bengaluru,startup,https://www.ringg.ai/careers,verified,unknown,2,"fetched; 2 roles listed (AI Agent QC, AI Strategist), Bengaluru",2026-10-02
+RTX,,mnc_gcc,https://careers.rtx.com/global/en,verified,Phenom People,,via homepage link: rtx.com nav Careers to careers.rtx.com/global/en (footer rtx-careers redirect goes to same); loaded with Phenom CDN and job category filters,2026-10-02
+Safe Security,Delhi,startup,https://jobs.lever.co/safe/,verified,Lever,11,"via homepage link: footer Company > Careers on safe.security goes to Lever; 11 roles, 10 in India (Bengaluru 6, New Delhi 4)",2026-10-02
+SatSure,Bengaluru,startup,https://www.satsure.co/careers/,verified,keka,unknown,fetched; View Open Positions links to satsure.keka.com/careers; count unknown,2026-10-02
+ShareChat,Bengaluru,startup,https://sharechat.com/careers,verified,own_site,unknown,fetched; official ShareChat Moj careers page; listings not visible in content,2026-10-02
+ShopKirana,Indore,startup,https://www.shopkirana.com/career,verified,own_site,unknown,"fetched; ""We are Hiring"" page linked from nav; application form, listings not shown",2026-10-02
+Skyroot Aerospace,Hyderabad,startup,https://www.skyroot.in/careers,verified,zoho recruit,9,fetched; 9 roles listed; apply links go to skyroot.zohorecruit.in/jobs/Careers (also loads),2026-10-02
+slice,Bengaluru,startup,https://slice.bank.in/careers/open-positions,verified,other,unknown,fetched; slice.bank.in (Bengaluru); redirects to careers.kula.ai/slice; count not shown,2026-10-02
+Sonata Software,,mnc_gcc,https://www.sonata-software.com/careers,verified,Darwinbox,,via homepage link: sonata-software.com nav/footer Careers; page loaded with Apply Now; homepage Join Sonata link to sonataone.darwinbox.in/ms/candidate/careers returned 403,2026-10-02
+Spinny,Gurugram,startup,https://www.spinny.com/careers/,verified,darwinbox,unknown,fetched; See Job Openings -> spinzone.darwinbox.in/ms/candidate/careers,2026-10-02
+Standard Chartered,Bengaluru;Chennai,mnc_gcc,https://jobs.standardchartered.com/,verified,SAP SuccessFactors,,via homepage link: sc.com/in redirects to sc.bank.in whose footer Careers link goes to sc.com/en/careers (global careers) which links to jobs.standardchartered.com; board loaded,2026-10-02
+StockEdge,Kolkata,startup,https://stockedge.com/careers,verified,own_site,1,"fetched; CV upload form, ""Sales"" role; career@stockedge.com",2026-10-02
+Stryker,,mnc_gcc,https://careers.stryker.com/,verified,Workday,,via homepage link: stryker.com header and footer link to careers.stryker.com; loaded with Search jobs and location pages incl. India,2026-10-02
+Tata Elxsi,,mnc_gcc,https://www.tataelxsi.com/careers/job-openings,verified,,76,via homepage link: tataelxsi.com nav Careers then Job Openings page loaded; filters show about 76 openings with India(73) in Bangalore Trivandrum Chennai Pune Hyderabad,2026-10-02
+Teachmint,Bengaluru,startup,https://www.teachmint.com/en-us/careers,verified,keka,24,fetched; 24 of 24 open positions; apply links go to teachmint.keka.com/careers,2026-10-02
+Thomson Reuters,Hyderabad;Bengaluru,mnc_gcc,https://thomsonreuters.wd5.myworkdayjobs.com/en-US/External_Career_Site,verified,Workday,,via homepage link: thomsonreuters.com footer About us Careers (/en/careers) which links Job Search to thomsonreuters.wd5.myworkdayjobs.com; Workday board loaded,2026-10-02
+TradingBells,Indore,startup,https://www.tradingbells.com/careers,verified,own_site,1,"fetched; Indore Business Analyst role (10 openings), Submit Application form",2026-10-02
+TurboHire,Hyderabad,startup,https://new.turbohire.co/careers/,verified,other,unknown,fetched; TurboHire careers; Explore Open Roles goes to company LinkedIn jobs page,2026-10-02
+Turbolab,Kochi,startup,https://turbolab.in/careers/,verified,keka,unknown,fetched; View Open Positions -> turbolabtech.keka.com/careers,2026-10-02
+Udaan,Bengaluru,startup,https://careers.udaan.com/,verified,own_site,unknown,fetched; official udaan careers site; no job list visible in content,2026-10-02
+Unbox Robotics,Pune,startup,https://unboxrobotics.com/careers,verified,own_site,unknown,fetched; careers page with See Open Roles CTA; count not visible,2026-10-02
+Uniphore,Chennai,startup,https://www.uniphore.com/careers/,verified,workday,unknown,"fetched; careers page links to uniphore.wd503.myworkdayjobs.com/Uniphore (loads, count unseen)",2026-10-02
+upGrad,Mumbai,startup,https://staticweb.upgrad.com/careers/?iref=Footer_Careers,verified,own_site,0,"fetched; canonical upgrad.com/careers; email resumes to careers@upgrad.com, no listings",2026-10-02
+Vajro,Chennai,startup,https://www.superfans.io/careers,verified,other,13,vajro.com/careers 302s to superfans.io (rebrand); 13 roles; vajro.turbohire.co/Keka,2026-10-02
+Verizon,Chennai;Hyderabad;Bengaluru,mnc_gcc,https://mycareer.verizon.com/,verified,,,via homepage link: verizon.com footer Careers to mycareer.verizon.com; loaded with Search Jobs feature (US focus; India not mentioned),2026-10-02
+Verteil Technologies,Kochi,startup,https://www.verteil.com/career,verified,other,4,fetched; 4 roles; apply via recruitcareers.zappyhire.com (Zappyhire),2026-10-02
+Videonetics,Kolkata,startup,https://www.videonetics.com/careers,verified,own_site,unknown,"fetched; careers page, resumes to hrd@; individual job pages on own domain",2026-10-02
+Volvo Group,Bengaluru,mnc_gcc,https://jobs.volvogroup.com/?locale=en-EN,verified,SAP SuccessFactors,,via homepage link: volvogroup.com nav Careers/Job openings and footer link to jobs.volvogroup.com; board loaded (India not listed in language options),2026-10-02
+Webnox Technologies,Coimbatore,startup,https://webnox.in/careers/,verified,own_site,9,"fetched; Current Openings, apply via WhatsApp/email to HR; ~9 roles",2026-10-02
+Weekday,Bengaluru,startup,https://jobs.lever.co/weekdayworks,verified,lever,80+,"fetched; Lever board for weekdayworks, ~80 roles, India/US",2026-10-02
+Whatfix,Bengaluru,startup,https://whatfix101.hire.trakstar.com/,verified,other,31,"fetched; Trakstar (ex-Recruiterbox) board linked from whatfix.com/careers, 31 openings",2026-10-02
+Wooden Street,Jaipur,startup,https://woodenstreet.zohorecruit.in/jobs/Careers,verified,zoho recruit,unknown,fetched; Zoho Recruit portal linked from woodenstreet.com/careers; listings not rendered,2026-10-02
+Zaggle,Hyderabad,startup,https://www.zaggle.in/careers,verified,other,unknown,fetched; Zaggle careers; Apply Now buttons go to LinkedIn jobs; 1+ role visible,2026-10-02
+Zenoti,Hyderabad,startup,https://job-boards.greenhouse.io/zenoti,verified,greenhouse,49,fetched; Zenoti Greenhouse board shows 49 open roles; linked from zenoti.com/company/careers,2026-10-02
+Zensar Technologies,,mnc_gcc,https://zensar.submit4jobs.com/,verified,other,0,fetched; official Zensar board on submit4jobs; says no current openings,2026-10-02
+Zenwork,Hyderabad,startup,https://www.zenwork.com/careers,verified,own_site,unknown,"fetched; Zenwork careers page; Open positions section empty in fetch, email applications",2026-10-02
+Zeotap,Bengaluru,startup,https://zeotap.recruitee.com/,verified,recruitee,1+,fetched; Zeotap Recruitee board; at least 1 role (Sales Director UK) visible,2026-10-02
+Zinier,Bengaluru,startup,https://www.zinier.com/careers,verified,unknown,unknown,"fetched; Zinier careers w/ Job Openings filters; listings JS-loaded, no ATS visible",2026-10-02
+Zomato,Gurugram,startup,https://www.eternal.com/careers,verified,,,via homepage link: eternal.com nav and footer Careers; page loaded titled Careers - Hiring at Eternal but no job listing links shown,2026-10-02
+Zopper,Noida,startup,https://www.zopper.com/about-us/careers,verified,,,"via homepage link: nav Company > Careers on zopper.com; careers page loaded, openings listed via LinkedIn (not reported)",2026-10-02
+Adapt,Coimbatore,startup,,not_found,unknown,unknown,adapt.io blocks fetch via robots; no careers URL seen in search results,2026-10-02
+Anything Delivered (AD Loggs),Coimbatore,startup,,not_found,unknown,unknown,only Crunchbase/LinkedIn/job-board hits; no official site seen; search budget exhausted,2026-10-02
+Arivihan,Indore,startup,,not_found,unknown,unknown,arivihan.com nav/footer have no careers link,2026-10-02
+Assessli,Kolkata,startup,,not_found,,,only aggregators in search; assessli.com has no careers link,2026-10-02
+Atlys,Delhi,startup,,not_found,,,"atlys.com homepage footer careers link points only to LinkedIn jobs (aggregator), no own careers page seen",2026-10-02
+BestDoc,Kochi,startup,,not_found,,,"no Kochi BestDoc site identified; bestdoc.com is a US company, bestdoc.in parked",2026-10-02
+BillDesk,Mumbai,startup,,not_found,,,"billdesk.com homepage fetch returned only metadata, no careers link seen",2026-10-02
+Blinkit,Gurugram,startup,https://blinkit.com/careers/jobs/category,fetch_blocked,unknown,unknown,seen in search on blinkit.com; fetch 403; blinkit.com/careers redirects to eternal.com/careers,2026-10-02
+Bluecopa,Hyderabad,startup,,not_found,unknown,unknown,bluecopa.com homepage has no careers link; bluecopa.com/careers 404; search budget exhausted,2026-10-02
+CARD91,Bengaluru,startup,https://card91.io/careers,fetch_blocked,unknown,unknown,URL on official domain in search results; WebFetch failed (robots.txt ConnectTimeout),2026-10-02
+Carelon Global Solutions,Hyderabad,mnc_gcc,,not_found,,,carelon.com homepage footer and nav (also about-us and contact-us pages) have no Careers or Jobs link,2026-10-02
+Cars24,Gurugram,startup,https://apply.workable.com/cars24/,check,workable,unknown,Workable board loads but showed no listings; careers.cars24.com said No jobs found; fetched Workable board for Cars24 (listings not in extract); careers.cars24.com also live but showed 'No jobs found',2026-10-02
+CarTrade,Mumbai,startup,,not_found,,,"cartrade.com footer (About Us, T&C, Contact Us, Advertise) and cartradetech.com nav show no careers link",2026-10-02
+ClassMonitor,Indore,startup,https://classmonitor.com/career,fetch_blocked,unknown,unknown,footer Career link 302-redirects to a JS-only Notion page; content not readable,2026-10-02
+Classplus,Noida,startup,https://classplusapp.com/careers,fetch_blocked,unknown,unknown,seen in search on classplusapp.com; fetch returned JS-only shell,2026-10-02
+Coforge,,mnc_gcc,https://careers.coforge.com/,fetch_blocked,,,via homepage link: coforge.com header and footer link to careers.coforge.com but fetch returned 404 (also /coforge/ 404),2026-10-02
+Convin,Bengaluru,startup,,not_found,,unknown,convin.ai careers link only points to LinkedIn jobs; /careers 404; no official page,2026-10-02
+Coschool,Hyderabad,startup,https://www.coschool.ai/careers,fetch_blocked,unknown,unknown,"URL seen in search on coschool.ai; fetch returned only JS shell/meta, no careers content",2026-10-02
+Credflow,Delhi,startup,,not_found,,,could not confirm official domain; credflow.in and credflow.com fetches failed (robots/TLS errors),2026-10-02
+CureBay,Bhubaneswar,startup,,not_found,unknown,unknown,curebay.com loaded but no careers link visible in fetched content; search budget exhausted,2026-10-02
+Data Science Wizards,Mumbai,startup,,not_found,unknown,unknown,datasciencewizards.ai homepage nav/footer has no careers link; search budget exhausted,2026-10-02
+EduFund,Ahmedabad,startup,,not_found,,,edufund.in fetch timed out earlier and later page showed no careers link,2026-10-02
+ElasticRun,Pune,startup,https://elastic.run/careers,fetch_blocked,unknown,unknown,elastic.run URL from search; fetch returned only meta shell (JS-only),2026-10-02
+EMotorad,Pune,startup,,not_found,unknown,unknown,emotorad.com nav/footer has no careers link; only aggregators,2026-10-02
+Entri,Kochi,startup,,not_found,,,entri.app only links candidate job portal entrijobs.com; no own careers page found,2026-10-02
+Equal Identity,Hyderabad,startup,,not_found,unknown,unknown,equal.in homepage has no careers link; equal.in/careers 404; search budget exhausted,2026-10-02
+Finfactor,Pune,startup,,not_found,unknown,unknown,finfactor homepage has no careers link; no URL seen,2026-10-02
+FirstClub,Bengaluru,startup,,not_found,,unknown,"No confirmed official page; unverified candidates firstclub.greythr.com/hire/jobs, firstclub.co.in/join-team",2026-10-02
+Fydo,Bhubaneswar,startup,,not_found,unknown,unknown,fydo.in nav/footer have no careers link; search budget exhausted,2026-10-02
+Gallabox,Chennai,startup,,not_found,unknown,unknown,official site footer only links to Wellfound (aggregator),2026-10-02
+GenieTalk,Indore,startup,,not_found,unknown,unknown,genietalk.ai fetch showed no careers link; identity unconfirmed,2026-10-02
+GreyLabs AI,Mumbai,startup,,not_found,unknown,unknown,"greylabs.ai fetch returned only meta/title, no careers link seen; search budget exhausted",2026-10-02
+Growcoms,Kochi,startup,https://www.growcoms.com/careers.php,fetch_blocked,unknown,unknown,link seen in growcoms.com nav; WebFetch returned 409,2026-10-02
+Haber,Pune,startup,,not_found,unknown,unknown,site fetch blocked by robots/SSL; search quota exhausted; no URL seen,2026-10-02
+HANSAI IT Solutions,Coimbatore,startup,,not_found,unknown,unknown,hansaiinfo.com official but careers URL not seen; hansaitechnosoft.com/Careers 404,2026-10-02
+Happiest Minds,,mnc_gcc,https://careers.happiestminds.com/,fetch_blocked,,,via homepage link: happiestminds.com nav/footer/CTA link to careers.happiestminds.com but fetch returned only generic tech/diversity content with no job listings or careers elements,2026-10-02
+HealthKart,Gurugram,startup,https://engineering.healthkart.com/open-positions/,check,own_site,1,"only engineering open-positions page, last updated 2023; fetched; engineering open-positions page (2023, stale), email resume; no main careers page found",2026-10-02
+Highperformr.ai,Chennai,startup,,not_found,unknown,unknown,site nav/footer has no careers link; only aggregator results,2026-10-02
+Hypto,Chennai,startup,https://www.hypto.in/work-at-hypto,fetch_blocked,unknown,unknown,hypto.in URL in search results; WebFetch 403,2026-10-02
+Infinite Uptime,Pune,startup,https://infiniteuptime.keka.com/careers/,fetch_blocked,keka,unknown,linked in official site footer; Keka page fetched but noindex/empty JS shell,2026-10-02
+Intangles,Pune,startup,,not_found,unknown,unknown,intangles.ai/.com fetch returned unrelated shell; no careers URL seen,2026-10-02
+Intello Labs,Delhi NCR,startup,,not_found,,,"intellolabs.com nav and footer (Home, Products, Blog, About Us, Contact) show no careers link; intello.ai is a domain for sale",2026-10-02
+Intervue.io,Bengaluru,startup,,not_found,,unknown,intervue.io/careers 404; site nav has no careers link; only aggregators in search,2026-10-02
+Invati Creations,Kolkata,startup,,not_found,,,only profile/news results; no official site or careers page seen,2026-10-02
+Jeh Aerospace,Hyderabad,startup,,not_found,unknown,unknown,only a staging page stage1.jeh.aero/careers seen; www.jeh.aero blocked fetch,2026-10-02
+Jewelbox,Kolkata,startup,,not_found,,,jewelbox.co.in header/footer has no careers link; search only aggregators,2026-10-02
+Kredent,Kolkata,startup,https://www.kredentacademy.com/career,check,own_site,8,used kredentacademy.com; kredent.com belongs to Kredent Group - confirm which is the listed startup; fetched; 8 Kolkata roles incl Product Mgr (Edutech); email apply,2026-10-02
+LectureNotes,Bhubaneswar,startup,,not_found,unknown,unknown,lecturenotes.in fetch blocked by robots/SSL; no careers URL seen,2026-10-02
+LimeChat,Bengaluru,startup,https://limechat.notion.site/Careers-at-LimeChat-14014db36db3494f94ea8da604ee3ecb,fetch_blocked,own_site,unknown,"Linked in limechat.ai footer Careers; Notion page JS-only, fetch returned Notion shell",2026-10-02
+Little Laureates,Kolkata,startup,,not_found,,,littlelaureates.org seen in search but fetch failed (DNS); no careers URL seen,2026-10-02
+Lucidity,Bengaluru,startup,,not_found,unknown,unknown,"not searched: WebSearch budget exhausted (200/200); no URL seen, none guessed",2026-10-02
+MaalGaadi,Indore,startup,,not_found,unknown,unknown,no official careers page found; maalgaadi.net fetched was unrelated auto site,2026-10-02
+MakeMyTrip,Gurugram,startup,,not_found,,,makemytrip.com homepage fetch showed no careers link; makemytrip.com/careers blocked by robots and careers.makemytrip.com returned only a generic page,2026-10-02
+MapmyIndia,Delhi,startup,https://about.mappls.com/careers,fetch_blocked,,,"via homepage link: Careers in nav Resources and footer of mapmyindia.com points to about.mappls.com/careers; page loaded but returned only Mappls product/culture content with no job listings, so not confirmed as a jobs page",2026-10-02
+Matter,Ahmedabad,startup,https://www.matter.in/careers,fetch_blocked,unknown,unknown,link seen on matter.in homepage; fetch returned no usable page content (JS/meta only),2026-10-02
+Mercedes-Benz R&D India,Bengaluru;Pune,mnc_gcc,https://jobs.mercedes-benz.com/en,fetch_blocked,,,via homepage link: mercedes-benz.co.in footer Careers (passengercars/brand/career.html) loaded and links to jobs.mercedes-benz.com/en but that job board fetch returned no content; no direct MBRDI link seen,2026-10-02
+Nazara Technologies,Mumbai,startup,,not_found,,,"nazara.com homepage fetch returned only a title, no links seen",2026-10-02
+NowPurchase,Kolkata,startup,,not_found,unknown,unknown,"nowpurchase.com fetch returned only meta tags, no careers link; search budget exhausted",2026-10-02
+ODBUS,Bhubaneswar,startup,,not_found,unknown,unknown,odbus.in nav/footer have no careers link,2026-10-02
+Ola Krutrim,Bengaluru,startup,,not_found,,,olakrutrim.com homepage nav and footer show no careers link; krutrim.com fetch blocked,2026-10-02
+OneCard,Pune,startup,https://www.getonecard.app/careers/,fetch_blocked,unknown,unknown,"getonecard.app ""Careers at FPL"" in search results; WebFetch 403",2026-10-02
+Open,Bengaluru,startup,,not_found,,unknown,No careers link on open.money; open.money/careers fetch 403; only aggregators in search,2026-10-02
+OYO,Gurugram,startup,,not_found,,,oyorooms.com footer Teams / Careers link points only to LinkedIn jobs (aggregator),2026-10-02
+Pataa,Indore,startup,,not_found,unknown,unknown,no official domain seen; guessed domain unresolvable,2026-10-02
+Perkant Tech,Indore,startup,,not_found,unknown,unknown,perkant.com blocked by robots; no careers URL seen,2026-10-02
+PhysicsWallah,Noida,startup,http://careers.pw.live/,fetch_blocked,unknown,unknown,seen in search on pw.live; WebFetch refused (robots.txt/name resolution failure),2026-10-02
+Progcap,Delhi,startup,,not_found,,,"progcap.com homepage fetch returned only metadata, no careers link seen",2026-10-02
+Qikink,Coimbatore,startup,,not_found,unknown,unknown,qikink.com/about-us has no careers link; /careers 404; search budget exhausted,2026-10-02
+RateGain,Noida,startup,,not_found,,,rategain.com homepage fetch returned an access-denied (request rejected) page; no careers link seen,2026-10-02
+Sasta Sundar,Kolkata,startup,,not_found,unknown,unknown,"sastasundar.com homepage fetched, no careers link; search budget exhausted",2026-10-02
+Sisir Radar,Kolkata,startup,,not_found,,,"2 searches, only aggregators; home page fetch showed no careers link",2026-10-02
+Smaket.ai,Bhubaneswar,startup,,not_found,unknown,unknown,smaket.ai fetch showed no careers link (JS-only); search budget exhausted,2026-10-02
+Snabbit,Mumbai,startup,,not_found,unknown,unknown,Official site footer Career link goes only to LinkedIn; join.snabbit.com is gig-expert signup; no ATS found,2026-10-02
+Snap-E Cabs,Kolkata,startup,,not_found,,,"snapecabs.com has no careers page, only careers@snapecabs.com email",2026-10-02
+Snapdeal,Gurugram,startup,,not_found,,,snapdeal.com homepage fetch returned 403; no careers link seen,2026-10-02
+Spearmint Games,Kochi,startup,,not_found,,,spearmintgames.com redirects to unrelated Dubai studio funvent.cc; no careers,2026-10-02
+Spyne,Delhi NCR,startup,,not_found,,,spyne.ai homepage nav and footer show no careers link (only Trust and Legal),2026-10-02
+Swiggy,Bengaluru,startup,https://careers.swiggy.in/,fetch_blocked,unknown,unknown,Official domain in search; fetch returned only title metadata (JS-rendered body),2026-10-02
+Swipe,Hyderabad,startup,,not_found,unknown,unknown,site footer has We're hiring link but href not exposed; getswipe.in/careers 404; search budget out,2026-10-02
+Swish,Bengaluru,startup,,not_found,unknown,unknown,"not searched: WebSearch budget exhausted (200/200); no URL seen, none guessed",2026-10-02
+TABLT,Kolkata,startup,,defunct_or_merged,,,"acquired by Zeno Health Apr 2024 (outlookbusiness.com, bwdisrupt.com)",2026-10-02
+Ticket 9,Coimbatore,startup,,not_found,unknown,unknown,no official careers page in searches (only Indeed/Glassdoor/LinkedIn); search budget exhausted,2026-10-02
+TransBnk,Delhi,startup,,not_found,,,"transbnk.co.in redirects to tbx.co.in; nav and footer (About Us, Products, Contact Us, etc.) show no careers link",2026-10-02
+Truckhall,Kolkata,startup,http://www.truckhall.com/careers,fetch_blocked,unknown,unknown,official domain in search result; WebFetch failed (robots.txt fetch timeout),2026-10-02
+Urban Company,Gurugram,startup,https://careers.urbancompany.com/,fetch_blocked,unknown,unknown,seen in search on urbancompany.com; fetch returned JS-only shell,2026-10-02
+vKover,Kochi,startup,https://www.yellainsure.com/careers/,check,own_site,2,"vkover.com redirects to yellainsure.com; same company not confirmed; vkover.com redirects to yellainsure.com; fetched; 2 Relationship Mgr roles (Kochi, Chennai)",2026-10-02
+WebEngage,Mumbai,startup,,not_found,,,"webengage.com homepage fetch returned only metadata or 403, no careers link seen",2026-10-02
+WishCare,Kolkata,startup,,not_found,,,"2 searches, only profiles/aggregators; wishcare.in did not resolve",2026-10-02
+Wishleaf,Bhubaneswar,startup,,not_found,unknown,unknown,wishleaf.in blocked by robots/unresolvable; no careers URL seen,2026-10-02
+Wiz Freight,Chennai,startup,,not_found,unknown,unknown,only aggregator/profile results; no official site or careers page found,2026-10-02
+Wow! Momo,Kolkata,startup,,not_found,unknown,unknown,"wowmomo.com homepage fetched, no careers link in nav/footer; search budget exhausted",2026-10-02
+Xpressbees,Pune,startup,,not_found,unknown,unknown,only old-xpressbees.xbees.in seen; DNS failed (stale),2026-10-02
+Yubi (CredAvenue),Chennai,startup,,not_found,,,could not confirm official domain; yubi.com and go-yubi.com fetches failed,2026-10-02
+Zepto,Bengaluru,startup,,not_found,,,zeptonow.com and zepto.com homepages and zeptonow.com/careers returned empty content so no careers link seen,2026-10-02
+Zerodha,Bengaluru,startup,https://careers.zerodha.com/,fetch_blocked,unknown,unknown,"zerodha.com/careers 302s here; fetch returned only title ""Careers - Zerodha"", no body",2026-10-02
