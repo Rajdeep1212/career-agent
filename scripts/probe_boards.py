@@ -8,7 +8,7 @@ For each row of seeds/companies_seed.csv without a careers_url, tries up to four
 company name against five public job APIs (Greenhouse, Lever, Ashby, SmartRecruiters, Workable) and
 writes every hit to seeds/companies_probe_review.csv, with a run summary beside it. No web page is
 read and no database is opened. Requests are polite (one per host every --delay seconds, a 429 stops
-that API) and cached under data/ats_detect_cache/, so a re-run sends nothing new.
+that API) and cached under .cache/ats/, so a re-run sends nothing new.
 
 --apply-confirmed writes careers_url and ats into empty seed cells for companies with exactly one
 pollable board. --rejudge judges the existing review rows again by the current rule, from the cache. See app/sources/board_probe.py.

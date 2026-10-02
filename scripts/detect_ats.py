@@ -6,7 +6,7 @@ Usage (from the repository root, in the app's Python environment):
 
 Reads seeds/companies_seed.csv and writes docs/eval/ats_detection.md. Detection only: no database is
 opened and nothing is added to the Company Radar. Requests are polite (robots.txt, one request per
-host every --delay seconds, stop on 429) and answers are cached under data/ats_detect_cache/, so a
+host every --delay seconds, stop on 429) and answers are cached under .cache/ats/, so a
 re-run within --max-age-hours sends nothing new. See app/sources/ats_detect.py for the method.
 """
 import argparse

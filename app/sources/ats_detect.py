@@ -25,7 +25,6 @@ from pathlib import Path
 
 import httpx
 
-from app.core.config import settings
 from app.services.safe_http import safe_get
 from app.sources.board_rule import STATUSES as RULE_STATUSES
 from app.sources.board_rule import BoardError, judge, read_board
@@ -33,7 +32,8 @@ from app.sources.company_seed import SeedFile, SeedRow, fetch_allowed
 from app.sources.fetcher import Fetched, HostBlocked, PoliteFetcher, RobotsDisallowed
 from app.sources.registry import DEFAULT_INDIA_FILTER
 
-CACHE_DIR = Path(settings.data_dir) / "ats_detect_cache"
+# Outside data/: a run in the background must never change the user's data directory. .cache/ is git-ignored.
+CACHE_DIR = Path(__file__).resolve().parents[2] / ".cache" / "ats"
 STATUSES = ["pollable", "stale_no_india", "detected", "board_missing", "not_detected", "not_read", "no_careers_url"]
 _WITH_ADAPTER = {"greenhouse", "lever", "ashby", "smartrecruiters"}     # the Company Radar can poll these
 _START = r"(?<![A-Za-z0-9.-])"
