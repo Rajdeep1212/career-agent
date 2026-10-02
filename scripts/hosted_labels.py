@@ -26,7 +26,7 @@ if str(ROOT) not in sys.path:
 
 from app.core.config import settings  # noqa: E402
 from app.eval import hosted_labels as hosted  # noqa: E402
-from app.eval.label_page import RUBRIC  # noqa: E402
+from app.eval.label_page import RUBRIC, label_quality  # noqa: E402
 
 EVAL = Path(settings.data_dir) / "eval"
 
@@ -101,6 +101,10 @@ def report(batch: Path, out: Path) -> int:
     jobs = _lines(batch / "jobs.jsonl")
     order = [job["item_id"] for job in jobs]
     gold_lines = _lines(EVAL / "labels" / f"{batch.name}.jsonl")
+    quality = label_quality(gold_lines, len(order))
+    if not quality["accepted"]:
+        print(f"The gold labels are not scored. {quality['message']}")
+        return 1
     gold = {line["item_id"]: line["label"] for line in gold_lines}
     host_lines = _lines(EVAL / "labels" / f"{batch.name}.hosted.jsonl")
     by_order = {name: {line["item_id"]: line for line in host_lines if line["order"] == name} for name in hosted.ORDERS}

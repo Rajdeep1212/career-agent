@@ -10,12 +10,20 @@ One labeller, the owner, grades each job of a batch 0-3 with rubric r1 ("would I
 - Local: scripts/label_page.py serves it on 127.0.0.1 only. The page is one document with inline CSS
   and JavaScript and a Content-Security-Policy that forbids loading anything else.
 
+- Timed: the server records the seconds between showing a job and receiving its label. `label_quality()`
+  refuses to call a label file complete when more than 10 in 106 jobs were labelled in under 8 seconds, or when
+  one grade takes more than half of the labels. The first run of batch gold-20261001-r1 failed both
+  (docs/eval/gold_labels.md).
+
 `handle()` is the whole HTTP behaviour as a pure function, so it is tested without a socket.
 """
 import hashlib
 import html
 import json
 import threading
+import time
+from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,7 +38,41 @@ RUBRIC: dict[str, Any] = {"version": "r1", "question": "Would I apply?", "grades
     "1": "The same area, but the wrong role or skills; I wouldn't open it.",
     "2": "The right family and plausible for a fresher; worth a look.",
     "3": "The right role, fresher-friendly, matches my core skills; I would apply today."}}
+FAST_SECONDS = 8                # a job labelled in less time than this was not read
+FAST_ALLOWED = (10, 106)        # at most 10 quick labels in 106 jobs
 _LOCK = threading.Lock()
+
+
+def label_quality(records: list[dict], total: int) -> dict:
+    """Whether a label file can be called complete: every job labelled, few quick labels, no grade above half.
+
+    The latest line of a job is its label; the longest look at it counts as its time. A label with no
+    timing (the server had not shown the job) counts as quick."""
+    grades: dict[str, int] = {}
+    longest: dict[str, float] = {}
+    for record in records:
+        item = record["item_id"]
+        grades[item] = record["label"]
+        longest[item] = max(longest.get(item, 0.0), record.get("seconds_on_job") or 0.0)
+    labelled, missing = len(grades), total - len(grades)
+    fast = len([item for item in grades if longest[item] < FAST_SECONDS])
+    fast_limit = total * FAST_ALLOWED[0] // FAST_ALLOWED[1]
+    grade, count = Counter(grades.values()).most_common(1)[0] if grades else (None, 0)
+    problems = []
+    if missing:
+        problems.append(f"{missing} of {total} jobs have no label")
+    if fast > fast_limit:
+        problems.append(f"{fast} of {total} jobs were labelled in under {FAST_SECONDS} seconds (at most {fast_limit} allowed; "
+                        "a label with no timing counts as quick)")
+    if count * 2 > labelled:
+        problems.append(f"{count} of {labelled} labels are grade {grade}, more than half")
+    summary = f"{fast} of {total} labelled in under {FAST_SECONDS} seconds"
+    message = (f"Complete: {labelled} of {total} jobs labelled; {summary}." if not problems else
+               "NOT complete: " + "; ".join(problems) + "."
+               + ("" if len(problems) == 1 and missing else " Go back with the Left arrow and read those jobs again."))
+    return {"total": total, "labelled": labelled, "complete": not missing, "accepted": not problems, "fast": fast,
+            "fast_limit": fast_limit, "most_common_grade": grade, "most_common_count": count, "problems": problems,
+            "summary": summary, "message": message}
 
 
 @dataclass
@@ -43,8 +85,10 @@ class Response:
 class LabelSession:
     """One batch and its label file."""
 
-    def __init__(self, batch: Path, labels_root: Path):
+    def __init__(self, batch: Path, labels_root: Path, *, clock: Callable[[], float] = time.monotonic):
         self.batch, self.labels_root = Path(batch), Path(labels_root)
+        self._clock = clock
+        self._shown: dict[str, float] = {}       # item_id -> when its job was last sent to the page
         self.meta = json.loads((self.batch / "meta.json").read_text(encoding="utf-8"))
         if self.meta.get("rubric_version") != RUBRIC["version"]:
             raise ValueError(f"The batch was built for rubric {self.meta.get('rubric_version')}; this page labels with {RUBRIC['version']}.")
@@ -56,6 +100,14 @@ class LabelSession:
         self.items = [{"item_id": row["item_id"], **{name: row.get(name) for name in BLIND_FIELDS}} for row in rows]
         self.index_of = {item["item_id"]: index for index, item in enumerate(self.items)}
         self.path = self.labels_root / f"{self.batch_id}.jsonl"
+
+    def records(self) -> list[dict]:
+        if not self.path.exists():
+            return []
+        return [json.loads(line) for line in self.path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+    def quality(self) -> dict:
+        return label_quality(self.records(), len(self.items))
 
     def _latest(self) -> dict[str, tuple[int, int]]:
         """item_id -> (label, 1-based line number) of its latest label."""
@@ -76,9 +128,12 @@ class LabelSession:
         index = at if at is not None and 0 <= at < len(self.items) else self._first_unlabelled(latest, after)
         item = self.items[index] if index is not None else None
         total = len(self.items)
+        if item:
+            self._shown[item["item_id"]] = self._clock()
         return {"batch_id": self.batch_id, "total": total, "labelled": len(latest), "index": index, "done": index is None,
                 "position": f"{(index + 1) if index is not None else total} of {total}", "item": item,
-                "current_label": latest[item["item_id"]][0] if item and item["item_id"] in latest else None, "rubric": RUBRIC}
+                "current_label": latest[item["item_id"]][0] if item and item["item_id"] in latest else None, "rubric": RUBRIC,
+                "quality": self.quality() if index is None else None}
 
     def label(self, item_id: object, grade: object) -> dict:
         """Append one label and return the state at the next unlabelled job."""
@@ -86,12 +141,14 @@ class LabelSession:
             raise ValueError("unknown item_id")
         if isinstance(grade, bool) or not isinstance(grade, int) or grade not in (0, 1, 2, 3):
             raise ValueError("grade must be 0, 1, 2 or 3")
+        shown = self._shown.pop(item_id, None)
+        seconds = None if shown is None else round(self._clock() - shown, 1)
         with _LOCK:
             previous = self._latest().get(item_id)
             record = {"batch_id": self.batch_id, "item_id": item_id, "label": grade, "scale": "graded_0_3",
                       "rubric_version": RUBRIC["version"], "labeller": "owner", "set": "gold",
                       "labelled_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                      "relabel_of": previous[1] if previous else None,
+                      "relabel_of": previous[1] if previous else None, "seconds_on_job": seconds,
                       "snapshot_stamp": (self.meta.get("frozen") or {}).get("stamp"), "blind_sha256": self.blind_sha256}
             self.labels_root.mkdir(parents=True, exist_ok=True)
             with self.path.open("a", encoding="utf-8", newline="\n") as handle_:
@@ -203,7 +260,7 @@ function show(next) {
     row.classList.toggle("chosen", item !== null && String(next.current_label) === row.querySelector("button").dataset.grade);
   }
   if (!item) {
-    byId("message").textContent = "Every job in this batch has a label. Left arrow goes back to change one.";
+    byId("message").textContent = next.quality ? next.quality.message : "Every job in this batch has a label.";
     return;
   }
   byId("message").textContent = next.current_label === null ? "" : "You labelled this job " + next.current_label + ". A new key replaces it.";

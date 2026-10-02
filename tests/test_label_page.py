@@ -96,7 +96,7 @@ class LabelTests(LabelCase):
                           "relabel_of": None, "snapshot_stamp": "S"})
         self.assertRegex(first["labelled_at"], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
         self.assertEqual(set(first), {"batch_id", "item_id", "label", "scale", "rubric_version", "labeller", "set", "labelled_at",
-                                      "relabel_of", "snapshot_stamp", "blind_sha256"})
+                                      "relabel_of", "snapshot_stamp", "blind_sha256", "seconds_on_job"})
 
     def test_a_half_done_batch_resumes_at_the_first_unlabelled_job(self):
         self.post({"item_id": "item00", "grade": 2})

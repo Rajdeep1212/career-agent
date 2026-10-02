@@ -7,6 +7,11 @@ Then open the address it prints. Keys 0-3 label the job on screen and move on; L
 back one job; a refresh or a restart continues where you stopped. Labels are appended to
 data/eval/labels/<batch id>.jsonl. Stop the server with Ctrl+C.
 
+    python scripts/label_page.py --batch data/eval/batches/<batch id> --check
+
+--check prints how many jobs were labelled in under 8 seconds and whether the file counts as complete, and exits
+with 1 when it does not. The same lines are printed when the server stops.
+
 It listens on this machine only and loads nothing from the network. See app/eval/label_page.py.
 """
 import argparse
@@ -64,9 +69,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--batch", required=True, type=Path, help="a folder made by scripts/build_label_batch.py")
     parser.add_argument("--labels", type=Path, default=Path(settings.data_dir) / "eval" / "labels")
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--check", action="store_true", help="print the quality check of the label file and exit")
     args = parser.parse_args(argv)
-    serve(LabelSession(args.batch, args.labels), args.port)
-    return 0
+    session = LabelSession(args.batch, args.labels)
+    if not args.check:
+        serve(session, args.port)
+    quality = session.quality()
+    print(f"{session.batch_id}: {quality['labelled']} of {quality['total']} labelled; {quality['summary']}.")
+    print(quality["message"])
+    return 0 if quality["accepted"] or not args.check else 1
 
 
 if __name__ == "__main__":
