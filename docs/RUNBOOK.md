@@ -34,10 +34,10 @@ Built and verified:
 - Label batch builder: scripts/build_label_batch.py (e814378).
 - Freshness rule: app/services/freshness.py; search(return_excluded=True) (240872c).
 - Seen-on dates, resolve_relative(), stale-sync banner (9848923).
-- Patch merged (39db76f): 287 rows have a careers_url; 27 boards answer, 24 by the stricter rule. Keka 12 + Darwinbox 11 > Greenhouse/Lever/Ashby for Indian startups; Workday 17 + SuccessFactors 8 + Eightfold 6 cover the MNCs.
+- Patch merged (39db76f): 287 rows have a careers_url; 27 boards answer, 22 pollable by the one rule (app/sources/board_rule.py, b4aa7d1). Keka 12 + Darwinbox 11 > Greenhouse/Lever/Ashby for Indian startups; Workday 17 + SuccessFactors 8 + Eightfold 6 cover the MNCs.
 - Careers-page research 2 Oct 2026: 262 rows checked, 167 verified; seeds/careers_patch_2026-10-02.csv.
 - Seed list + ATS detection: scripts/detect_ats.py, docs/eval/ats_detection.md (5fbdd0a); 8 boards confirmed pollable.
-- Gate: run_tests.py (793 OK, 1 skipped), `node tests/test_frontend.cjs`, ruff, mypy.
+- Gate: run_tests.py (841 OK, 1 skipped), `node tests/test_frontend.cjs`, ruff, mypy.
 
 Decisions already made (do not reopen):
 - Hosted models never see the CV file or text extracted from it. A target profile and per-project briefs written by Rajdeep may be shared.
@@ -53,7 +53,7 @@ Decisions already made (do not reopen):
   - D (control): "Sales Executive jobs in India"
 - Seeded excluded samples: 10 per search for A, B and C; 5 for D. Never raise the match cap; record cap hits in meta.json instead.
 - Freshness: "open today" is the main criterion. Show a job if it was verified open within 48 h (any age), or if its status is unknown and it was posted 30 days ago or less. Unknown status and 31–60 days old goes in a separate "check before applying" group. Hide closed jobs, jobs past their validThrough date, and unknown jobs older than 60 days. On the frozen copy, "today" = its snapshot date. Alert-email jobs with no posted date use the email's arrival date (shown as "seen on"). If the last sync is more than 48 h old, keep the age rule and show a banner (last sync time, hidden and check counts); a stale sync never counts as verification. Being listed on a board does not make a very old posting fresh: anything posted more than 180 days ago is flagged as a possible evergreen or ghost listing even when verified open (built in Q9/Q18).
-- "Pollable" means: the board API answers, the company name matches, at least one job is in India or remote-India, and the newest posting is within 180 days. Boards failing only the last two are "stale/no-India" and are kept in the seed but excluded from the count. One rule, used by both the probe and detection.
+- "Pollable" means: the board API answers, the company name matches, at least one job is in India or remote-India, and the newest posting is within 180 days. A company name that matches only after stripping a suffix ("Labs", "Technologies", "Systems", "Solutions", "India", "Pvt Ltd") is a partial match, not verified: that board is "name_mismatch". Boards failing only the last two are "stale/no-India" and are kept in the seed but excluded from the count. One rule, used by both the probe and detection.
 - Source ladder, in order, per company: (1) public ATS feed, (2) JSON-LD JobPosting on the careers page, (3) a jobs sitemap or RSS/XML feed, (4) link only. Verified feed patterns (2 Oct 2026):
   - Greenhouse GET boards-api.greenhouse.io/v1/boards/{token}/jobs (content=true for descriptions)
   - Lever GET api.lever.co/v0/postings/{slug}?mode=json (epoch-ms dates)
