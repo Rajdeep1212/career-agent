@@ -37,7 +37,7 @@ Built and verified:
 - Patch merged (39db76f): 287 rows have a careers_url; 27 boards answer, 22 pollable by the one rule (app/sources/board_rule.py, b4aa7d1). Keka 12 + Darwinbox 11 > Greenhouse/Lever/Ashby for Indian startups; Workday 17 + SuccessFactors 8 + Eightfold 6 cover the MNCs.
 - Careers-page research 2 Oct 2026: 262 rows checked, 167 verified; seeds/careers_patch_2026-10-02.csv.
 - Seed list + ATS detection: scripts/detect_ats.py, docs/eval/ats_detection.md (5fbdd0a); 8 boards confirmed pollable.
-- Gate: run_tests.py (841 OK, 1 skipped), `node tests/test_frontend.cjs`, ruff, mypy.
+- Gate: run_tests.py (879 OK, 1 skipped), `node tests/test_frontend.cjs`, ruff, mypy.
 
 Decisions already made (do not reopen):
 - Hosted models never see the CV file or text extracted from it. A target profile and per-project briefs written by Rajdeep may be shared.
