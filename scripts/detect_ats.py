@@ -41,6 +41,8 @@ def main(argv: list[str] | None = None, *, fetcher: DetectFetcher | None = None)
     parser.add_argument("--max-age-hours", type=float, default=168.0, help="reuse cached answers younger than this")
     parser.add_argument("--baseline-pollable", type=int, default=8,
                         help="pollable companies before the slug probe (8 in the Q2c run, commit 5fbdd0a)")
+    parser.add_argument("--only-file", type=Path,
+                        help="company names, one per line: read these live and answer every other row from the cache only")
     args = parser.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(errors="replace")
@@ -56,7 +58,14 @@ def main(argv: list[str] | None = None, *, fetcher: DetectFetcher | None = None)
         return 2
 
     fetcher = fetcher or DetectFetcher(delay=args.delay, max_age_hours=args.max_age_hours)
-    results = asyncio.run(detect_all(seed.rows, fetcher, progress=_progress))
+    only = None
+    if args.only_file:
+        only = {line.strip() for line in args.only_file.read_text(encoding="utf-8").splitlines() if line.strip()}
+        unknown = sorted(only - {row.company for row in seed.rows})
+        if unknown:
+            print(f"--only-file names companies that are not in the seed list: {', '.join(unknown)}")
+            return 1
+    results = asyncio.run(detect_all(seed.rows, fetcher, progress=_progress, only=only))
     try:
         seed_name = args.csv.resolve().relative_to(ROOT).as_posix()
     except ValueError:
@@ -69,6 +78,7 @@ def main(argv: list[str] | None = None, *, fetcher: DetectFetcher | None = None)
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(render_report(seed, results, run_at=datetime.now(timezone.utc), requests=fetcher.requests,
                                          cache_hits=fetcher.cache_hits, seed_name=seed_name, review=review, probe=probe,
+                                         live_rows=None if only is None else len(only),
                                          baseline_pollable=args.baseline_pollable), encoding="utf-8")
     print(f"pollable {len(pollable(results))}")
     print(" | ".join(f"{status} {len([found for found in results if found.status == status])}" for status in STATUSES))

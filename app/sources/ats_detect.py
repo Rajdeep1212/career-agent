@@ -65,6 +65,10 @@ class NeverFetched(RuntimeError):
     """The address is on a site the app never fetches."""
 
 
+class NotRequested(RuntimeError):
+    """The fetcher is answering from its cache only and has no answer for this address."""
+
+
 @dataclass(frozen=True)
 class Hit:
     ats: str
@@ -129,6 +133,7 @@ class DetectFetcher(PoliteFetcher):
         self._now = now or (lambda: datetime.now(timezone.utc))
         self._final: dict[str, str] = {}
         self.cache_hits = 0
+        self.offline = False        # True: answer from the cache only, send nothing
 
     def final_url(self, url: str) -> str:
         return self._final.get(url, url)
@@ -157,6 +162,8 @@ class DetectFetcher(PoliteFetcher):
             self.cache_hits += 1
             self._final[url] = record["final_url"]
             return Fetched(url, record["status"], record["body"], {}, from_cache=True)
+        if self.offline:
+            raise NotRequested("not requested in this run and not in the cache")
         result = await super().get(url, check_robots=check_robots, accept=accept)
         if not fetch_allowed(self.final_url(url)):
             raise NeverFetched(f"{url} redirects to a site that is never fetched")
@@ -230,7 +237,7 @@ async def detect_company(row: SeedRow, fetcher: DetectFetcher) -> Detection:
     if not hit:
         try:
             page = await fetcher.get(row.careers_url)
-        except (NeverFetched, RobotsDisallowed, HostBlocked) as exc:
+        except (NeverFetched, NotRequested, RobotsDisallowed, HostBlocked) as exc:
             return result("not_read", note=str(exc))
         except Exception as exc:
             return result("not_read", note=f"careers page could not be read ({type(exc).__name__})")
@@ -255,9 +262,11 @@ async def detect_company(row: SeedRow, fetcher: DetectFetcher) -> Detection:
 
 
 async def detect_all(rows: list[SeedRow], fetcher: DetectFetcher,
-                     progress: Callable[[Detection], None] | None = None) -> list[Detection]:
+                     progress: Callable[[Detection], None] | None = None, only: set[str] | None = None) -> list[Detection]:
+    """With `only`, the named companies are read live; every other row is answered from the cache and never requested."""
     results = []
     for row in rows:
+        fetcher.offline = only is not None and row.company not in only
         found = await detect_company(row, fetcher)
         results.append(found)
         if progress:
@@ -276,7 +285,7 @@ def _table(header: list[str], rows: Iterable[Iterable]) -> list[str]:
 
 def render_report(seed: SeedFile, results: list[Detection], *, run_at: datetime, requests: int, cache_hits: int,
                   seed_name: str, review: list[dict[str, str]] | None = None, probe: dict | None = None,
-                  baseline_pollable: int | None = None) -> str:
+                  baseline_pollable: int | None = None, live_rows: int | None = None) -> str:
     by_status = {status: [found for found in results if found.status == status] for status in STATUSES}
     found_ats = by_status["confirmed"] + by_status["detected"]
     list_types = sorted({found.list_type for found in results})
@@ -298,7 +307,9 @@ def render_report(seed: SeedFile, results: list[Detection], *, run_at: datetime,
                     [[status, len(by_status[status]), *[len([f for f in by_status[status] if f.list_type == kind]) for kind in list_types]]
                      for status in STATUSES]
                     + [["Total", len(results), *[len([f for f in results if f.list_type == kind]) for kind in list_types]]])
-    lines += [f"Requests sent: {requests}. Answers taken from the on-disk cache: {cache_hits}.", "",
+    scope = "" if live_rows is None else (f" This run read {live_rows} newly filled rows live; every other row was answered "
+                                          "from the cache and not requested again.")
+    lines += [f"Requests sent: {requests}. Answers taken from the on-disk cache: {cache_hits}.{scope}", "",
               "`no_careers_url` rows have no page to read. " +
               ("They were probed by slug instead; see the slug probe section." if review is not None
                else "They were not checked: no board name is guessed from a company name."), "", "## ATS found", ""]
