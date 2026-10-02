@@ -97,6 +97,7 @@ REQUEST
    - Small commits; tests first (show the red run).
    - Run the full gate before every commit.
    - Write only inside this repo.
+   - Dev agents (`.claude/agents/`) are read-only helpers and the main session is the only writer: use `researcher` to find where something lives before changing it, `test-writer` to draft failing tests for a described change, and `reviewer` on the diff before a commit that touches storage, network code, email or anything near the CV.
 5. **Close the item.**
    - Set its Status to DONE with one line: result plus commit SHAs.
    - Commit, push, report, and STOP.
