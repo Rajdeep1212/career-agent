@@ -37,6 +37,10 @@ _SOFT = {"technologies", "technology", "tech", "labs", "lab", "software", "syste
          "services", "company", "co", "corp", "corporation", "ai", "io", "app", "hq"}
 
 
+def _raw_words(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", text.casefold())
+
+
 def _words(text: str) -> list[str]:
     return [word for word in re.findall(r"[a-z0-9]+", text.casefold()) if word not in _LEGAL]
 
@@ -62,14 +66,21 @@ def slug_candidates(company: str) -> list[str]:
 
 
 def name_match(company: str, found: str) -> str:
-    """'exact', 'partial' or 'none': how the name an API returned compares with the seed company's name."""
+    """'exact', 'partial' or 'none': how the name an API returned compares with the seed company's name.
+
+    Exact means the same name apart from case, punctuation and spaces, or the bracketed short name. A name
+    that matches only after a suffix is stripped ("Labs", "Technologies", "India", "Pvt Ltd", ...) is partial:
+    the Greenhouse board 'Pine' is not evidence for Pine Labs."""
     main, alias = _parts(company)
     theirs = _words(re.sub(r"\(.*?\)", " ", found or ""))
     if not main or not theirs:
         return "none"
+    written = {"".join(_raw_words(re.sub(r"\(.*?\)", " ", company))), "".join(alias)} - {""}
+    if "".join(_raw_words(re.sub(r"\(.*?\)", " ", found or ""))) in written:
+        return "exact"
     ours = {"".join(main), "".join(_core(main)), "".join(alias)} - {""}
     if {"".join(theirs), "".join(_core(theirs))} & ours:
-        return "exact"
+        return "partial"
     first, other = _core(main)[0], _core(theirs)[0]
     longest = max(ours, key=len)
     if (first == other and len(first) >= 4) or (len("".join(theirs)) >= 4 and "".join(theirs) in longest) or \

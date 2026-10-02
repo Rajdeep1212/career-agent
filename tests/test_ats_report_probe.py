@@ -55,6 +55,11 @@ class ProbeReportTests(unittest.TestCase):
         self.assertIn("| workable | 1 | 0 | 0 |", report)
         self.assertIn("| lever | 0 | 1 | 0 |", report)
         self.assertIn("| Total | 2 | 1 | 0 |", report)
+        # Boards that answered, detection and the probe together, one row per distinct board.
+        self.assertIn("## Boards that answered, by ATS", report)
+        self.assertIn("| lever | 2 | 1 | Two City Corp |", report)
+        self.assertIn("| greenhouse | 2 | 2 | Example Labs |", report)
+        self.assertIn("| workable | 1 | 1 | Widget Works |", report)
         self.assertIn("262 companies", report)
         self.assertIn("Requests sent: 1800", report)
         self.assertIn("lever: api.lever.co answered HTTP 429 (40 slugs not tried)", report)

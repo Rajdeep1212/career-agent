@@ -402,6 +402,22 @@ def _probe_section(seed: SeedFile, results: list[Detection], review: list[dict[s
         lines[-1:] = [f"The first run ({first.get('run_at')}) sent {first.get('requests')} requests; it stopped "
                       f"{', '.join(f'{name} ({count} slugs not tried)' for name, count in (first.get('not_sent') or {}).items()) or 'no API'}"
                       " on HTTP 429. Later runs answer from the cache and do not query a stopped API again.", ""]
+    boards: dict[tuple[str, str], tuple[str, bool]] = {}       # (ats, board) -> (company, pollable)
+    for found in results:
+        if found.status in RULE_STATUSES:
+            boards[(found.ats, found.key.lower())] = (found.company, found.status == "pollable")
+    for item in review:
+        key = (item["ats"], item["slug"].lower())
+        company, live = boards.get(key, (item["company"], False))
+        boards[key] = (company, live or item["status"] == "pollable")
+    lines += ["## Boards that answered, by ATS", "",
+              "Detection and the slug probe together, one row per distinct board whose API returned a job list. An account "
+              "that still answers is often abandoned, which is why the rule checks the newest posting.", ""]
+    lines += _table(["ATS", "Boards that answered", "Pollable", "Pollable companies"],
+                    [[name, len([key for key in boards if key[0] == name]),
+                      len([key for key, (company, live) in boards.items() if key[0] == name and live]),
+                      ", ".join(sorted({company for key, (company, live) in boards.items() if key[0] == name and live}))]
+                     for name in sorted({key[0] for key in boards})])
     ready = pollable(results)
     before = "unknown" if baseline_pollable is None else str(baseline_pollable)
     lines += ["## Pollable companies", "",

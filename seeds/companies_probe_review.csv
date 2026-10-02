@@ -1,6 +1,6 @@
 company,city,ats,slug,status,jobs_total,jobs_india,evidence
 Refyne,Bengaluru,smartrecruiters,refyne,stale_no_india,10,10,board name 'Refyne' matches; 10 of 10 jobs in India; newest posting 2022-04-22 is more than 180 days old
-Intervue.io,Bengaluru,smartrecruiters,intervue,stale_no_india,1,1,board name 'Intervue' matches; 1 of 1 jobs in India; newest posting 2022-03-22 is more than 180 days old
+Intervue.io,Bengaluru,smartrecruiters,intervue,name_mismatch,1,1,board name 'Intervue' partly matches; 1 of 1 jobs in India; newest posting 2022-03-22 is more than 180 days old
 Swiggy,Bengaluru,smartrecruiters,swiggy,pollable,100,100,board name 'SWIGGY' matches; 100 of 100 jobs in India; newest posting 2026-10-01
 CommerceIQ,Bengaluru,greenhouse,commerceiq,pollable,13,4,board name 'CommerceIQ' matches; 4 of 13 jobs in India; newest posting 2026-09-25
 InMobi,Bengaluru,greenhouse,inmobi,pollable,72,36,board name 'InMobi ' matches; 36 of 72 jobs in India; newest posting 2026-10-01
@@ -19,7 +19,7 @@ Mindtickle,Pune,lever,mindtickle,pollable,17,16,the API returns no organisation 
 Mindtickle,Pune,smartrecruiters,mindtickle,stale_no_india,11,9,board name 'MindTickle' matches; 9 of 11 jobs in India; newest posting 2017-08-12 is more than 180 days old
 Anchanto,Pune,greenhouse,anchanto,pollable,10,9,board name 'Anchanto' matches; 9 of 10 jobs in India; newest posting 2026-09-22
 Cars24,Gurugram,smartrecruiters,cars24,stale_no_india,1,1,board name 'Cars24' matches; 1 of 1 jobs in India; newest posting 2018-01-17 is more than 180 days old
-Pine Labs,Noida,greenhouse,pine,stale_no_india,3,0,board name 'Pine' matches; no India job among 3; newest posting 2026-09-28
+Pine Labs,Noida,greenhouse,pine,name_mismatch,3,0,board name 'Pine' partly matches; no India job among 3; newest posting 2026-09-28
 Atlys,Delhi,ashby,atlys,pollable,47,31,the API returns no organisation name; the company name appears in 47 of 47 job descriptions; 31 of 47 jobs in India; newest posting 2026-10-01
 Rebel Foods,Mumbai,smartrecruiters,rebelfoods,stale_no_india,1,0,board name 'Rebelfoods' matches; no India job among 1; newest posting 2020-01-22 is more than 180 days old
 LogiNext,Mumbai,smartrecruiters,loginext,stale_no_india,1,1,board name 'LogiNext' matches; 1 of 1 jobs in India; newest posting 2018-07-10 is more than 180 days old

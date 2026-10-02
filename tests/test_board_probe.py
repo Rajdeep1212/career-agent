@@ -67,9 +67,13 @@ class SlugTests(unittest.TestCase):
 class NameMatchTests(unittest.TestCase):
     def test_exact_partial_and_none(self):
         self.assertEqual(name_match("Example Labs", "Example Labs"), "exact")
-        self.assertEqual(name_match("Example Labs", "Example Labs Pvt. Ltd."), "exact")
+        self.assertEqual(name_match("Example Labs", "EXAMPLE-LABS "), "exact")        # case, punctuation and spaces only
         self.assertEqual(name_match("Tata Consultancy Services (TCS)", "TCS"), "exact")
-        self.assertEqual(name_match("Example Labs", "Example"), "exact")              # the name without a common suffix
+        # Found in the live run: the Greenhouse board 'Pine' matched Pine Labs once "Labs" was stripped.
+        for ours, theirs in (("Pine Labs", "Pine"), ("Example Technologies", "Example"), ("Example Systems", "Example"),
+                             ("Example Solutions", "Example"), ("Example India", "Example"), ("Example", "Example Labs"),
+                             ("Example Labs", "Example Labs Pvt. Ltd."), ("Example Labs Pvt Ltd", "Example Labs")):
+            self.assertEqual(name_match(ours, theirs), "partial", (ours, theirs))
         self.assertEqual(name_match("Example Labs", "Example Health Group"), "partial")
         self.assertEqual(name_match("Example Labs", "Sample Works"), "none")
         self.assertEqual(name_match("Example Labs", ""), "none")
@@ -182,6 +186,12 @@ class ProbeTests(unittest.IsolatedAsyncioTestCase):
         hit = (await probe_company(row("Example Labs"), self.fetcher(FakeWeb({LEVER.format("examplelabs"): (200, stale)}))))[0]
         self.assertEqual(hit.status, "stale_no_india")
         self.assertIn("newest posting 2017-07-14", hit.evidence)
+
+    async def test_a_board_whose_name_matches_only_without_its_suffix_is_a_name_mismatch(self):
+        web = FakeWeb({GREENHOUSE.format("pine"): (200, greenhouse_jobs("Pune, India", company_name="Pine"))})
+        hit = (await probe_company(row("Pine Labs"), self.fetcher(web)))[0]
+        self.assertEqual((hit.slug, hit.status), ("pine", "name_mismatch"))
+        self.assertIn("board name 'Pine' partly matches", hit.evidence)
 
     async def test_an_empty_board_or_account_is_not_a_hit(self):
         web = FakeWeb({WORKABLE.format("examplelabs"): (200, json.dumps({"name": "Example Labs", "jobs": []})),

@@ -26,9 +26,9 @@
       "greenhouse": 1
     }
   },
-  "rejudged_at": "2026-10-02T03:11:10+00:00",
+  "rejudged_at": "2026-10-02T03:21:44+00:00",
   "pollable": 12,
-  "stale_no_india": 14,
-  "name_mismatch": 1,
+  "stale_no_india": 12,
+  "name_mismatch": 3,
   "single_pollable_companies": 12
 }
