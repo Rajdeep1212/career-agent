@@ -1,28 +1,28 @@
 company,city,ats,slug,status,jobs_total,jobs_india,evidence
-Refyne,Bengaluru,smartrecruiters,refyne,probable,10,10,board name 'Refyne' matches; 10 of 10 jobs in India; newest posting 2022-04-22 is more than 180 days old
-Intervue.io,Bengaluru,smartrecruiters,intervue,probable,1,1,board name 'Intervue' matches; 1 of 1 jobs in India; newest posting 2022-03-22 is more than 180 days old
-Swiggy,Bengaluru,smartrecruiters,swiggy,confirmed,100,100,board name 'SWIGGY' matches; 100 of 100 jobs in India; newest posting 2026-10-01
-CommerceIQ,Bengaluru,greenhouse,commerceiq,confirmed,13,4,board name 'CommerceIQ' matches; 4 of 13 jobs in India; newest posting 2026-09-25
-InMobi,Bengaluru,greenhouse,inmobi,confirmed,72,36,board name 'InMobi ' matches; 36 of 72 jobs in India; newest posting 2026-10-01
-slice,Bengaluru,greenhouse,slice,probable,29,0,board name 'Slice' matches; no India job among 29; newest posting 2026-09-28
-CynLr,Bengaluru,ashby,cynlr,confirmed,7,7,the API returns no organisation name; the company name appears in 7 of 7 job descriptions; 7 of 7 jobs in India; newest posting 2026-08-27
-Whatfix,Bengaluru,smartrecruiters,whatfix,probable,1,1,board name 'Whatfix' matches; 1 of 1 jobs in India; newest posting 2021-03-16 is more than 180 days old
-Netradyne,Bengaluru,greenhouse,netradyne,confirmed,24,15,board name 'Netradyne' matches; 15 of 24 jobs in India; newest posting 2026-09-30
-Netradyne,Bengaluru,smartrecruiters,netradyne,probable,1,1,board name 'Netradyne' matches; 1 of 1 jobs in India; newest posting 2021-06-13 is more than 180 days old
-Navi Technologies,Bengaluru,ashby,navi,probable,3,0,the API returns no organisation name; the company name appears in 0 of 3 job descriptions; no India job among 3; newest posting 2026-09-22
-Zenoti,Hyderabad,greenhouse,zenoti,confirmed,49,27,board name 'Zenoti' matches; 27 of 49 jobs in India; newest posting 2026-09-29
-Plane,Hyderabad,ashby,plane,confirmed,33,10,the API returns no organisation name; the company name appears in 33 of 33 job descriptions; 10 of 33 jobs in India; newest posting 2026-09-07
-HighRadius,Hyderabad,greenhouse,highradius,confirmed,79,52,board name 'HighRadius' matches; 52 of 79 jobs in India; newest posting 2026-09-28
-Lemurian Labs,Hyderabad,greenhouse,lemurianlabs,probable,6,0,board name 'Lemurian Labs' matches; no India job among 6; newest posting 2026-04-14
-Druva,Pune,greenhouse,druva,confirmed,34,11,board name 'Druva' matches; 11 of 34 jobs in India; newest posting 2026-10-01
-Mindtickle,Pune,lever,mindtickle,confirmed,17,16,the API returns no organisation name; the company name appears in 16 of 17 job descriptions; 16 of 17 jobs in India; newest posting 2026-09-23
-Mindtickle,Pune,smartrecruiters,mindtickle,probable,11,9,board name 'MindTickle' matches; 9 of 11 jobs in India; newest posting 2017-08-12 is more than 180 days old
-Anchanto,Pune,greenhouse,anchanto,confirmed,10,9,board name 'Anchanto' matches; 9 of 10 jobs in India; newest posting 2026-09-22
-Cars24,Gurugram,smartrecruiters,cars24,probable,1,1,board name 'Cars24' matches; 1 of 1 jobs in India; newest posting 2018-01-17 is more than 180 days old
-Pine Labs,Noida,greenhouse,pine,probable,3,0,board name 'Pine' matches; no India job among 3; newest posting 2026-09-28
-Atlys,Delhi,ashby,atlys,confirmed,47,31,the API returns no organisation name; the company name appears in 47 of 47 job descriptions; 31 of 47 jobs in India; newest posting 2026-10-01
-Rebel Foods,Mumbai,smartrecruiters,rebelfoods,probable,1,0,board name 'Rebelfoods' matches; no India job among 1; newest posting 2020-01-22 is more than 180 days old
-LogiNext,Mumbai,smartrecruiters,loginext,probable,1,1,board name 'LogiNext' matches; 1 of 1 jobs in India; newest posting 2018-07-10 is more than 180 days old
-Lendingkart,Ahmedabad,smartrecruiters,lendingkart,probable,1,1,board name 'Lendingkart' matches; 1 of 1 jobs in India; newest posting 2015-04-06 is more than 180 days old
-Adapt,Coimbatore,ashby,adapt,probable,2,0,the API returns no organisation name; the company name appears in 2 of 2 job descriptions; no India job among 2; newest posting 2026-08-11
-GenieTalk,Indore,smartrecruiters,genietalk,probable,1,1,board name 'Genietalk' matches; 1 of 1 jobs in India; newest posting 2021-10-27 is more than 180 days old
+Refyne,Bengaluru,smartrecruiters,refyne,stale_no_india,10,10,board name 'Refyne' matches; 10 of 10 jobs in India; newest posting 2022-04-22 is more than 180 days old
+Intervue.io,Bengaluru,smartrecruiters,intervue,stale_no_india,1,1,board name 'Intervue' matches; 1 of 1 jobs in India; newest posting 2022-03-22 is more than 180 days old
+Swiggy,Bengaluru,smartrecruiters,swiggy,pollable,100,100,board name 'SWIGGY' matches; 100 of 100 jobs in India; newest posting 2026-10-01
+CommerceIQ,Bengaluru,greenhouse,commerceiq,pollable,13,4,board name 'CommerceIQ' matches; 4 of 13 jobs in India; newest posting 2026-09-25
+InMobi,Bengaluru,greenhouse,inmobi,pollable,72,36,board name 'InMobi ' matches; 36 of 72 jobs in India; newest posting 2026-10-01
+slice,Bengaluru,greenhouse,slice,stale_no_india,29,0,board name 'Slice' matches; no India job among 29; newest posting 2026-09-28
+CynLr,Bengaluru,ashby,cynlr,pollable,7,7,the API returns no organisation name; the company name appears in 7 of 7 job descriptions; 7 of 7 jobs in India; newest posting 2026-08-27
+Whatfix,Bengaluru,smartrecruiters,whatfix,stale_no_india,1,1,board name 'Whatfix' matches; 1 of 1 jobs in India; newest posting 2021-03-16 is more than 180 days old
+Netradyne,Bengaluru,greenhouse,netradyne,pollable,24,15,board name 'Netradyne' matches; 15 of 24 jobs in India; newest posting 2026-09-30
+Netradyne,Bengaluru,smartrecruiters,netradyne,stale_no_india,1,1,board name 'Netradyne' matches; 1 of 1 jobs in India; newest posting 2021-06-13 is more than 180 days old
+Navi Technologies,Bengaluru,ashby,navi,name_mismatch,3,0,the API returns no organisation name; the company name appears in 0 of 3 job descriptions; no India job among 3; newest posting 2026-09-22
+Zenoti,Hyderabad,greenhouse,zenoti,pollable,49,27,board name 'Zenoti' matches; 27 of 49 jobs in India; newest posting 2026-09-29
+Plane,Hyderabad,ashby,plane,pollable,33,10,the API returns no organisation name; the company name appears in 33 of 33 job descriptions; 10 of 33 jobs in India; newest posting 2026-09-07
+HighRadius,Hyderabad,greenhouse,highradius,pollable,79,52,board name 'HighRadius' matches; 52 of 79 jobs in India; newest posting 2026-09-28
+Lemurian Labs,Hyderabad,greenhouse,lemurianlabs,stale_no_india,6,0,board name 'Lemurian Labs' matches; no India job among 6; newest posting 2026-04-14
+Druva,Pune,greenhouse,druva,pollable,34,11,board name 'Druva' matches; 11 of 34 jobs in India; newest posting 2026-10-01
+Mindtickle,Pune,lever,mindtickle,pollable,17,16,the API returns no organisation name; the company name appears in 16 of 17 job descriptions; 16 of 17 jobs in India; newest posting 2026-09-23
+Mindtickle,Pune,smartrecruiters,mindtickle,stale_no_india,11,9,board name 'MindTickle' matches; 9 of 11 jobs in India; newest posting 2017-08-12 is more than 180 days old
+Anchanto,Pune,greenhouse,anchanto,pollable,10,9,board name 'Anchanto' matches; 9 of 10 jobs in India; newest posting 2026-09-22
+Cars24,Gurugram,smartrecruiters,cars24,stale_no_india,1,1,board name 'Cars24' matches; 1 of 1 jobs in India; newest posting 2018-01-17 is more than 180 days old
+Pine Labs,Noida,greenhouse,pine,stale_no_india,3,0,board name 'Pine' matches; no India job among 3; newest posting 2026-09-28
+Atlys,Delhi,ashby,atlys,pollable,47,31,the API returns no organisation name; the company name appears in 47 of 47 job descriptions; 31 of 47 jobs in India; newest posting 2026-10-01
+Rebel Foods,Mumbai,smartrecruiters,rebelfoods,stale_no_india,1,0,board name 'Rebelfoods' matches; no India job among 1; newest posting 2020-01-22 is more than 180 days old
+LogiNext,Mumbai,smartrecruiters,loginext,stale_no_india,1,1,board name 'LogiNext' matches; 1 of 1 jobs in India; newest posting 2018-07-10 is more than 180 days old
+Lendingkart,Ahmedabad,smartrecruiters,lendingkart,stale_no_india,1,1,board name 'Lendingkart' matches; 1 of 1 jobs in India; newest posting 2015-04-06 is more than 180 days old
+Adapt,Coimbatore,ashby,adapt,stale_no_india,2,0,the API returns no organisation name; the company name appears in 2 of 2 job descriptions; no India job among 2; newest posting 2026-08-11
+GenieTalk,Indore,smartrecruiters,genietalk,stale_no_india,1,1,board name 'Genietalk' matches; 1 of 1 jobs in India; newest posting 2021-10-27 is more than 180 days old

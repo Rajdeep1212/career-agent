@@ -2,9 +2,6 @@
   "run_at": "2026-10-01T16:48:25+00:00",
   "companies": 262,
   "with_hit": 25,
-  "confirmed": 12,
-  "probable": 15,
-  "single_confirmed_companies": 12,
   "slugs_tried": 374,
   "requests": 4,
   "cache_hits": 1497,
@@ -28,5 +25,10 @@
     "errors": {
       "greenhouse": 1
     }
-  }
+  },
+  "rejudged_at": "2026-10-02T03:11:10+00:00",
+  "pollable": 12,
+  "stale_no_india": 14,
+  "name_mismatch": 1,
+  "single_pollable_companies": 12
 }
