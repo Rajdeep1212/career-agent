@@ -21,7 +21,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app.core.config import settings  # noqa: E402
-from app.sources.ats_detect import STATUSES, Detection, DetectFetcher, detect_all, pollable, render_report  # noqa: E402
+from app.sources.ats_detect import (STATUSES, Detection, DetectFetcher, carry_notes, detect_all, pollable,  # noqa: E402
+                                    render_report)
 from app.sources.board_probe import read_review  # noqa: E402
 from app.sources.company_seed import EXPECTED_ROWS, read_seed  # noqa: E402
 
@@ -66,6 +67,12 @@ def main(argv: list[str] | None = None, *, fetcher: DetectFetcher | None = None)
             print(f"--only-file names companies that are not in the seed list: {', '.join(unknown)}")
             return 1
     results = asyncio.run(detect_all(seed.rows, fetcher, progress=_progress, only=only))
+    # Reasons a page could not be read are kept beside the cache, so a cache-only run does not blank them.
+    notes_path = fetcher._cache_dir / "not_read_notes.json"
+    notes = json.loads(notes_path.read_text(encoding="utf-8")) if notes_path.exists() else {}
+    results, notes = carry_notes(results, notes)
+    notes_path.parent.mkdir(parents=True, exist_ok=True)
+    notes_path.write_text(json.dumps(notes, indent=2) + "\n", encoding="utf-8")
     try:
         seed_name = args.csv.resolve().relative_to(ROOT).as_posix()
     except ValueError:

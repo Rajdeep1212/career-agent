@@ -12,7 +12,7 @@ from pathlib import Path
 
 from app.sources.ats_detect import DetectFetcher
 from app.sources.board_probe import (REVIEW_COLUMNS, confirmed_updates, name_match, probe_all, probe_company, read_review,
-                                     slug_candidates, write_review)
+                                     rejudge, slug_candidates, write_review)
 from app.sources.company_seed import COLUMNS, SeedRow
 from test_ats_detect import Clock, FakeWeb
 
@@ -34,13 +34,14 @@ def row(company, line=2, city_group="Pune", list_type="startup") -> SeedRow:
 
 def greenhouse_jobs(*locations, company_name="Example Labs"):
     return json.dumps({"jobs": [{"id": index, "title": "Engineer", "location": {"name": place}, "company_name": company_name,
-                                 "absolute_url": f"https://boards.greenhouse.io/x/jobs/{index}", "content": "Build things."}
+                                 "absolute_url": f"https://boards.greenhouse.io/x/jobs/{index}", "content": "Build things.",
+                                 "first_published": "2026-09-20T09:00:00Z"}
                                 for index, place in enumerate(locations, 1)], "meta": {"total": len(locations)}})
 
 
 def lever_postings(*jobs):
     return json.dumps([{"id": f"id-{index}", "text": "Engineer", "categories": {"location": place}, "country": country,
-                        "descriptionPlain": text, "hostedUrl": f"https://jobs.lever.co/x/id-{index}"}
+                        "descriptionPlain": text, "hostedUrl": f"https://jobs.lever.co/x/id-{index}", "createdAt": 1790000000000}
                        for index, (place, country, text) in enumerate(jobs, 1)])
 
 
@@ -91,7 +92,7 @@ class ProbeTests(unittest.IsolatedAsyncioTestCase):
         hits = await probe_company(row("Example Labs"), self.fetcher(web))
         self.assertEqual(len(hits), 1)
         hit = hits[0]
-        self.assertEqual((hit.ats, hit.slug, hit.status, hit.jobs_total, hit.jobs_india), ("greenhouse", "examplelabs", "confirmed", 3, 2))
+        self.assertEqual((hit.ats, hit.slug, hit.status, hit.jobs_total, hit.jobs_india), ("greenhouse", "examplelabs", "pollable", 3, 2))
         self.assertEqual(hit.board_url, "https://boards.greenhouse.io/examplelabs")
         self.assertIn("board name 'Example Labs'", hit.evidence)
 
@@ -107,55 +108,58 @@ class ProbeTests(unittest.IsolatedAsyncioTestCase):
     async def test_a_board_of_another_company_or_without_india_jobs_is_only_probable(self):
         other = FakeWeb({GREENHOUSE.format("examplelabs"): (200, greenhouse_jobs("Pune, India", company_name="Sample Works"))})
         hit = (await probe_company(row("Example Labs"), self.fetcher(other)))[0]
-        self.assertEqual((hit.status, hit.jobs_india), ("probable", 1))
+        self.assertEqual((hit.status, hit.jobs_india), ("name_mismatch", 1))
         self.assertIn("does not match", hit.evidence)
         self.directory = self.directory / "second"
         abroad = FakeWeb({GREENHOUSE.format("examplelabs"): (200, greenhouse_jobs("London", "Indianapolis, Indiana"))})
         hit = (await probe_company(row("Example Labs"), self.fetcher(abroad)))[0]
-        self.assertEqual((hit.status, hit.jobs_total, hit.jobs_india), ("probable", 2, 0))
+        self.assertEqual((hit.status, hit.jobs_total, hit.jobs_india), ("stale_no_india", 2, 0))
         self.assertIn("no India job", hit.evidence)
 
     async def test_the_board_name_is_asked_for_when_the_jobs_do_not_carry_it(self):
-        jobs = json.dumps({"jobs": [{"id": 1, "title": "Engineer", "location": {"name": "Pune, India"}, "content": ""}]})
+        jobs = json.dumps({"jobs": [{"id": 1, "title": "Engineer", "location": {"name": "Pune, India"}, "content": "",
+                                     "first_published": "2026-09-20T09:00:00Z"}]})
         web = FakeWeb({GREENHOUSE.format("examplelabs"): (200, jobs),
                        GREENHOUSE_BOARD.format("examplelabs"): (200, json.dumps({"name": "Example Labs", "content": ""}))})
         hit = (await probe_company(row("Example Labs"), self.fetcher(web)))[0]
-        self.assertEqual(hit.status, "confirmed")
+        self.assertEqual(hit.status, "pollable")
         self.assertIn(GREENHOUSE_BOARD.format("examplelabs"), web.calls)
 
     async def test_lever_and_ashby_need_the_company_name_in_the_job_descriptions(self):
         named = lever_postings(("Bangalore", "IN", "Example Labs builds evaluation tools."), ("Remote - US", "US", "Figma."))
         hit = (await probe_company(row("Example Labs"), self.fetcher(FakeWeb({LEVER.format("examplelabs"): (200, named)}))))[0]
-        self.assertEqual((hit.ats, hit.status, hit.jobs_total, hit.jobs_india), ("lever", "confirmed", 2, 1))
+        self.assertEqual((hit.ats, hit.status, hit.jobs_total, hit.jobs_india), ("lever", "pollable", 2, 1))
         self.assertIn("1 of 2 job descriptions", hit.evidence)
         self.assertEqual(hit.board_url, "https://jobs.lever.co/examplelabs")
         self.directory = self.directory / "second"
         unnamed = lever_postings(("Bangalore", "IN", "We build evaluation tools."))
         hit = (await probe_company(row("Example Labs"), self.fetcher(FakeWeb({LEVER.format("examplelabs"): (200, unnamed)}))))[0]
-        self.assertEqual(hit.status, "probable")
+        self.assertEqual(hit.status, "name_mismatch")
         self.directory = self.directory / "third"
         ashby = json.dumps({"jobs": [{"id": "a", "title": "Engineer", "location": "Bengaluru", "isListed": True,
-                                      "descriptionPlain": "Join Example Labs.", "jobUrl": "https://jobs.ashbyhq.com/examplelabs/a"},
+                                      "descriptionPlain": "Join Example Labs.", "jobUrl": "https://jobs.ashbyhq.com/examplelabs/a",
+                                      "publishedAt": "2026-09-20T06:00:00.000+00:00"},
                                      {"id": "b", "title": "Hidden", "location": "Bengaluru", "isListed": False, "descriptionPlain": ""}]})
         hit = (await probe_company(row("Example Labs"), self.fetcher(FakeWeb({ASHBY.format("examplelabs"): (200, ashby)}))))[0]
-        self.assertEqual((hit.ats, hit.status, hit.jobs_total, hit.jobs_india), ("ashby", "confirmed", 1, 1))
+        self.assertEqual((hit.ats, hit.status, hit.jobs_total, hit.jobs_india), ("ashby", "pollable", 1, 1))
 
     async def test_smartrecruiters_and_workable_use_the_account_name(self):
         posting = {"id": "1", "name": "Engineer", "company": {"identifier": "ExampleLabs", "name": "Example Labs"},
-                   "location": {"city": "Pune", "country": "in"}}
+                   "location": {"city": "Pune", "country": "in"}, "releasedDate": "2026-09-18T09:00:00.000Z"}
         abroad = {**posting, "id": "2", "location": {"city": "Berlin", "country": "de"}}
         web = FakeWeb({SMART.format("examplelabs"): (200, json.dumps({"totalFound": 2, "content": [posting, abroad]})),
                        SMART_INDIA.format("examplelabs"): (200, json.dumps({"totalFound": 1, "content": [posting]}))})
         hit = (await probe_company(row("Example Labs"), self.fetcher(web)))[0]
-        self.assertEqual((hit.ats, hit.status, hit.jobs_total, hit.jobs_india), ("smartrecruiters", "confirmed", 2, 1))
+        self.assertEqual((hit.ats, hit.status, hit.jobs_total, hit.jobs_india), ("smartrecruiters", "pollable", 2, 1))
         self.assertEqual(hit.board_url, "https://jobs.smartrecruiters.com/ExampleLabs")
         self.directory = self.directory / "second"
         account = {"name": "Example Labs", "description": "", "jobs": [
-            {"title": "Engineer", "shortcode": "A1", "country": "India", "city": "Pune", "url": "https://apply.workable.com/j/A1"},
+            {"title": "Engineer", "shortcode": "A1", "country": "India", "city": "Pune", "url": "https://apply.workable.com/j/A1",
+             "published_on": "2026-09-18"},
             {"title": "Designer", "shortcode": "B2", "country": "Germany", "city": "Berlin", "url": "https://apply.workable.com/j/B2"}]}
         web = FakeWeb({WORKABLE.format("example-labs"): (200, json.dumps(account))})
         hit = (await probe_company(row("Example Labs"), self.fetcher(web)))[0]
-        self.assertEqual((hit.ats, hit.slug, hit.status, hit.jobs_total, hit.jobs_india), ("workable", "example-labs", "confirmed", 2, 1))
+        self.assertEqual((hit.ats, hit.slug, hit.status, hit.jobs_total, hit.jobs_india), ("workable", "example-labs", "pollable", 2, 1))
         self.assertEqual(hit.board_url, "https://apply.workable.com/example-labs")
 
     async def test_a_board_whose_newest_posting_is_over_180_days_old_is_only_probable(self):
@@ -166,17 +170,17 @@ class ProbeTests(unittest.IsolatedAsyncioTestCase):
             page = json.dumps({"totalFound": 1, "content": [posting]})
             return FakeWeb({SMART.format("examplelabs"): (200, page), SMART_INDIA.format("examplelabs"): (200, page)})
         old = (await probe_company(row("Example Labs"), self.fetcher(account("2018-01-17T09:00:00.000Z"))))[0]
-        self.assertEqual(old.status, "probable")
+        self.assertEqual(old.status, "stale_no_india")
         self.assertIn("newest posting 2018-01-17 is more than 180 days old", old.evidence)
         self.directory = self.directory / "second"
         recent = (await probe_company(row("Example Labs"), self.fetcher(account("2026-09-18T09:00:00.000Z"))))[0]   # run day: 2026-10-01
-        self.assertEqual(recent.status, "confirmed")
+        self.assertEqual(recent.status, "pollable")
         self.assertIn("newest posting 2026-09-18", recent.evidence)
         self.directory = self.directory / "third"
         stale = lever_postings(("Bangalore", "IN", "Example Labs builds evaluation tools."))
         stale = json.dumps([{**job, "createdAt": 1500000000000} for job in json.loads(stale)])                    # 2017-07-14
         hit = (await probe_company(row("Example Labs"), self.fetcher(FakeWeb({LEVER.format("examplelabs"): (200, stale)}))))[0]
-        self.assertEqual(hit.status, "probable")
+        self.assertEqual(hit.status, "stale_no_india")
         self.assertIn("newest posting 2017-07-14", hit.evidence)
 
     async def test_an_empty_board_or_account_is_not_a_hit(self):
@@ -198,7 +202,7 @@ class ProbeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([call for call in web.calls if "lever" in call], [LEVER.format("examplelabs")])
         self.assertIn("lever", run.stopped)
         self.assertGreater(run.not_sent["lever"], 0)
-        self.assertEqual([(hit.company, hit.status) for hit in run.hits], [("Other Corp", "confirmed")])
+        self.assertEqual([(hit.company, hit.status) for hit in run.hits], [("Other Corp", "pollable")])
         self.assertEqual((run.companies, run.with_hit), (2, 1))
 
     async def test_a_skipped_api_is_never_requested_and_is_reported_as_stopped(self):
@@ -250,12 +254,39 @@ class ReviewFileTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(list(rows[0]), REVIEW_COLUMNS)
         self.assertEqual(REVIEW_COLUMNS, ["company", "city", "ats", "slug", "status", "jobs_total", "jobs_india", "evidence"])
         self.assertEqual([(item["company"], item["ats"], item["status"]) for item in rows],
-                         [("Example Labs", "greenhouse", "confirmed"), ("Maybe Corp", "greenhouse", "probable"),
-                          ("Twoboards", "greenhouse", "confirmed"), ("Twoboards", "lever", "confirmed")])
+                         [("Example Labs", "greenhouse", "pollable"), ("Maybe Corp", "greenhouse", "stale_no_india"),
+                          ("Twoboards", "greenhouse", "pollable"), ("Twoboards", "lever", "pollable")])
         self.assertEqual(rows[0]["city"], "Pune")
         self.assertEqual(read_review(path), rows)
         self.assertEqual(confirmed_updates(run.hits),
                          {"Example Labs": {"careers_url": "https://boards.greenhouse.io/examplelabs", "ats": "greenhouse"}})
+
+
+class RejudgeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_review_rows_are_judged_again_from_the_cache_without_any_request(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        clock = Clock()
+        routes = {GREENHOUSE.format("examplelabs"): (200, greenhouse_jobs("Pune, India")),
+                  GREENHOUSE.format("maybecorp"): (200, greenhouse_jobs("London", company_name="Maybe Corp"))}
+
+        def fetcher(web):
+            return DetectFetcher(get=web.get, delay=2.0, clock=clock.time, sleep=clock.sleep, cache_dir=Path(directory.name),
+                                 now=clock.utcnow)
+        rows = [row("Example Labs"), row("Maybe Corp", line=3)]
+        await probe_all(rows, fetcher(FakeWeb(routes)))
+        review = [{"company": "Example Labs", "city": "Pune", "ats": "greenhouse", "slug": "examplelabs", "status": "probable",
+                   "jobs_total": "1", "jobs_india": "1", "evidence": "old wording"},
+                  {"company": "Maybe Corp", "city": "Pune", "ats": "greenhouse", "slug": "maybecorp", "status": "probable",
+                   "jobs_total": "1", "jobs_india": "0", "evidence": "old wording"},
+                  {"company": "Maybe Corp", "city": "Pune", "ats": "lever", "slug": "gone", "status": "probable",
+                   "jobs_total": "4", "jobs_india": "0", "evidence": "old wording"}]
+        web = FakeWeb(routes)
+        offline = fetcher(web)
+        hits = await rejudge(review, rows, offline)
+        self.assertEqual([hit.status for hit in hits], ["pollable", "stale_no_india", "probable"])
+        self.assertIn("not re-read", hits[2].evidence)
+        self.assertEqual((hits[2].jobs_total, web.calls, offline.offline), (4, [], False))
 
 
 class ScriptTests(unittest.TestCase):
@@ -292,9 +323,9 @@ class ScriptTests(unittest.TestCase):
         self.assertFalse([call for call in self.web.calls if "haspage" in call])
         self.assertEqual(self.seed.read_bytes(), before)
         self.assertEqual([item["company"] for item in read_review(self.directory / "review.csv")], ["Example Labs", "Maybe Corp"])
-        self.assertIn("confirmed 1, probable 1", output)
+        self.assertIn("pollable 1, stale_no_india 1, name_mismatch 0", output)
         summary = json.loads((self.directory / "review.meta.json").read_text(encoding="utf-8"))
-        self.assertEqual((summary["companies"], summary["with_hit"], summary["confirmed"], summary["probable"]), (2, 2, 1, 1))
+        self.assertEqual((summary["companies"], summary["with_hit"], summary["pollable"], summary["stale_no_india"]), (2, 2, 1, 1))
         self.assertEqual(summary["requests"], self.fetcher.requests)
 
     def test_apply_confirmed_changes_only_confirmed_rows(self):

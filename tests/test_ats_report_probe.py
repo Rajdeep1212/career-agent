@@ -24,11 +24,11 @@ class ProbeReportTests(unittest.TestCase):
                      seed_row(4, "Widget Works", "startup", "", "https://apply.workable.com/widgetworks", "workable"),
                      seed_row(5, "Page Board", "startup", "Chennai", "https://job-boards.greenhouse.io/pageboard", "greenhouse"),
                      seed_row(6, "No Page", "startup", "Pune")]
-        self.results = [found(self.rows[0], "confirmed", "greenhouse", 4, 2), found(self.rows[1], "confirmed", "lever", 9, 9),
-                        found(self.rows[2], "detected", "workable"), found(self.rows[3], "confirmed", "greenhouse", 3, 1, "html_board"),
+        self.results = [found(self.rows[0], "pollable", "greenhouse", 4, 2), found(self.rows[1], "pollable", "lever", 9, 9),
+                        found(self.rows[2], "detected", "workable"), found(self.rows[3], "detected", "greenhouse", 3, 1, "html_board"),
                         found(self.rows[4], "no_careers_url")]
 
-    def test_pollable_means_a_confirmed_board_this_app_has_an_adapter_for(self):
+    def test_pollable_means_a_board_that_passed_the_rule(self):
         self.assertEqual([item.company for item in pollable(self.results)], ["Example Labs", "Two City Corp"])
 
     def report(self, **options):
@@ -40,21 +40,21 @@ class ProbeReportTests(unittest.TestCase):
         self.assertNotIn("Slug probe", self.report())
 
     def test_the_probe_section_counts_the_review_rows_and_the_pollable_companies(self):
-        review = [{"company": "Example Labs", "city": "Pune", "ats": "greenhouse", "slug": "examplelabs", "status": "confirmed",
+        review = [{"company": "Example Labs", "city": "Pune", "ats": "greenhouse", "slug": "examplelabs", "status": "pollable",
                    "jobs_total": "4", "jobs_india": "2", "evidence": "board name 'Example Labs' matches; 2 of 4 jobs in India"},
-                  {"company": "Widget Works", "city": "", "ats": "workable", "slug": "widgetworks", "status": "confirmed",
+                  {"company": "Widget Works", "city": "", "ats": "workable", "slug": "widgetworks", "status": "pollable",
                    "jobs_total": "6", "jobs_india": "1", "evidence": "board name 'Widget Works' matches; 1 of 6 jobs in India"},
-                  {"company": "Maybe Corp", "city": "Pune", "ats": "lever", "slug": "maybe", "status": "probable",
+                  {"company": "Maybe Corp", "city": "Pune", "ats": "lever", "slug": "maybe", "status": "stale_no_india",
                    "jobs_total": "12", "jobs_india": "0", "evidence": "no India job among 12"}]
         summary = {"run_at": "2026-10-01T11:00:00+00:00", "companies": 262, "with_hit": 3, "slugs_tried": 374, "requests": 1800,
                    "cache_hits": 0, "delay_seconds": 2.0, "stopped": {"lever": "api.lever.co answered HTTP 429"},
                    "not_sent": {"lever": 40}, "errors": {"ashby": 2}}
         report = self.report(review=review, probe=summary, baseline_pollable=1)
         self.assertIn("## Slug probe", report)
-        self.assertIn("| greenhouse | 1 | 0 |", report)
-        self.assertIn("| workable | 1 | 0 |", report)
-        self.assertIn("| lever | 0 | 1 |", report)
-        self.assertIn("| Total | 2 | 1 |", report)
+        self.assertIn("| greenhouse | 1 | 0 | 0 |", report)
+        self.assertIn("| workable | 1 | 0 | 0 |", report)
+        self.assertIn("| lever | 0 | 1 | 0 |", report)
+        self.assertIn("| Total | 2 | 1 | 0 |", report)
         self.assertIn("262 companies", report)
         self.assertIn("Requests sent: 1800", report)
         self.assertIn("lever: api.lever.co answered HTTP 429 (40 slugs not tried)", report)

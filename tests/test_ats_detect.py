@@ -118,7 +118,7 @@ class DetectTests(unittest.IsolatedAsyncioTestCase):
         web = FakeWeb({GREENHOUSE_API: (200, fixture_text("greenhouse_jobs.json"))})
         found = await detect_company(row(careers_url="https://job-boards.greenhouse.io/examplecorp", ats="greenhouse"),
                                      self.fetcher(web))
-        self.assertEqual((found.status, found.ats, found.key, found.method), ("confirmed", "greenhouse", "examplecorp", "url_pattern"))
+        self.assertEqual((found.status, found.ats, found.key, found.method), ("pollable", "greenhouse", "examplecorp", "url_pattern"))
         self.assertEqual(found.fetched, len(json.loads(fixture_text("greenhouse_jobs.json"))["jobs"]))
         self.assertEqual(found.india, 2)
         self.assertEqual(web.calls, [GREENHOUSE_API])
@@ -127,7 +127,7 @@ class DetectTests(unittest.IsolatedAsyncioTestCase):
         page = "https://www.examplelabs.com/careers"
         web = FakeWeb({page: (200, fixture_text("careers_lever_links.html")), LEVER_API: (200, fixture_text("lever_postings.json"))})
         found = await detect_company(row(careers_url=page), self.fetcher(web))
-        self.assertEqual((found.status, found.ats, found.key, found.method), ("confirmed", "lever", "examplelabs", "page_link"))
+        self.assertEqual((found.status, found.ats, found.key, found.method), ("stale_no_india", "lever", "examplelabs", "page_link"))     # the fixture postings are from September 2025
         self.assertEqual(found.fetched, len(json.loads(fixture_text("lever_postings.json"))))
         self.assertIn("jobs.lever.co/examplelabs", found.evidence)
         self.assertEqual(web.calls, ["https://www.examplelabs.com/robots.txt", page, LEVER_API])
@@ -152,7 +152,7 @@ class DetectTests(unittest.IsolatedAsyncioTestCase):
         board = "https://job-boards.greenhouse.io/examplecorp"
         web = FakeWeb({board: (200, fixture_text("greenhouse_board_page.html"))})
         found = await detect_company(row(careers_url=board, ats="greenhouse"), self.fetcher(web))
-        self.assertEqual((found.status, found.ats, found.key, found.method), ("confirmed", "greenhouse", "examplecorp", "html_board"))
+        self.assertEqual((found.status, found.ats, found.key, found.method), ("detected", "greenhouse", "examplecorp", "html_board"))
         self.assertEqual((found.fetched, found.india), (3, 2))       # distinct job links; the script block repeats one
         self.assertIn("HTTP 404", found.note)
         self.assertEqual(web.calls, [GREENHOUSE_API, "https://job-boards.greenhouse.io/robots.txt", board])
@@ -261,13 +261,13 @@ class ReportTests(unittest.IsolatedAsyncioTestCase):
         results = await detect_all(rows, fetcher)
         report = render_report(SeedFile(rows=rows, problems=[], sha256="ab" * 32), results, run_at=clock.moment,
                                requests=fetcher.requests, cache_hits=fetcher.cache_hits, seed_name="seeds/companies_seed.csv")
-        self.assertIn("| confirmed | 1 |", report)
+        self.assertIn("| pollable | 1 |", report)
         self.assertIn("| not_detected | 1 |", report)
         self.assertIn("| board_missing | 0 |", report)
         self.assertIn("| no_careers_url | 2 |", report)
         self.assertIn("| Total | 4 |", report)
         self.assertIn("| Example Corp | greenhouse | examplecorp | url_pattern | 4 | 2 |", report)
-        self.assertIn("| Example Corp | lever | greenhouse (confirmed) | no |", report)       # the list said lever; the URL says greenhouse
+        self.assertIn("| Example Corp | lever | greenhouse (pollable) | no |", report)       # the list said lever; the URL says greenhouse
         self.assertIn("Plain Services", report)
         self.assertIn(f"Requests sent: {fetcher.requests}", report)
         self.assertIn("abababababababab", report)
@@ -312,8 +312,8 @@ class ScriptTests(unittest.TestCase):
         report = self.directory / "ats_detection.md"
         code, output = self.run_main("--csv", self.seed([board]), "--expect-rows", 1, "--report", report, fetcher=fetcher)
         self.assertEqual(code, 0)
-        self.assertIn("| confirmed | 1 |", report.read_text(encoding="utf-8"))
-        self.assertIn("confirmed 1", output)
+        self.assertIn("| pollable | 1 |", report.read_text(encoding="utf-8"))
+        self.assertIn("pollable 1", output)
         from unittest.mock import patch
         with patch.object(self.script.settings, "demo_mode", True):
             code, output = self.run_main("--csv", self.seed([board]), "--expect-rows", 1, "--report", report, fetcher=fetcher)

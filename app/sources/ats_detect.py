@@ -6,9 +6,10 @@ Claim level L0: a deterministic pattern match, each with the text that matched.
 2. Otherwise the careers page is read once (robots.txt honoured, one request per
    host every `delay` seconds, a 429 stops that host) and matched by the address
    it redirected to, or by a board address it embeds or links.
-3. A Greenhouse, Lever, Ashby or SmartRecruiters board is then confirmed through
-   its documented public API with the Company Radar adapters; job counts are
-   len() of the list that API returned.
+3. A Greenhouse, Lever, Ashby or SmartRecruiters board is then read through its
+   documented public API and judged by the one pollable rule
+   (app/sources/board_rule.py): an India job and a posting at most 180 days old.
+   Job counts are len() of the list that API returned.
 
 Companies without a careers URL are not checked: no board name is guessed from
 a company name. Sites on the never-fetched list are not requested, directly or
@@ -18,7 +19,7 @@ import json
 import re
 from collections import Counter
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -26,14 +27,15 @@ import httpx
 
 from app.core.config import settings
 from app.services.safe_http import safe_get
-from app.sources.adapters import SourceError, ashby, greenhouse, lever, smartrecruiters
+from app.sources.board_rule import STATUSES as RULE_STATUSES
+from app.sources.board_rule import BoardError, judge, read_board
 from app.sources.company_seed import SeedFile, SeedRow, fetch_allowed
 from app.sources.fetcher import Fetched, HostBlocked, PoliteFetcher, RobotsDisallowed
-from app.sources.registry import DEFAULT_INDIA_FILTER, CompanyEntry, Evidence, SourceSpec
+from app.sources.registry import DEFAULT_INDIA_FILTER
 
 CACHE_DIR = Path(settings.data_dir) / "ats_detect_cache"
-STATUSES = ["confirmed", "detected", "board_missing", "not_detected", "not_read", "no_careers_url"]
-_ADAPTERS = {"greenhouse": greenhouse, "lever": lever, "ashby": ashby, "smartrecruiters": smartrecruiters}
+STATUSES = ["pollable", "stale_no_india", "detected", "board_missing", "not_detected", "not_read", "no_careers_url"]
+_WITH_ADAPTER = {"greenhouse", "lever", "ashby", "smartrecruiters"}     # the Company Radar can poll these
 _START = r"(?<![A-Za-z0-9.-])"
 _HOST = r"(?P<key>[a-z0-9-]+\.{domain})"
 # Order matters only for ties: the most specific board addresses come first.
@@ -175,30 +177,29 @@ class DetectFetcher(PoliteFetcher):
         return result
 
 
-def _probe_entry(row: SeedRow, hit: Hit, checked: datetime) -> CompanyEntry:
-    fields = {"greenhouse": {"board": hit.key}, "ashby": {"board": hit.key}, "smartrecruiters": {"company": hit.key},
-              "lever": {"site": hit.key, "region": hit.region or "global"}}[hit.ats]
-    return CompanyEntry(id="probe", name=row.company, tags=["india_product"], enabled=False,
-                        source=SourceSpec.model_validate({"type": hit.ats, **fields}),
-                        evidence=Evidence(method="api_probe", checked_at=checked.date()))
+async def _confirm(hit: Hit, fetcher: DetectFetcher) -> tuple[str, int | None, int | None, str]:
+    """(status, fetched, india, note) from the board's public API, judged by the one pollable rule.
 
-
-async def _confirm(row: SeedRow, hit: Hit, fetcher: DetectFetcher) -> tuple[str, int | None, int | None, str]:
-    """(status, fetched, india, note) from the board's public API; counts are None when it gave no job list."""
-    adapter = _ADAPTERS.get(hit.ats)
-    if adapter is None:
+    The name counts as verified here: the board address came from the seed list or from the company's
+    own careers page, not from a guessed slug."""
+    if hit.ats not in _WITH_ADAPTER:
         return "detected", None, None, "no public API is used for this ATS"
     if hit.ats == "greenhouse" and hit.region:
         return "detected", None, None, "EU board; its API is not probed"
+    if not hit.key:
+        return "detected", None, None, "the board is not identified"
     try:
-        result = await adapter.fetch(_probe_entry(row, hit, fetcher._now()), fetcher)
-    except SourceError as exc:
+        board = await read_board(hit.ats, hit.key, fetcher, hit.region, need_name=False)
+    except BoardError as exc:
         return ("board_missing" if exc.http_status == 404 else "detected"), None, None, str(exc)
-    except HostBlocked as exc:
+    except (HostBlocked, NotRequested) as exc:
         return "detected", None, None, str(exc)
     except Exception as exc:
         return "detected", None, None, f"board API could not be read ({type(exc).__name__})"
-    return "confirmed", result.fetched, result.india, ""
+    if board is None:
+        return "detected", None, None, "the board API returned no job list"
+    status, evidence = judge(board, name_ok=True, today=fetcher._now().date())
+    return status, board.total, board.india, evidence
 
 
 _BOARD_PAGE = "https://job-boards{region}.greenhouse.io/{board}"
@@ -251,12 +252,13 @@ async def detect_company(row: SeedRow, fetcher: DetectFetcher) -> Detection:
             evidence = f"careers page contains '{hit.quote}'" if hit else ""
         if not hit:
             return result("not_detected")
-    status, fetched, india, note = await _confirm(row, hit, fetcher)
+    status, fetched, india, note = await _confirm(hit, fetcher)
     if status == "board_missing" and hit.ats == "greenhouse":
         listed = await _html_board(hit, fetcher)
         if listed:
             url, fetched, india = listed
-            status, method = "confirmed", "html_board"
+            # A board page gives no posting dates and no API to poll, so it is never pollable.
+            status, method = "detected", "html_board"
             evidence, note = f"board page {url} lists {fetched} job links", f"{note} The count is of job links on the board page."
     return result(status, ats=hit.ats, key=hit.key, method=method, evidence=evidence, fetched=fetched, india=india, note=note)
 
@@ -274,6 +276,25 @@ async def detect_all(rows: list[SeedRow], fetcher: DetectFetcher,
     return results
 
 
+def carry_notes(results: list[Detection], notes: dict[str, dict[str, str]]) -> tuple[list[Detection], dict[str, dict[str, str]]]:
+    """Keep the reason a page could not be read across runs that do not request it again.
+
+    `notes` maps a company to {"careers_url", "note"} from earlier runs. A row this run did not request
+    gets its earlier reason back when the careers_url is unchanged; the returned notes hold every
+    current reason."""
+    carried, current = [], {}
+    for found in results:
+        earlier = notes.get(found.company)
+        if found.status == "not_read" and found.note.startswith("not requested in this run"):
+            if earlier and earlier.get("careers_url") == found.careers_url:
+                found = replace(found, note=f"{earlier['note']} (earlier run; not requested again)")
+                current[found.company] = dict(earlier)
+        elif found.status == "not_read":
+            current[found.company] = {"careers_url": found.careers_url, "note": found.note}
+        carried.append(found)
+    return carried, current
+
+
 def _cell(value) -> str:
     return "" if value is None else str(value).replace("|", "\\|").replace("\n", " ")
 
@@ -287,16 +308,19 @@ def render_report(seed: SeedFile, results: list[Detection], *, run_at: datetime,
                   seed_name: str, review: list[dict[str, str]] | None = None, probe: dict | None = None,
                   baseline_pollable: int | None = None, live_rows: int | None = None) -> str:
     by_status = {status: [found for found in results if found.status == status] for status in STATUSES}
-    found_ats = by_status["confirmed"] + by_status["detected"]
+    answered = by_status["pollable"] + by_status["stale_no_india"]
+    found_ats = answered + by_status["detected"]
     list_types = sorted({found.list_type for found in results})
     lines = ["# ATS detection for the company seed list (Q2c)", "",
              f"Generated by `python scripts/detect_ats.py` on {run_at.astimezone(timezone.utc):%Y-%m-%d %H:%M} UTC from "
              f"`{seed_name}` (sha256 `{seed.sha256[:16]}`). Do not edit by hand; re-run the script.", "",
-             "Claim level L0: each row is a deterministic pattern match with the text that matched. `confirmed` means the "
-             "board's public API returned a job list during this run; `detected` means an ATS address was found and no API "
+             "Claim level L0: each row is a deterministic pattern match with the text that matched. For a board whose public "
+             "API answered, one rule decides (`app/sources/board_rule.py`): `pollable` means at least one job is in India and "
+             "the newest posting is at most 180 days old; `stale_no_india` means the API answered but one of those two fails, "
+             "so the board stays in the seed and is left out of the count. `detected` means an ATS address was found and no API "
              "was available to confirm it; `board_missing` means the address names a board that its API answered 404 for, so "
-             "the address is probably out of date. None of these says the company is hiring freshers. Job counts are `len()` of the list the API returned "
-             "(for SmartRecruiters, of its India postings).", "",
+             "the address is probably out of date. None of these says the company is hiring freshers. Job counts are `len()` "
+             "of the list the API returned (for SmartRecruiters, of one page of at most 100 postings).", "",
              "## Seed list", "",
              f"- Rows: {len(seed.rows)}. Validation problems: {len(seed.problems)}.",
              *[f"  - {problem}" for problem in seed.problems],
@@ -314,11 +338,16 @@ def render_report(seed: SeedFile, results: list[Detection], *, run_at: datetime,
               ("They were probed by slug instead; see the slug probe section." if review is not None
                else "They were not checked: no board name is guessed from a company name."), "", "## ATS found", ""]
     ats_counts = Counter(found.ats for found in found_ats)
-    lines += _table(["ATS", "Companies", "Confirmed by API"],
-                    [[name, count, len([f for f in by_status["confirmed"] if f.ats == name])] for name, count in ats_counts.most_common()])
-    lines += ["## Confirmed boards", ""]
-    lines += _table(["Company", "ATS", "Board", "Method", "Jobs fetched", "India"],
-                    [[f.company, f.ats, f.key, f.method, f.fetched, f.india] for f in by_status["confirmed"]])
+    lines += _table(["ATS", "Companies", "API answered", "Pollable"],
+                    [[name, count, len([f for f in answered if f.ats == name]), len([f for f in by_status["pollable"] if f.ats == name])]
+                     for name, count in ats_counts.most_common()])
+    lines += ["## Pollable boards", ""]
+    lines += _table(["Company", "ATS", "Board", "Method", "Jobs fetched", "India", "Evidence"],
+                    [[f.company, f.ats, f.key, f.method, f.fetched, f.india, f.note] for f in by_status["pollable"]])
+    lines += ["## API answered, not pollable (stale or no India job)", "",
+              "These boards stay in the seed list and are left out of the pollable count.", ""]
+    lines += _table(["Company", "ATS", "Board", "Jobs fetched", "India", "Why"],
+                    [[f.company, f.ats, f.key, f.fetched, f.india, f.note] for f in by_status["stale_no_india"]])
     lines += ["## Detected, not confirmed", ""]
     lines += _table(["Company", "ATS", "Board or host", "Method", "Evidence", "Note"],
                     [[f.company, f.ats, f.key or "(not identified)", f.method, f.evidence, f.note] for f in by_status["detected"]])
@@ -342,25 +371,25 @@ def render_report(seed: SeedFile, results: list[Detection], *, run_at: datetime,
 
 
 def pollable(results: list[Detection]) -> list[Detection]:
-    """Companies whose board a Company Radar adapter can poll: confirmed through a public API, not from a page."""
-    return [found for found in results if found.status == "confirmed" and found.ats in _ADAPTERS and found.method != "html_board"]
+    """Companies whose board passed the one pollable rule and that a Company Radar adapter can poll."""
+    return [found for found in results if found.status == "pollable"]
 
 
 def _probe_section(seed: SeedFile, results: list[Detection], review: list[dict[str, str]], probe: dict,
                    baseline_pollable: int | None) -> list[str]:
-    confirmed = [item for item in review if item["status"] == "confirmed"]
-    probable = [item for item in review if item["status"] == "probable"]
+    by_rule = {status: [item for item in review if item["status"] == status] for status in RULE_STATUSES}
+    confirmed = by_rule["pollable"]
     names = list(dict.fromkeys(item["ats"] for item in review))
     lines = ["## Slug probe for rows without a careers_url (Q2c2)", "",
              "`python scripts/probe_boards.py` tried up to four slugs made from each company name against the public job APIs "
-             "of Greenhouse, Lever, Ashby, SmartRecruiters and Workable; no web page was read. `confirmed`: the API returned "
-             "jobs, the name matches, at least one job is in India and the newest posting is at most 180 days old. `probable`: "
-             "jobs, but the name does not fully match, no job is in India, or the board looks abandoned.Lever and Ashby return no organisation name, so there the company name must appear in the "
-             "job descriptions. Every hit is in `seeds/companies_probe_review.csv`; only companies with exactly one confirmed "
-             "board were written into the seed list, and probable rows wait for review.", ""]
-    lines += _table(["ATS", "Confirmed", "Probable"],
-                    [[name, len([i for i in confirmed if i["ats"] == name]), len([i for i in probable if i["ats"] == name])]
-                     for name in names] + [["Total", len(confirmed), len(probable)]])
+             "of Greenhouse, Lever, Ashby, SmartRecruiters and Workable; no web page was read. Every hit is judged by the same "
+             "rule as above. Because the slug was guessed, the name must be verified too: the API's organisation name must "
+             "match, or, for Lever and Ashby, which return none, the company name must appear in the job descriptions. A hit "
+             "whose name is not verified is `name_mismatch`. Every hit is in `seeds/companies_probe_review.csv`; only "
+             "companies with exactly one pollable board were written into the seed list.", ""]
+    lines += _table(["ATS", "Pollable", "Stale or no India", "Name mismatch"],
+                    [[name, *[len([i for i in by_rule[status] if i["ats"] == name]) for status in RULE_STATUSES]] for name in names]
+                    + [["Total", *[len(by_rule[status]) for status in RULE_STATUSES]]])
     stopped = "; ".join(f"{name}: {why} ({probe.get('not_sent', {}).get(name, 0)} slugs not tried)"
                         for name, why in probe.get("stopped", {}).items()) or "none"
     errors = ", ".join(f"{name} {count}" for name, count in probe.get("errors", {}).items()) or "none"
@@ -376,8 +405,8 @@ def _probe_section(seed: SeedFile, results: list[Detection], review: list[dict[s
     ready = pollable(results)
     before = "unknown" if baseline_pollable is None else str(baseline_pollable)
     lines += ["## Pollable companies", "",
-              f"Pollable companies: before {before}, after {len(ready)}. Pollable means the board's public API returned a job "
-              "list and the Company Radar has an adapter for it (Greenhouse, Lever, Ashby, SmartRecruiters).", ""]
+              f"Pollable companies: before {before}, after {len(ready)}. Pollable means the board passed the rule above and "
+              "the Company Radar has an adapter for it (Greenhouse, Lever, Ashby, SmartRecruiters).", ""]
     lines += _table(["List", "Pollable"], [[kind, count] for kind, count in Counter(f.list_type for f in ready).most_common()])
     city_of = {row.line: row.city_group for row in seed.rows}
     cities = Counter(city.strip() or "(not stated)" for f in ready for city in (city_of.get(f.line) or "").split(";"))
