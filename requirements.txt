@@ -20,3 +20,22 @@ langgraph==1.2.11
 langgraph-checkpoint-sqlite==3.1.1
 langchain-core==1.6.3
 langchain-ollama==1.1.0
+
+# Local semantic ranking experiment (SEM2, docs/SEMANTIC_PLAN.md). Approved 2026-10-03. Install with
+# `pip install --no-cache-dir`; the model cache lives under %HF_HOME%\fastembed (F:\huggingface). No PyTorch.
+fastembed==0.8.1
+onnxruntime==1.30.0
+numpy==2.4.6
+rank-bm25==0.2.2
+huggingface-hub==1.33.0
+tokenizers==0.23.2
+pillow==12.3.0
+py-rust-stemmers==0.1.8
+mmh3==5.3.1
+loguru==0.7.3
+tqdm==4.70.1
+filelock==4.0.9
+fsspec==2026.9.0
+flatbuffers==25.12.19
+hf-xet==1.6.0
+win32-setctime==1.2.0; sys_platform == "win32"

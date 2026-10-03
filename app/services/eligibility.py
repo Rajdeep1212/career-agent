@@ -243,3 +243,97 @@ def evaluate_eligibility(profile, job, preferences, intent: SearchIntent) -> Eli
     fresher = result.experience_match == 'match'
     result.confidence = 'high' if excluded or (result.graduation_match == 'match' and fresher) else 'medium' if supporting else 'low'
     return result
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Fresher detectors (docs/SEMANTIC_PLAN.md section 4). Used by the SEM2 experiment only: evaluate_eligibility()
+# does not call them, so the app's search behaves exactly as before. Each finding quotes one sentence of the listing.
+# They were designed after reading the Q4 disagreements, so batch gold-20261001-r1 is an in-sample test for them.
+
+_SENTENCE = re.compile(r"(?<=[.!?;])\s+|\n+")
+_EXPERIENCE_WORD = re.compile(r"\b(?:experience|exp)\b", re.I)
+_YEARS = r"(?:years?|yrs?)\b"
+_BACHELOR_PLUS = re.compile(r"bachelor'?s?\s*\+\s*(\d+(?:\.\d+)?)\s*" + _YEARS, re.I)
+_YEAR_RANGE = re.compile(r"(\d+(?:\.\d+)?)\s*\+?\s*(?:-|–|to)\s*\d+(?:\.\d+)?\s*\+?\s*" + _YEARS, re.I)
+_YEAR_PLUS = re.compile(r"(\d+(?:\.\d+)?)\s*\+\s*" + _YEARS, re.I)
+_YEAR_MINIMUM = re.compile(r"(?:minimum|at least|min\.?)\s*(?:of\s*)?(\d+(?:\.\d+)?)\s*" + _YEARS, re.I)
+_YEAR_PLAIN = re.compile(r"(\d+(?:\.\d+)?)\s*" + _YEARS, re.I)
+_SENIOR_EXCLUDED = re.compile(r"\b(?:staff|principal|lead|manager|mgr|head of|director|vice president|avp|vp)\b", re.I)
+_SENIOR_TEXT = re.compile(r"\b(?:(?i:assistant vice president|vice president)|AVP)\b")     # "AVP" only in capitals
+_SENIOR_ONLY = re.compile(r"\b(?:senior|sr\.?)\b", re.I)
+_GPA = re.compile(r"\bc?gpa\b\D{0,25}?(\d{1,2}(?:\.\d+)?)|(\d{1,2}(?:\.\d+)?)\s*(?:or above|or more|and above|\+)?\s*c?gpa\b", re.I)
+_BATCH_WORD = re.compile(r"\b(?:batch|graduat\w*|pass(?:ing|ed)?[- ]?out)\b", re.I)
+_YEAR_SPAN = re.compile(r"(20\d\d)\s*(?:-|–|to)\s*(20\d\d)")
+_CALENDAR_YEAR = re.compile(r"\b20\d\d\b")
+_STUDENTS_ONLY = re.compile(r"final[- ]year|currently (?:enrolled|pursuing)|career break|returnship|restart your career", re.I)
+_INTERN_TITLE = re.compile(r"\bintern(?:ship)?\b", re.I)
+
+
+def _sentences(text: str) -> list[str]:
+    return [part.strip() for part in _SENTENCE.split(text or "") if part.strip()]
+
+
+def _clip(sentence: str) -> str:
+    return sentence if len(sentence) <= 200 else sentence[:197] + "..."
+
+
+def _years_needed(sentence: str) -> float | None:
+    bachelor = _BACHELOR_PLUS.search(sentence)
+    if bachelor:
+        return float(bachelor.group(1))
+    found = [float(match.group(1)) for pattern in (_YEAR_RANGE, _YEAR_PLUS, _YEAR_MINIMUM, _YEAR_PLAIN) for match in pattern.finditer(sentence)]
+    return min(found) if found else None
+
+
+def fresher_detectors(title: str, text: str, facts: dict) -> list[EligibilityEvidence]:
+    """Findings about whether a fresher (facts: graduation_year, cgpa) can get this job, each quoting the listing."""
+    found: list[EligibilityEvidence] = []
+    sentences = _sentences(text)
+    years_excluded = False
+    for sentence in sentences:                                   # years required
+        if not _EXPERIENCE_WORD.search(sentence):
+            continue
+        needed = _years_needed(sentence)
+        if needed is None or needed < 1:
+            continue
+        if needed >= 2 and not _FRESHER.search(sentence):
+            years_excluded = True
+            found.append(EligibilityEvidence(outcome="excluded", reason=f"asks for at least {needed:g} years of experience",
+                                             quote=_clip(sentence)))
+        else:
+            found.append(EligibilityEvidence(outcome="uncertain", reason=f"asks for {needed:g} or more years of experience",
+                                             quote=_clip(sentence)))
+    if _SENIOR_EXCLUDED.search(title or ""):                     # seniority
+        found.append(EligibilityEvidence(outcome="excluded", reason="a senior, lead or management title", quote=_clip(title)))
+    else:
+        senior_text = next((sentence for sentence in sentences if _SENIOR_TEXT.search(sentence)), None)
+        if senior_text:
+            found.append(EligibilityEvidence(outcome="excluded", reason="a vice-president level role", quote=_clip(senior_text)))
+        elif _SENIOR_ONLY.search(title or "") and not years_excluded:
+            found.append(EligibilityEvidence(outcome="uncertain", reason="'Senior' in the title with no years stated",
+                                             quote=_clip(title)))
+    gate = False
+    for sentence in sentences:                                   # batch or GPA cutoffs
+        for match in _GPA.finditer(sentence):
+            value = float(match.group(1) or match.group(2))
+            if value <= 10 and facts.get("cgpa") is not None and value > facts["cgpa"]:
+                gate = True
+                found.append(EligibilityEvidence(outcome="excluded", reason=f"a GPA floor of {value:g}, above {facts['cgpa']:g}",
+                                                 quote=_clip(sentence)))
+                break
+        if _BATCH_WORD.search(sentence) and facts.get("graduation_year"):
+            years = {int(year) for year in _CALENDAR_YEAR.findall(sentence)}
+            for start, end in _YEAR_SPAN.findall(sentence):
+                years |= set(range(int(start), int(end) + 1))
+            if years:
+                gate = True
+                if facts["graduation_year"] not in years:
+                    found.append(EligibilityEvidence(outcome="excluded", reason=f"a batch window without {facts['graduation_year']}",
+                                                     quote=_clip(sentence)))
+    students = next((sentence for sentence in sentences if _STUDENTS_ONLY.search(sentence)), None)   # students only
+    if students:
+        found.append(EligibilityEvidence(outcome="excluded", reason="open to current students or people returning from a break only",
+                                         quote=_clip(students)))
+    elif _INTERN_TITLE.search(title or "") and not gate:
+        found.append(EligibilityEvidence(outcome="uncertain", reason="an internship with no eligibility sentence", quote=_clip(title)))
+    return found
