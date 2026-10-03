@@ -150,6 +150,13 @@ class EmbedderTests(unittest.TestCase):
             semantic.FastEmbedder()
         self.assertIn("1 GB", str(caught.exception))
 
+    def test_loading_the_model_silences_the_windows_symlink_warning(self):
+        import os
+        with patch.object(semantic, "free_ram_bytes", return_value=4 * 1024 ** 3), patch("fastembed.TextEmbedding"),                 patch.dict("os.environ", {}, clear=False):
+            os.environ.pop("HF_HUB_DISABLE_SYMLINKS_WARNING", None)
+            semantic.FastEmbedder()
+            self.assertEqual(os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"], "1")
+
     def test_the_model_cache_is_under_hf_home(self):
         with patch.dict("os.environ", {"HF_HOME": "F:/huggingface"}):
             self.assertEqual(semantic.cache_dir(), Path("F:/huggingface/fastembed"))

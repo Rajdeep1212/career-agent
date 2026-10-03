@@ -170,6 +170,7 @@ class FastEmbedder:
         free = free_ram_bytes()
         if free < MIN_FREE_RAM:
             raise MemoryError(f"Embedding needs about 1 GB of free RAM; {free / 1024 ** 3:.1f} GB is free. Close something and retry.")
+        os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")      # Windows without Developer Mode: files are copied
         from fastembed import TextEmbedding
         self.model = model
         self._model = TextEmbedding(model_name=model, cache_dir=str(cache_dir()))

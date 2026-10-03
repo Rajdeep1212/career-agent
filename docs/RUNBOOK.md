@@ -37,7 +37,7 @@ Built and verified:
 - Patch merged (39db76f): 287 rows have a careers_url; 27 boards answer, 22 pollable by the one rule (app/sources/board_rule.py, b4aa7d1). Keka 12 + Darwinbox 11 > Greenhouse/Lever/Ashby for Indian startups; Workday 17 + SuccessFactors 8 + Eightfold 6 cover the MNCs.
 - Careers-page research 2 Oct 2026: 262 rows checked, 167 verified; seeds/careers_patch_2026-10-02.csv.
 - Seed list + ATS detection: scripts/detect_ats.py, docs/eval/ats_detection.md (5fbdd0a); 8 boards confirmed pollable.
-- Gate: run_tests.py (927 OK, 1 skipped), `node tests/test_frontend.cjs`, ruff, mypy.
+- Gate: run_tests.py (948 OK, 1 skipped), `node tests/test_frontend.cjs`, ruff, mypy.
 
 Decisions already made (do not reopen):
 - Hosted models never see the CV file or text extracted from it. A target profile and per-project briefs written by Rajdeep may be shared.
@@ -67,6 +67,7 @@ Decisions already made (do not reopen):
   - SuccessFactors and Eightfold: no public cross-tenant API. Use JSON-LD or an RSS/XML feed when the career site exposes one.
 - Ghost-listing evidence: a LiftmyCV study of 100,000 job IDs (Jan 2026) found 40%+ of listings had no human interaction for 30+ days; other 2026 reporting puts ghost listings near 1 in 4 on LinkedIn. This is why freshness and last_seen are gates, not decorations.
 - Embeddings (decided 3 Oct 2026): no PyTorch. The embedding backend is FastEmbed on ONNX Runtime, default model BAAI/bge-small-en-v1.5 (384-dim, quantised), run locally. Reason: C: has about 4 GB free and a torch install would take most of it. The preflight (scripts/check_env.py, docs/eval/env_check.md) needs RAM total >= 7.5 GB, cache drive free >= 8 GB and repo drive free >= 2 GB; free RAM is a runtime guard in the embedding script (about 1 GB), not a preflight gate. If C: drops below 2 GB free, stop and tell Rajdeep. Design input: docs/SEMANTIC_MATCHING_DESIGN.md.
+- Similarity-only ranking (BM25, dense, hybrid) is worse than v1 on the gold labels (SEM2); any semantic ranker must sit behind the eligibility gate.
 - No scraping of LinkedIn, Naukri, Indeed, Wellfound, Foundit, Instahyre, Internshala, GeeksforGeeks, LeetCode, Glassdoor or AmbitionBox. Use only pre-filled links, the user's own exports, and pages the user opens (bookmarklet).
 - No auto-apply. Nothing is sent, applied or deleted without Rajdeep's approval.
 - Interview features are practice-only. Never assist during a live interview or test.
