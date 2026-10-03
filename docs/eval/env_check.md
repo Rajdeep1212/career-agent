@@ -48,3 +48,14 @@ Cache placement: keep (F:\huggingface). F: has 67.2 GB free, at least 8 GB.
 | sentence-transformers | not installed |
 | huggingface_hub | 1.33.0 |
 
+## Install footprint (measured 3 October 2026, SEM2)
+
+Added by hand; `scripts/check_env.py` rewrites this file, so the script needs a small change before this section
+survives the next run.
+
+| What | Where | Size |
+|---|---|---|
+| fastembed, onnxruntime, numpy, rank-bm25 and their requirements | C:, the `job-agent` env's site-packages (338 MB before, 488 MB after) | 150 MB |
+| Model `Qdrant/bge-small-en-v1.5-onnx-Q` | F:\huggingface\fastembed | 65 MB |
+
+Installed with `pip install --no-cache-dir`, so nothing was left in the pip cache on C:.
