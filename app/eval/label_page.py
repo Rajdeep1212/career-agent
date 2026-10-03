@@ -123,6 +123,25 @@ class LabelSession:
     def quality(self) -> dict:
         return label_quality(self.records(), len(self.items))
 
+    def flagged(self) -> list[dict]:
+        """Labelled jobs whose longest look was under FAST_SECONDS, or untimed, by job number. Read-only."""
+        grades: dict[str, int] = {}
+        longest: dict[str, float | None] = {}
+        for record in self.records():
+            item, seconds = record["item_id"], record.get("seconds_on_job")
+            grades[item] = record["label"]
+            known = longest.get(item)
+            longest[item] = seconds if known is None else (known if seconds is None else max(known, seconds))
+        quick = []
+        for number, item in enumerate(self.items, start=1):
+            if item["item_id"] not in grades:
+                continue
+            seconds = longest[item["item_id"]]
+            if seconds is None or seconds < FAST_SECONDS:
+                quick.append({"job": number, "item_id": item["item_id"], "title": item.get("title"), "company": item.get("company"),
+                              "seconds": seconds, "grade": grades[item["item_id"]]})
+        return quick
+
     def _latest(self) -> dict[str, tuple[int, int]]:
         """item_id -> (label, 1-based line number) of its latest label."""
         latest: dict[str, tuple[int, int]] = {}
@@ -145,11 +164,15 @@ class LabelSession:
         if item:
             self._shown[item["item_id"]] = self._clock()
         counts = grade_counts(label for label, _ in latest.values())
+        quick = [job["job"] for job in self.flagged()]
+        current = index + 1 if index is not None else 0
         checkpoint = bool(latest) and (len(latest) % SHAPE_EVERY == 0 or index is None)
         return {"batch_id": self.batch_id, "total": total, "labelled": len(latest), "index": index, "done": index is None,
                 "position": f"{(index + 1) if index is not None else total} of {total}", "item": item,
                 "current_label": latest[item["item_id"]][0] if item and item["item_id"] in latest else None, "rubric": RUBRIC,
                 "quality": self.quality() if index is None else None, "grade_counts": counts,
+                # Jobs labelled in under 8 seconds, by job number, and the next one after this job (wrapping round).
+                "flagged_jobs": quick, "next_flagged": next((job for job in quick if job > current), quick[0] if quick else None),
                 # The shape so far, at every twentieth label and at the end, so a lopsided run shows early.
                 "shape": f"After {len(latest)} labels: {_shape(counts)}" if checkpoint else None}
 
@@ -250,7 +273,8 @@ _PAGE = """<!doctype html>
   <header>
     <span id="position">loading</span>
     <span id="progress"></span>
-    <span class="keys">Keys: 0 1 2 3 to label, Left arrow or B to go back one job, Right arrow to go forward.</span>
+    <span class="keys">Keys: 0 1 2 3 to label, Left arrow or B to go back one job, Right arrow to go forward,
+      N for the next quick job (labelled in under 8 seconds). Open one job with ?job=14 in the address.</span>
   </header>
   <p id="message" role="status"></p>
   <p id="shape" role="status"></p>
@@ -286,6 +310,10 @@ function show(next) {
   }
   byId("message").textContent = next.current_label === null ? "" : "You labelled this job " + next.current_label + ". A new key replaces it.";
   byId("title").textContent = item.title || "";
+  if (next.next_flagged) {
+    byId("message").textContent = (byId("message").textContent + " " + next.flagged_jobs.length +
+      " quick jobs to re-read; N goes to job " + next.next_flagged + ".").trim();
+  }
   const facts = [item.company, item.location, item.work_mode, item.employment_type, item.salary,
                  item.posted_date ? "posted " + String(item.posted_date).slice(0, 10) : null];
   byId("facts").textContent = facts.filter(Boolean).join(" · ");
@@ -326,11 +354,17 @@ document.addEventListener("keydown", (event) => {
   if (["0", "1", "2", "3"].includes(event.key)) { event.preventDefault(); grade(Number(event.key)); }
   else if (event.key === "ArrowLeft" || event.key === "b" || event.key === "B") { event.preventDefault(); back(); }
   else if (event.key === "ArrowRight") { event.preventDefault(); forward(); }
+  else if (event.key === "n" || event.key === "N") {
+    event.preventDefault();
+    if (state && state.next_flagged) { load(state.next_flagged - 1); }
+    else { byId("message").textContent = "No job was labelled in under 8 seconds."; }
+  }
 });
 for (const button of document.querySelectorAll("#rubric button")) {
   button.addEventListener("click", () => grade(Number(button.dataset.grade)));
 }
-load(null).catch(() => { byId("message").textContent = "The labelling server is not answering."; });
+const wanted = Number(new URLSearchParams(location.search).get("job"));
+load(Number.isInteger(wanted) && wanted >= 1 ? wanted - 1 : null).catch(() => { byId("message").textContent = "The labelling server is not answering."; });
 </script>
 </body>
 </html>
