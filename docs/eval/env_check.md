@@ -57,5 +57,6 @@ survives the next run.
 |---|---|---|
 | fastembed, onnxruntime, numpy, rank-bm25 and their requirements | C:, the `job-agent` env's site-packages (338 MB before, 488 MB after) | 150 MB |
 | Model `Qdrant/bge-small-en-v1.5-onnx-Q` | F:\huggingface\fastembed | 65 MB |
+| alembic 1.20.0 with Mako and MarkupSafe (TRK1) | C:, site-packages (488 MB before, 491 MB after) | 3 MB |
 
 Installed with `pip install --no-cache-dir`, so nothing was left in the pip cache on C:.
