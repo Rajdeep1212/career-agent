@@ -20,6 +20,7 @@ LOCAL_USER_ID = "local"                 # the one user of AUTH_MODE=local; real 
 LOCAL_USER_EMAIL = "local@localhost"
 _MIGRATIONS = Path(__file__).resolve().parent / "migrations"
 _ENGINES: dict[str, Engine] = {}
+_READY: set[str] = set()
 
 
 def sqlite_url(path: Path) -> str:
@@ -66,6 +67,15 @@ def upgrade(url: str | None = None, revision: str = "head") -> None:
     if (url or default_url()).startswith("sqlite"):
         Path((url or default_url()).removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
     command.upgrade(_config(url), revision)
+
+
+def ensure(url: str | None = None) -> None:
+    """Create or upgrade the database once per process per URL (again if a local file was removed)."""
+    url = url or default_url()
+    if url in _READY and (not url.startswith("sqlite") or Path(url.removeprefix("sqlite:///")).exists()):
+        return
+    upgrade(url)
+    _READY.add(url)
 
 
 def downgrade(url: str | None = None, revision: str = "base") -> None:

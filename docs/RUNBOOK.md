@@ -37,7 +37,7 @@ Built and verified:
 - Patch merged (39db76f): 287 rows have a careers_url; 27 boards answer, 22 pollable by the one rule (app/sources/board_rule.py, b4aa7d1). Keka 12 + Darwinbox 11 > Greenhouse/Lever/Ashby for Indian startups; Workday 17 + SuccessFactors 8 + Eightfold 6 cover the MNCs.
 - Careers-page research 2 Oct 2026: 262 rows checked, 167 verified; seeds/careers_patch_2026-10-02.csv.
 - Seed list + ATS detection: scripts/detect_ats.py, docs/eval/ats_detection.md (5fbdd0a); 8 boards confirmed pollable.
-- Gate: run_tests.py (949 OK, 1 skipped), `node tests/test_frontend.cjs`, ruff, mypy.
+- Gate: run_tests.py (1005 OK, 2 skipped; 968 before TRK2), `node tests/test_frontend.cjs`, ruff, mypy.
 
 Decisions already made (do not reopen):
 - Hosted models never see the CV file or text extracted from it. A target profile and per-project briefs written by Rajdeep may be shared.
@@ -69,7 +69,7 @@ Decisions already made (do not reopen):
 - Embeddings (decided 3 Oct 2026): no PyTorch. The embedding backend is FastEmbed on ONNX Runtime, default model BAAI/bge-small-en-v1.5 (384-dim, quantised), run locally. Reason: C: has about 4 GB free and a torch install would take most of it. The preflight (scripts/check_env.py, docs/eval/env_check.md) needs RAM total >= 7.5 GB, cache drive free >= 8 GB and repo drive free >= 2 GB; free RAM is a runtime guard in the embedding script (about 1 GB), not a preflight gate. If C: drops below 2 GB free, stop and tell Rajdeep. Design input: docs/SEMANTIC_MATCHING_DESIGN.md.
 - Similarity-only ranking (BM25, dense, hybrid) is worse than v1 on the gold labels (SEM2); any semantic ranker must sit behind the eligibility gate.
 - Tracker (docs/TRACKER_PLAN.md, approved 3 Oct 2026): one tracker, never two. TRK1 imports the M2 tracker into data/tracker.sqlite3 with an idempotent, re-runnable import that is run once more at the TRK2 cutover; TRK2 retires the old routes.
-- Tracker storage: everything runs locally on SQLite; Postgres is used only in migration tests until Rajdeep decides where it runs, before TRK4. Docker's data root is never moved by an agent.
+- Tracker storage: everything runs locally on SQLite; Postgres is used only in migration tests until Rajdeep decides where it runs, before TRK4. Docker's data root is on E:\DOCKER DATA\DockerDesktopWSL, which is approved: the requirement is "not on C:". An agent never starts, reconfigures or moves Docker; when the daemon is not running, the Postgres tests are skipped and the report says so.
 - Tracker email: Resend is decided at TRK5 after checking its limits; the fallback is the Gmail gmail.send grant behind the same approval boundary. IMAP on the apply inbox is a constraint change decided at TRK7, not before.
 - Tracker privacy: mentors see the pipeline and analytics only. CV versions store only label, date, file hash and the local parser's skill list.
 - MCP: the three read-only tools stay as they are; track_application is a separate, explicitly enabled tool at TRK6.

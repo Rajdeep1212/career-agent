@@ -45,7 +45,7 @@ def open_read_only(path: Path) -> sqlite3.Connection:
     return conn
 
 
-def _company(session, owner: str, name: str, cache: dict[str, str]) -> str | None:
+def company_id_for(session, owner: str, name: str, cache: dict[str, str]) -> str | None:
     key = company_key(name)
     if not key:
         return None
@@ -59,7 +59,7 @@ def _company(session, owner: str, name: str, cache: dict[str, str]) -> str | Non
     return cache[key]
 
 
-def _snapshot(job: dict) -> tuple[dict, str]:
+def snapshot_of(job: dict) -> tuple[dict, str]:
     kept = {name: job.get(name) for name in SNAPSHOT_FIELDS if job.get(name) not in (None, "")}
     return kept, _sha(json.dumps(kept, sort_keys=True, ensure_ascii=False))
 
@@ -114,7 +114,7 @@ def import_m2(agent_db: Path, url: str | None = None, *, backup_root: Path, dry_
             job = json.loads(row["job_json"])
             referenced = [event["snapshot_id"] for event in events if event["application_id"] == row["id"] and event.get("snapshot_id")]
             source = snapshots.get(referenced[-1]) if referenced else None
-            kept, digest = _snapshot(json.loads(source["job_json"]) if source else job)
+            kept, digest = snapshot_of(json.loads(source["job_json"]) if source else job)
             fields = dict(status=row["status"], applied_at=row.get("applied_at"), channel=row.get("applied_via"),
                           notes=row.get("notes") or "", next_follow_up_at=row.get("follow_up_at"), updated_at=row["updated_at"])
             identity = f"m2:{row['job_id']}"
@@ -124,7 +124,7 @@ def import_m2(agent_db: Path, url: str | None = None, *, backup_root: Path, dry_
                     setattr(existing, name, value)
                 continue
             session.add(Application(
-                id=row["id"], owner_id=owner, company_id=_company(session, owner, str(job.get("company") or ""), companies),
+                id=row["id"], owner_id=owner, company_id=company_id_for(session, owner, str(job.get("company") or ""), companies),
                 job_id=row["job_id"], identity=identity, title=str(job.get("title") or ""), company_name=str(job.get("company") or ""),
                 url=job.get("application_url"), source=job.get("source"), created_at=row["created_at"], snapshot_json=kept,
                 snapshot_sha256=digest, snapshot_captured_at=(source or {}).get("captured_at") or row["created_at"], **fields))
@@ -246,7 +246,7 @@ def import_csv(path: Path, url: str | None = None, *, dry_run: bool = False, own
                     versions[label] = found
                 version = versions[label]
             application = Application(
-                id=str(uuid4()), owner_id=owner, company_id=_company(session, owner, row["company"], companies), identity=identity,
+                id=str(uuid4()), owner_id=owner, company_id=company_id_for(session, owner, row["company"], companies), identity=identity,
                 title=row["role"], company_name=row["company"], url=row["url"] or None, source=row["source"] or None,
                 channel=row["channel"] or None, status=status, applied_at=row["applied_on"] or None, cv_version_id=version,
                 next_follow_up_at=row["next_follow_up"] or None, notes=row["notes"], created_at=stamp, updated_at=stamp)

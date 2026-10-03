@@ -106,7 +106,7 @@ class MigrationTests(StoreCase):
             session.commit()
 
     @unittest.skipUnless(POSTGRES_URL, "Postgres migration tests skipped: set TRACKER_TEST_POSTGRES_URL to a throwaway database. "
-                                       "They need the postgres Docker image, which is used only when Docker's data root is on F:.")
+                                       "They need the postgres Docker image, which is used only when Docker is already running with its data root off C:.")
     def test_upgrade_downgrade_and_triggers_on_postgres(self):
         store.downgrade(POSTGRES_URL)
         store.upgrade(POSTGRES_URL)

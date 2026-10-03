@@ -16,6 +16,7 @@ from app.api.career import router as career_router
 from app.api.chat import router as chat_router
 from app.api.radar import router as radar_router
 from app.api.capture import router as capture_router
+from app.api.tracker import router as tracker_router
 from app.core.oauth_logging import install_oauth_log_filter
 from app.core.preferences import DEFAULT_JOB_PREFERENCES
 from app.models.schemas import (
@@ -94,6 +95,7 @@ app.include_router(career_router)
 app.include_router(chat_router)
 app.include_router(radar_router)
 app.include_router(capture_router)
+app.include_router(tracker_router)
 career_agent = CareerAgent()
 
 

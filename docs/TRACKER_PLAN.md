@@ -158,7 +158,8 @@ stays on Gmail behind approval.
 - A Node toolchain and `web/node_modules` join the repo, and the gate gains a frontend test step.
 - New things to approve before they are installed (the runbook requires asking): Alembic, redis, arq, resend, a JWT
   library, the Node packages for `web/`, and the Postgres and Redis Docker images.
-- Disk: C: had 8.2 GB free at the last check. Docker's data goes on F:, and `web/node_modules` should be measured at
+- Disk: C: had 8.2 GB free at the last check. Docker's data must not be on C: (its data root on
+  E:\DOCKER DATA\DockerDesktopWSL is approved), and `web/node_modules` should be measured at
   install, as SEM2's packages were.
 
 ## 9. Open questions, each with a recommendation
@@ -203,4 +204,5 @@ stays on Gmail behind approval.
 10. Queue position as proposed.
 
 Installs approved for TRK1: Alembic only. Postgres migration tests use the Docker image only if Docker's data root is
-on F:; otherwise they are skipped with a clear message.
+not on C: (E:\DOCKER DATA\DockerDesktopWSL is approved, 3 October 2026) and the daemon is already running; otherwise they
+are skipped with a clear message. An agent never starts or reconfigures Docker.
