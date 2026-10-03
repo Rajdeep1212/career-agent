@@ -1,6 +1,6 @@
 # TRK0 — Application tracker plan (plan only)
 
-Status: plan, 3 October 2026, awaiting approval. Nothing here is built. Design: `docs/TRACKER_DESIGN.md`.
+Status: approved by Rajdeep on 3 October 2026 (decisions at the end of section 9). Design: `docs/TRACKER_DESIGN.md`.
 Every hard constraint in `CLAUDE.md` and `docs/RUNBOOK.md` still holds; section 9 lists where the design touches one.
 
 ## 1. What already exists (so this is not built twice)
@@ -185,3 +185,22 @@ stays on Gmail behind approval.
    approve this plan; I have not added it.
 10. **Queue position.** TRK0–TRK3 sit before SEM3 (which waits for the next index sync) and TRK4–TRK8 before Q15, as the
     design's order says. Say if you want them elsewhere.
+
+### Decisions (Rajdeep, 3 October 2026), in the order of the questions above
+
+1. Yes. TRK1 imports the M2 tracker into the new store; TRK2 retires the old routes. Never two live trackers. The import
+   is idempotent and re-runnable, and is run once more at the TRK2 cutover to pick up anything recorded in the old
+   tables in between.
+2. Yes. `data/tracker.sqlite3` joins the start-of-session hash check, noted "changes only through tracker actions".
+3. Yes. Resend is decided at TRK5 after checking its limits; the fallback is the Gmail `gmail.send` grant behind the
+   same approval boundary.
+4. Deferred. Everything runs locally on SQLite. Postgres is used only in migration tests until Rajdeep decides, before TRK4.
+5. Yes. Mentors see the pipeline and analytics only.
+6. Yes. IMAP on the apply inbox is a constraint change decided at TRK7, not before.
+7. Yes. CV versions store only label, date, file hash and the local parser's skill list.
+8. Yes. The three read-only MCP tools stay; `track_application` is a separate, explicitly enabled tool at TRK6.
+9. Yes. Two rows follow TRK3: KEKA1 (Keka adapter) and WD1 (Workday adapter).
+10. Queue position as proposed.
+
+Installs approved for TRK1: Alembic only. Postgres migration tests use the Docker image only if Docker's data root is
+on F:; otherwise they are skipped with a clear message.

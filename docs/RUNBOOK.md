@@ -68,6 +68,11 @@ Decisions already made (do not reopen):
 - Ghost-listing evidence: a LiftmyCV study of 100,000 job IDs (Jan 2026) found 40%+ of listings had no human interaction for 30+ days; other 2026 reporting puts ghost listings near 1 in 4 on LinkedIn. This is why freshness and last_seen are gates, not decorations.
 - Embeddings (decided 3 Oct 2026): no PyTorch. The embedding backend is FastEmbed on ONNX Runtime, default model BAAI/bge-small-en-v1.5 (384-dim, quantised), run locally. Reason: C: has about 4 GB free and a torch install would take most of it. The preflight (scripts/check_env.py, docs/eval/env_check.md) needs RAM total >= 7.5 GB, cache drive free >= 8 GB and repo drive free >= 2 GB; free RAM is a runtime guard in the embedding script (about 1 GB), not a preflight gate. If C: drops below 2 GB free, stop and tell Rajdeep. Design input: docs/SEMANTIC_MATCHING_DESIGN.md.
 - Similarity-only ranking (BM25, dense, hybrid) is worse than v1 on the gold labels (SEM2); any semantic ranker must sit behind the eligibility gate.
+- Tracker (docs/TRACKER_PLAN.md, approved 3 Oct 2026): one tracker, never two. TRK1 imports the M2 tracker into data/tracker.sqlite3 with an idempotent, re-runnable import that is run once more at the TRK2 cutover; TRK2 retires the old routes.
+- Tracker storage: everything runs locally on SQLite; Postgres is used only in migration tests until Rajdeep decides where it runs, before TRK4. Docker's data root is never moved by an agent.
+- Tracker email: Resend is decided at TRK5 after checking its limits; the fallback is the Gmail gmail.send grant behind the same approval boundary. IMAP on the apply inbox is a constraint change decided at TRK7, not before.
+- Tracker privacy: mentors see the pipeline and analytics only. CV versions store only label, date, file hash and the local parser's skill list.
+- MCP: the three read-only tools stay as they are; track_application is a separate, explicitly enabled tool at TRK6.
 - No scraping of LinkedIn, Naukri, Indeed, Wellfound, Foundit, Instahyre, Internshala, GeeksforGeeks, LeetCode, Glassdoor or AmbitionBox. Use only pre-filled links, the user's own exports, and pages the user opens (bookmarklet).
 - No auto-apply. Nothing is sent, applied or deleted without Rajdeep's approval.
 - Interview features are practice-only. Never assist during a live interview or test.
@@ -87,6 +92,7 @@ REQUEST
    - `git status` must be clean and HEAD must equal origin/main.
    - Nothing else is writing in this repo.
    - Record sha256 (first 16 hex) of data/agent.sqlite3 and the radar DB.
+   - Also record sha256 (first 16 hex) of data/tracker.sqlite3 when it exists. It changes only through tracker actions (imports, and later the tracker API); any other change is a failure.
    - If any check fails, STOP and report.
 2. **First run only.** If docs/ROADMAP_QUEUE.md does not exist:
    - Create it from QUEUE below, verbatim, with a Status column.
