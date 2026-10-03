@@ -66,9 +66,16 @@ that a check at the end is too late: the whole file was done before the refusal 
 - `--check` prints the same counts ("Grades so far: ...").
 - Labelling is done in sittings of 20.
 
-## Run 3
+## Run 3 is the gold file (3 October 2026)
 
-`data/eval/labels/gold-20261001-r1.jsonl` was started empty on 2 October 2026. When it is complete and passes the
-guard, the agreement report is re-run against it. The hosted labels (`gold-20261001-r1.hosted.jsonl`, 212 lines,
-`subagent:claude-opus-5-5`, both orders) are already saved and are not requested again. Until then SEM1 has no
-baseline.
+File: `data/eval/labels/gold-20261001-r1.jsonl` (sha256 `b00062c13e6c06a9`, first 16 hex). It passes the guard.
+
+| What | Measured |
+|---|---|
+| Label lines | 131 for 106 jobs; 23 jobs re-read and graded again (5 grades changed) |
+| Time | median 29.8 seconds per job (the longest look at each); 0 of 106 under 8 seconds |
+| Grades 0 / 1 / 2 / 3 | 39 / 26 / 27 / 14 |
+| Labelled | 2 October 17:47 to 3 October 07:41 UTC, in sittings of 20 |
+
+The agreement report and the NDCG@10 baseline computed from it are in `docs/eval/agreement_gold-20261001-r1.md`.
+The run 1 and run 2 reports (`agreement_gold-20261001-r1.run1.md`, `agreement_gold-20261001-r1.run2.md`) are void.

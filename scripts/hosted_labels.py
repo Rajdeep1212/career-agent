@@ -117,7 +117,11 @@ def report(batch: Path, out: Path) -> int:
     consensus = [(a + b) // 2 for a, b in zip(forward, reverse)]      # the mean of the two orders, rounded down
     sampled = {job["item_id"] for job in jobs if all(entry["stage"] == "excluded_sample" for entry in job["surfaced_by"])}
     stamps = sorted(datetime.fromisoformat(line["labelled_at"]) for line in gold_lines)
-    gaps = sorted((b - a).total_seconds() for a, b in zip(stamps, stamps[1:]))
+    longest: dict[str, float] = {}
+    for line in gold_lines:
+        if line.get("seconds_on_job") is not None:
+            longest[line["item_id"]] = max(longest.get(line["item_id"], 0.0), line["seconds_on_job"])
+    reread = len([item for item, count in Counter(line["item_id"] for line in gold_lines).items() if count > 1])
     labeller = host_lines[0]["labeller"]
 
     def spread(grades) -> list[int]:
@@ -140,8 +144,13 @@ def report(batch: Path, out: Path) -> int:
                     ["Hosted, batch order", *spread(forward), len(forward)], ["Hosted, reverse order", *spread(reverse), len(reverse)],
                     ["Hosted, excluded sample (batch order)", *spread(by_order["forward"][i]["label"] for i in order if i in sampled),
                      len(sampled)]])
-    text += [f"The gold labels were recorded in {(stamps[-1] - stamps[0]).total_seconds():.0f} seconds in total, a median of "
-             f"{gaps[len(gaps) // 2]:.0f} seconds between labels, in page order, with no label changed afterwards.", "",
+    looks = sorted(longest.values())
+    median = (f"median {(looks[(len(looks) - 1) // 2] + looks[len(looks) // 2]) / 2:.1f} seconds per job (the longest look at each)"
+              if looks else "no timing recorded")
+    text += [f"The gold file has {len(gold_lines)} label lines for {len(gold)} jobs: {reread} "
+             f"{'job was' if reread == 1 else 'jobs were'} re-read and graded again; {median}; {quality['fast']} of {len(order)} "
+             f"under 8 seconds; labelled between {stamps[0]:%Y-%m-%d %H:%M} and {stamps[-1]:%Y-%m-%d %H:%M} UTC. It passes the "
+             "labelling guard (docs/eval/gold_labels.md).", "",
              "## Agreement", ""]
     pairs = [("Rajdeep vs hosted, batch order", g, forward), ("Rajdeep vs hosted, reverse order", g, reverse),
              ("Rajdeep vs hosted, both orders combined (mean, rounded down)", g, consensus),

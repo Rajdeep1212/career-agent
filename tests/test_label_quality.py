@@ -259,6 +259,27 @@ class ScriptTests(QualityCase):
         self.assertIn("0 of 5 labelled in under 8 seconds", output)
         self.assertIn("Grades so far: 1 at grade 0, 1 at grade 1, 2 at grade 2, 1 at grade 3.", output)
 
+    def test_the_agreement_report_describes_the_gold_file_as_it_is(self):
+        # Found on run 3: the report said "no label changed afterwards" for a file with 25 re-reads, and gave the
+        # wall-clock span across several sittings as if it were labelling time.
+        hosted = self.load("hosted_labels")
+        self.label_all([3, 0, 2, 1, 2], [30, 20, 45, 9, 8])
+        self.session.state(at=4)
+        self.clock.now += 12
+        self.session.label("item004", 1)
+        rows = [{"item_id": f"item{index:03d}", "label": grade, "order": order, "reason": "r", "labeller": "subagent:test"}
+                for order in ("forward", "reverse") for index, grade in enumerate([3, 0, 2, 1, 1])]
+        (self.labels / "test-batch.hosted.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+        out = self.root / "report.md"
+        with patch.object(hosted, "EVAL", self.root):
+            code, _ = self.run_script(hosted, ["report", "--batch", str(self.batch), "--out", str(out)])
+        report = out.read_text(encoding="utf-8")
+        self.assertEqual(code, 0)
+        self.assertNotIn("no label changed", report)
+        self.assertIn("6 label lines for 5 jobs: 1 job was re-read and graded again", report)
+        self.assertIn("median 20.0 seconds per job (the longest look at each)", report)
+        self.assertIn("0 of 5 under 8 seconds", report)
+
     def test_the_agreement_report_refuses_gold_labels_that_fail_the_guard(self):
         hosted = self.load("hosted_labels")
         self.label_all([3, 3, 3, 3, 3], [1, 1, 1, 1, 1])
