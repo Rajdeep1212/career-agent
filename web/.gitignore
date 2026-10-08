@@ -1,0 +1,7 @@
+node_modules/
+.next/
+.next-smoke/
+next-env.d.ts
+tsconfig.tsbuildinfo
+test-results/
+playwright-report/

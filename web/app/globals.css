@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+/* System fonts only: nothing is downloaded. */
+@theme {
+  --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --color-paper: oklch(0.975 0.005 95);
+  --color-surface: oklch(0.995 0.002 95);
+  --color-ink: oklch(0.25 0.02 260);
+  --color-muted: oklch(0.48 0.02 260);
+  --color-line: oklch(0.89 0.008 260);
+  --color-accent: oklch(0.47 0.14 255);
+  --color-accent-soft: oklch(0.94 0.03 255);
+  --color-warn: oklch(0.42 0.11 50);
+  --color-warn-soft: oklch(0.955 0.04 75);
+  --color-good: oklch(0.42 0.1 155);
+  --color-good-soft: oklch(0.95 0.04 155);
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
