@@ -28,6 +28,7 @@ TRANSITIONS: dict[str, tuple[str, ...]] = {
 }
 EVENT_STATUS = {event: status for status, event in STATUS_EVENT.items()}
 NEUTRAL_EVENTS = ("note", "recruiter_reply")            # recorded in any status; the status stays
+OUTREACH_EVENTS = ("outreach_prepared", "outreach_sent")   # neutral too, but only the email workflow records them
 _AFTER_APPLYING = ("online_test", "interview", "offer", "rejected", "withdrawn", "no_response_confirmed", "recruiter_reply")
 CREATE_STATUSES = ("SAVED", "APPLIED")
 _PASTED = ("title", "company", "location", "application_url", "description", "source")
@@ -98,6 +99,11 @@ def _live(events: list[ApplicationEvent]) -> list[ApplicationEvent]:
     return [event for event in events if event.event_type != "undone" and event.id not in undone]
 
 
+def _undoable(events: list[ApplicationEvent]) -> list[ApplicationEvent]:
+    """The live events Undo works on: outreach events record an email and stay out of it."""
+    return [event for event in _live(events) if event.event_type not in OUTREACH_EVENTS]
+
+
 def _event(event: ApplicationEvent, undone: bool = False) -> dict:
     return {"id": event.id, "event_type": event.event_type, "occurred_at": event.occurred_at, "occurred_at_exact": bool(event.occurred_at_exact),
             "recorded_at": event.recorded_at, "source": event.source, "request_id": event.request_id,
@@ -139,7 +145,7 @@ def list_applications(owner: str, *, status: str | None = None, company: str | N
         for event in session.scalars(select(ApplicationEvent).where(ApplicationEvent.owner_id == owner).order_by(ApplicationEvent.id)):
             events.setdefault(event.application_id, []).append(event)
         for application_id, log in events.items():
-            live = _live(log)
+            live = _undoable(log)
             undoable = live[-1] if live and live[-1].id != log[0].id else None
             latest[application_id] = {"id": undoable.id, "event_type": undoable.event_type} if undoable else None
         # latest_event: the one event Undo would take back, or None when only the first event is left.
@@ -311,6 +317,31 @@ def append_event(owner: str, application_id: str, request_id: str, event_type: s
         return _event(event), _detail(session, application), False
 
 
+def record_outreach(owner: str, application_id: str, event_type: str, draft_id: int, linked_at: str) -> tuple[dict, bool]:
+    """(event, replayed). Written by the email workflow, never through the API: one event per draft link and kind; the
+    status stays. `outreach_sent` comes only after Gmail confirmed a send the user approved
+    (app/services/email_send_boundary.py). `linked_at` keeps a draft id that a restored agent.sqlite3 hands out again
+    from replaying an older link's event."""
+    if event_type not in OUTREACH_EVENTS:
+        raise Invalid(f"event_type must be one of {', '.join(OUTREACH_EVENTS)}.")
+    request_id = f"{event_type}:draft:{draft_id}:{linked_at}"
+    with store.session() as session:
+        application = _application(session, owner, application_id)
+        prior = _by_request(session, owner, request_id)
+        if prior is not None:
+            if prior.application_id != application.id:
+                raise Conflict("This draft is linked to another application.")
+            return _event(prior), True
+        stamp = _now()
+        event = ApplicationEvent(application_id=application.id, owner_id=owner, event_type=event_type, occurred_at=stamp,
+                                 occurred_at_exact=True, recorded_at=stamp, source="derived", request_id=request_id,
+                                 note=f"Email draft {draft_id}")
+        session.add(event)
+        application.updated_at = stamp
+        session.commit()
+        return _event(event), False
+
+
 def undo_event(owner: str, application_id: str, event_id: int, request_id: str) -> tuple[dict, dict, bool]:
     """(the `undone` event, application, replayed). Only the latest event that still counts can be undone."""
     with store.session() as session:
@@ -323,7 +354,9 @@ def undo_event(owner: str, application_id: str, event_id: int, request_id: str) 
         events = _events(session, application)
         if event_id not in [event.id for event in events]:
             raise NotFound("No such event on this application.")
-        live = _live(events)
+        if event_id in [event.id for event in events if event.event_type in OUTREACH_EVENTS]:
+            raise Conflict("An outreach event records an email; it cannot be undone.")
+        live = _undoable(events)
         latest = live[-1]
         if latest.id != event_id:
             raise Conflict("Only the latest event can be undone.", latest_event_id=latest.id)

@@ -1,7 +1,7 @@
 """Stored jobs, search sessions, thumbs labels and contacts. These routes never send messages or apply.
 
 The application tracker is not here: it is data/tracker.sqlite3 behind /api/v1 (app/api/tracker.py). The M2
-tracker routes were retired at the TRK3b cutover; outreach and the chat still use app/storage/career_store.py.
+tracker routes were retired at the TRK3b cutover; since TRK3c outreach and the chat write the tracker too.
 """
 import re
 from typing import Annotated, Literal

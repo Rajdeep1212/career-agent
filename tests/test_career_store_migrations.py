@@ -37,22 +37,23 @@ class CareerStoreMigrationTests(unittest.TestCase):
         self.addCleanup(db.reset_cache)
 
     def test_fresh_database_gets_every_table(self):
-        self.assertEqual(career_store.list_applications(), [])
+        self.assertIsNone(career_store.get_job("absent"))
         with closing(sqlite3.connect(self.path)) as conn:
             tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             versions = {row[0] for row in conn.execute("SELECT version FROM schema_migrations")}
         self.assertLessEqual({"career_sessions", "career_jobs", "career_applications", "career_contacts", "career_outreach"}, tables)
         # M2 adds the event log (career_v3_events); earlier versions keep their recorded ids.
-        self.assertEqual(versions, {"career_v1", "career_outreach_contact_v2", "career_v3_events"})
+        self.assertEqual(versions, {"career_v1", "career_outreach_contact_v2", "career_v3_events", "career_outreach_tracker_v4"})
 
     def test_older_database_is_upgraded_with_its_data(self):
         with closing(sqlite3.connect(self.path)) as conn:
             conn.executescript(OLD_SCHEMA)
-        application = career_store.get_application("app-1")
-        self.assertEqual((application["status"], application["notes"]), ("APPLIED", "keep"))
+        self.assertIsNotNone(career_store.get_job("job-1"))
         with closing(sqlite3.connect(self.path)) as conn:
+            application = conn.execute("SELECT status, notes FROM career_applications WHERE id='app-1'").fetchone()
             columns = {row[1] for row in conn.execute("PRAGMA table_info(career_outreach)")}
-        self.assertIn("contact_id", columns)
+        self.assertEqual(application, ("APPLIED", "keep"))
+        self.assertLessEqual({"contact_id", "job_id"}, columns)
         self.assertEqual(len(list((self.path.parent / "backups").rglob("agent.sqlite3"))), 1)
 
     def test_schema_work_happens_once_per_process(self):

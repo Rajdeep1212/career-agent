@@ -71,9 +71,13 @@ class ToolCase(unittest.TestCase):
         saved = {**self.jobs[0].model_dump(mode="json"),
                  "match": {"explanation": "Relevant candidate evidence: SENTINEL-PRIVATE-CV-LINE", "matched_skills": ["SentinelSkillXYZ"]}}
         self.job_id = career_store.upsert_job(saved)
-        self.application = career_store.save_application(self.job_id, "SAVED", "sentinel note copied from my CV")
-        career_store.link_outreach(self.application["id"], 7, "Hi, I built a sentinel fraud detector (from my CV).")
-        # TRK3b: the tool lists the tracker (data/tracker.sqlite3). The M2 row above must not appear any more.
+        # An M2 row (history since TRK3c) whose notes and outreach carry CV-derived text. TRK3b: the tool lists the
+        # tracker (data/tracker.sqlite3), so this row must not appear.
+        with career_store._connection() as conn:
+            conn.execute("INSERT INTO career_applications (id, job_id, status, notes, created_at, updated_at) "
+                         "VALUES ('m2-1', ?, 'SAVED', 'sentinel note copied from my CV', 't', 't')", (self.job_id,))
+            conn.execute("INSERT INTO career_outreach (draft_id, application_id, job_id, short_message, created_at) "
+                         "VALUES (7, 'm2-1', ?, 'Hi, I built a sentinel fraud detector (from my CV).', 't')", (self.job_id,))
         self.addCleanup(store.dispose_all)
         store.upgrade()
         stamp = "2026-09-21T10:00:00+00:00"

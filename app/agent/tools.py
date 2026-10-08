@@ -1,6 +1,5 @@
 from app.models.schemas import PrepareJobEmailRequest
 from app.services.email_send_boundary import approve_and_send_draft
-from app.services.job_snapshot import snapshot_inputs
 from app.services.outreach_workflow import prepare_linked_outreach
 from app.storage import career_store
 from app.storage.email_store import update_draft_content
@@ -17,16 +16,10 @@ class CareerGraphTools:
         application_id = state.get("application_id")
         if not application_id:
             raise ValueError("A stored application is required.")
-        status = state.get("application_status")
-        current = career_store.get_application(application_id)
-        # A status change is logged with the CV and L0 features at that moment (docs/M2_PLAN.md §1.3).
-        snapshot = (snapshot_inputs(current["job"])
-                    if current and current.get("job") and status not in (None, current["status"]) else None)
         result = career_store.update_application(
             application_id,
-            status=status,
+            status=state.get("application_status"),
             notes=state.get("notes"),
-            snapshot=snapshot,
         )
         if result is None:
             raise ValueError("Application not found.")

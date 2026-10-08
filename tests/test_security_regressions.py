@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from app.core.config import settings
 from app.main import app
 from app.storage import attachment_store, career_store, history, preference_store, profile_store
+from tracker_helpers import isolate_tracker
 
 LOCAL = {'Origin': 'http://localhost:8010'}
 
@@ -39,6 +40,7 @@ class _IsolatedApp(unittest.TestCase):
             patcher = patch.object(module, name, value)
             patcher.start()
             self.addCleanup(patcher.stop)
+        isolate_tracker(self, self.directory)
         self.client = TestClient(app, base_url='http://localhost:8010', raise_server_exceptions=False)
         self.addCleanup(self.client.close)
 

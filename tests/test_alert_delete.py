@@ -14,6 +14,7 @@ from app.services import application_verifier
 from app.services.career_agent import CareerAgent
 from app.sources.alerts.ingest import ingest_raw
 from app.storage import alert_store, career_store, db, history, preference_store, profile_store
+from tracker_helpers import isolate_tracker
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "alerts"
 LOCAL = {'Origin': 'http://localhost:8010'}
@@ -38,6 +39,7 @@ class _Isolated(unittest.IsolatedAsyncioTestCase):
             patcher = patch.object(module, name, value)
             patcher.start()
             self.addCleanup(patcher.stop)
+        isolate_tracker(self, self.root)
         patcher = patch.object(application_verifier, 'safe_get', AsyncMock(side_effect=OSError('offline')))
         patcher.start()
         self.addCleanup(patcher.stop)

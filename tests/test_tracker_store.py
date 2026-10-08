@@ -17,6 +17,7 @@ from app.tracker import importers, models, store
 
 TABLES = {"users", "companies", "contacts", "cv_versions", "applications", "application_events", "reminders"}
 POSTGRES_URL = os.environ.get("TRACKER_TEST_POSTGRES_URL")
+M2_TIME = "2026-09-20T10:00:00+00:00"
 JOB = {"company": "Example Corp", "title": "Graduate AI Engineer", "location": "Pune, India", "description": "Freshers welcome. Python.",
        "application_url": "https://jobs.example.com/1", "source": "Company Radar", "posted_date": "2026-09-20",
        "match": {"explanation": "SENTINEL-CV-LINE from the candidate's CV"}}
@@ -124,13 +125,24 @@ class M2ImportTests(StoreCase):
         self.addCleanup(patcher.stop)
         db.reset_cache()
         self.addCleanup(db.reset_cache)
-        job_id = career_store.upsert_job(JOB)
-        application = career_store.record_applied(job_id, request_id="req-1", applied_via="portal")
-        self.old_id = application["application"]["id"] if "application" in application else application["id"]
-        career_store.record_outcome(self.old_id, "online_test", request_id="req-2")
+        self.job_id = career_store.upsert_job(JOB)
+        self.old_id = "m2-application-1"
+        # M2 history as the retired M2 tracker left it; the app no longer writes these tables (TRK3c).
+        with career_store._connection() as conn:
+            conn.execute("INSERT INTO career_applications (id, job_id, status, notes, created_at, updated_at, applied_at, applied_via) "
+                         "VALUES (?, ?, 'ONLINE_TEST', '', ?, ?, ?, 'portal')", (self.old_id, self.job_id, M2_TIME, M2_TIME, M2_TIME))
+        self.m2_event("applied", "req-1")
+        self.m2_event("online_test", "req-2")
         career_store.upsert_job({**JOB, "title": "Saved only, never applied", "application_url": "https://jobs.example.com/2"})
         gc.collect()
         store.upgrade(self.url)
+
+    def m2_event(self, event_type: str, request_id: str, status: str | None = None) -> None:
+        with career_store._connection() as conn:
+            conn.execute("INSERT INTO job_events (job_id, application_id, event_type, occurred_at, occurred_at_exact, recorded_at, source, "
+                         "request_id) VALUES (?, ?, ?, ?, 1, ?, 'user', ?)", (self.job_id, self.old_id, event_type, M2_TIME, M2_TIME, request_id))
+            if status:
+                conn.execute("UPDATE career_applications SET status=? WHERE id=?", (status, self.old_id))
 
     def run_import(self, **options):
         return importers.import_m2(self.agent, self.url, backup_root=self.root / "backups", **options)
@@ -157,18 +169,19 @@ class M2ImportTests(StoreCase):
         self.assertNotIn("SENTINEL-CV-LINE", row.snapshot_json)            # the stored match is not part of the job post
         self.assertEqual(self.count("companies"), 1)
 
-    def test_a_second_run_changes_no_counts_and_a_later_event_is_picked_up(self):
+    def test_a_second_run_changes_no_counts_and_keeps_what_was_changed_in_the_tracker(self):
         first = self.run_import()
+        with store.session(self.url) as session:       # TRK3c: the chat and the dashboard now edit imported rows
+            row = session.get(models.Application, self.old_id)
+            row.status, row.notes = "WITHDRAWN", "edited in the tracker"
+            session.commit()
         second = self.run_import()
         for key in ("applications_in_tracker", "events_in_tracker"):
             self.assertEqual(first[key], second[key])
         self.assertEqual((second["applications_added"], second["events_added"]), (0, 0))
-        career_store.record_outcome(self.old_id, "interview", request_id="req-3")      # recorded in the old tables in between
-        gc.collect()
-        third = self.run_import()
-        self.assertEqual((third["applications_added"], third["events_added"]), (0, 1))
         with store.engine(self.url).connect() as conn:
-            self.assertEqual(conn.execute(sa.text("SELECT status FROM applications")).scalar_one(), "INTERVIEW")
+            self.assertEqual(tuple(conn.execute(sa.text("SELECT status, notes FROM applications")).one()),
+                             ("WITHDRAWN", "edited in the tracker"))
 
     def test_a_dry_run_writes_nothing_and_makes_no_backup(self):
         report = self.run_import(dry_run=True)
