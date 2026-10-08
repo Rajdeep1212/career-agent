@@ -2,6 +2,34 @@
 
 [![CI](https://github.com/Rajdeep1212/career-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Rajdeep1212/career-agent/actions/workflows/ci.yml)
 
+## What this project is
+
+A local-first job-search agent for freshers in India: it finds jobs on official company boards, checks eligibility
+with quoted evidence, ranks them, and tracks applications. Nothing is sent or applied without the user's approval.
+Its claims are measured: every number below names the file it comes from and how far it can be trusted.
+
+On Windows it opens in its own window from a desktop shortcut: see [Use it like an app](#use-it-like-an-app).
+
+## Evaluation
+
+Measured on one frozen copy of the job index (1 October 2026) and one labelled batch. These are measurements on 106
+jobs for one candidate profile (claim level L0), not calibrated probabilities and not a claim about other users.
+
+| What was measured | Result | Source |
+|---|---|---|
+| Gold labels | 106 jobs graded 0-3 ("would I apply?") by the owner, blind: 71 shown by four fixed searches and 35 sampled from jobs the eligibility check excluded. Grades 0/1/2/3: 39/26/27/14; median 29.8 s per job. Two earlier, rushed runs were voided by a labelling guard | [gold_labels.md](docs/eval/gold_labels.md), [searches.md](docs/eval/searches.md) |
+| Agreement with hosted labels | Exact match 54 of 106 (0.509); quadratic weighted kappa 0.498 (batch order) and 0.458 (reverse order). The hosted labeller against itself in the two orders: 95 of 106, kappa 0.904. Hosted labels never saw CV text and are used for agreement only | [agreement_gold-20261001-r1.md](docs/eval/agreement_gold-20261001-r1.md) |
+| Ranking baseline (the current ranker, v1) | NDCG@10 against the gold labels: search A ("AI Engineer jobs for freshers in India") 0.735 over the jobs shown, 0.708 over the judged pool; search B ("Software Engineer fresher jobs in India") 0.660 and 0.557 | same file |
+| Semantic ranking (SEM2) | BM25, dense embeddings and their hybrid all ranked worse than v1: mean NDCG@10 change over A and B of -0.241 [-0.436, -0.004], -0.279 [-0.428, -0.056] and -0.229 [-0.422, -0.037] (paired bootstrap 95% intervals). Hybrid with eligibility detectors: +0.070 [-0.103, +0.254], an interval that includes zero, and those detectors were designed on this same batch. Verdict: **v1 stays** | [sem2_results.md](docs/eval/sem2_results.md) |
+| Company boards that can be polled | 22 of 356 seed companies pass one rule (the board's public API answers, at least one job is in India, the newest posting is at most 180 days old). The first detection run confirmed 8 boards, on the 94 rows that then had a careers page and under a looser rule, so 8 to 22 is growth in coverage, not a like-for-like comparison | [ats_detection.md](docs/eval/ats_detection.md); the 8 is in its revision `5fbdd0a` |
+| Tests | 1003 offline Python tests (2 skipped), 25 web component tests, 2 browser smoke tests; lint and type checks clean | [gate.md](docs/eval/gate.md) |
+
+What the numbers argue against: similarity alone does not find jobs a fresher can get, and in search B only 4 of 49
+judged jobs were grade 3, so finding more good jobs is a sourcing problem, not a ranking one
+([sem2_results.md](docs/eval/sem2_results.md)). The out-of-sample test of the eligibility detectors is still to do.
+
+## Overview
+
 Career Agent is a local FastAPI application for evidence-based job discovery,
 application tracking, and user-approved outreach. It parses text-based PDF
 and .docx resumes, persists profile and search preferences, searches configured job

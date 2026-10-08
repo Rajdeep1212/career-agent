@@ -1,6 +1,7 @@
 # M2 plan: outcome data engine
 
-Status: **approved by the owner on 2026-09-30**, with the answers recorded in §8 ("Decisions"). The
+Status: **final (8 October 2026). M2 is complete; what was built, and where it differs from this plan, is in §9.**
+The plan below is kept as approved, with stale lines marked. Approved by the owner on 2026-09-30, with the answers recorded in §8 ("Decisions"). The
 core (commits 1–3) is built first. The rest follows in order, and nothing in "M2b" starts before the core and the harness.
 Baseline: `5332bf0`, run_tests.py 623 OK (1 skipped), frontend, ruff, mypy green.
 Sources: `docs/AUDIT_AND_ROADMAP.md` §3.4 (D1–D5), §5.0 (migration and snapshot rules), §5 "M2",
@@ -241,7 +242,7 @@ An application is **shortlisted** iff it has at least one funnel event with `eve
 - A batch file is never edited after it is issued. Several batches may be open at once
   ("parallel"), labelled in any order.
 
-**Search list** (decision Q4). **Proposed, not yet confirmed by the owner.** Up to 100 results each
+**Search list** (decision Q4). **Superseded on 2026-10-01 by searches A-D in `docs/eval/searches.md`; S1-S5 below were the proposal.** Up to 100 results each
 from the frozen index would give about 500 query–job pairs. The owner confirms the list after seeing
 the result counts per search measured on the frozen copy (commit 7).
 
@@ -262,7 +263,7 @@ recorded in every batch file, so a batch can be rebuilt from the same frozen cop
 - The table is `batch_labels(id, snapshot_stamp, batch_id, query_id, job_key, label 0–3,
   scale='graded_0_3', rubric_version, labeller, set='gold'|'batch', labelled_at, relabel_of NULL)`.
   It is append-only through the same kind of triggers.
-- **Rubric `r1`** (proposed, not yet confirmed by the owner): one question, "would I apply?", answered 0–3.
+- **Rubric `r1`** (used for the gold labels and the agreement report): one question, "would I apply?", answered 0–3.
 
   | Label | Meaning |
   |---|---|
@@ -383,7 +384,8 @@ banner, `.ics` export, and CSV import/export with anonymize.
 
 - None open on labelling privacy: it was decided on 2026-10-01 (§5, "Batch labelling"). The target
   profile file does not exist yet; the owner writes it before commit 8.
-- The search list S1–S5 and rubric `r1` await the owner's confirmation (§5).
+- Closed: the search list is A-D (`docs/eval/searches.md`, confirmed 2026-10-01), rubric `r1` was used as written, and the
+  target profile exists (`data/eval/target_profile.md`, not in git).
 - Subagent labels never count as ground truth. They are usable only after the agreement gate passes
   for rubric `r1`, and the gold labels remain the reference.
 
@@ -414,3 +416,48 @@ banner, `.ics` export, and CSV import/export with anonymize.
 - §5.0 asks for a `scoring_version` from a versioned scoring file. Decision Q5 defers that, so
   snapshots carry `ranker_version` instead, and M4 must add the scoring file before any model uses
   snapshots.
+
+## 9. Outcome (final, 8 October 2026)
+
+M2 is closed. Sources: `docs/ROADMAP_QUEUE.md` (rows Q1-Q5, TRK3b, TRK3c), `docs/RUNBOOK.md` and the files under `docs/eval/`.
+
+### Built
+
+| Plan item | Result | Where |
+|---|---|---|
+| Event log, snapshots, profile versions (§1) | Built as migration `career_v3_events`: append-only `job_events`, `job_snapshots`, `profile_versions` | `app/storage/career_events.py` |
+| One-click Applied with undo, outcomes, derived shortlisted and no-response, funnel (§2, §3) | Built, then moved: since TRK3b and TRK3c the tracker (`data/tracker.sqlite3`, `/api/v1`) owns applications and their events | `app/tracker/`, `docs/TRACKER_PLAN.md` |
+| Thumbs labels and label export (§4) | Built | `scripts/export_labels.py` |
+| Frozen read-only copy of the index (§5) | Built: `db.read_only()` and the frozen copy `data/eval/frozen/20261001T032740Z/` | queue row Q1 |
+| Batch builder, labelling page, hosted labels, agreement report (§5) | Built: batch `gold-20261001-r1`, 106 jobs | `docs/eval/gold_labels.md`, `docs/eval/agreement_gold-20261001-r1.md` |
+
+### Measured
+
+- Gold labels: 106 jobs, grades 0/1/2/3 = 39/26/27/14, median 29.8 seconds per job (`docs/eval/gold_labels.md`).
+- Agreement with the hosted labels: exact match 54 of 106, quadratic weighted kappa 0.498 (batch order) and 0.458
+  (reverse order) (`docs/eval/agreement_gold-20261001-r1.md`).
+- NDCG@10 of ranker v1 against the gold labels: search A 0.735 shown and 0.708 judged pool; search B 0.660 and 0.557
+  (same file). Claim level L0.
+
+### Where the result differs from the plan
+
+- **Searches.** S1-S5 became A-D after the result counts on the frozen copy; every string ends "in India"
+  (`docs/eval/searches.md`).
+- **Batch size.** The plan expected about 500 query-job pairs. Labels are per job, and with the freshness rule the
+  batch is 106 distinct jobs: 71 shown and 35 seeded samples of excluded jobs (`docs/eval/searches.md`).
+- **Label storage.** Gold labels are JSON-lines files under `data/eval/labels/`, not the `labels.sqlite3` table of §5
+  (`docs/eval/gold_labels.md`).
+- **A labelling guard was added.** Runs 1 and 2 were rushed and are void; the guard on time per job and on one-grade
+  files, and sittings of 20, came out of that. Run 3 is the gold file (`docs/eval/gold_labels.md`).
+- **The agreement gate did what §8 said it might.** Kappa near 0.5 is not strong agreement, so hosted labels stay for
+  agreement only and are never ground truth.
+- **The M2 tracker tables are now read-only history.** `career_applications` and the application and outreach events
+  of `job_events` are no longer written (TRK3c); only thumbs and "removed from results" notes are still added.
+- **M2b.** The Kanban is built in `web/` (TRK3). Follow-ups and reminders are TRK5; analytics is TRK8. The stale-sync
+  banner was built in Q2b2. `.ics` export and CSV export with anonymize are not built and are not queued.
+
+### Still open after M2
+
+- The eligibility detectors of SEM2 were designed on this batch; their out-of-sample test is queue row SEM3.
+- Decision Q5 stands: there is no versioned scoring file, so M4 must add one before any model uses snapshots.
+- The Inter font finding in `index.html` stays deferred.
