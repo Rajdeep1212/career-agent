@@ -169,18 +169,19 @@ class M2ImportTests(StoreCase):
         self.assertNotIn("SENTINEL-CV-LINE", row.snapshot_json)            # the stored match is not part of the job post
         self.assertEqual(self.count("companies"), 1)
 
-    def test_a_second_run_changes_no_counts_and_a_later_event_is_picked_up(self):
+    def test_a_second_run_changes_no_counts_and_keeps_what_was_changed_in_the_tracker(self):
         first = self.run_import()
+        with store.session(self.url) as session:       # TRK3c: the chat and the dashboard now edit imported rows
+            row = session.get(models.Application, self.old_id)
+            row.status, row.notes = "WITHDRAWN", "edited in the tracker"
+            session.commit()
         second = self.run_import()
         for key in ("applications_in_tracker", "events_in_tracker"):
             self.assertEqual(first[key], second[key])
         self.assertEqual((second["applications_added"], second["events_added"]), (0, 0))
-        self.m2_event("interview", "req-3", status="INTERVIEW")      # recorded in the old tables in between
-        gc.collect()
-        third = self.run_import()
-        self.assertEqual((third["applications_added"], third["events_added"]), (0, 1))
         with store.engine(self.url).connect() as conn:
-            self.assertEqual(conn.execute(sa.text("SELECT status FROM applications")).scalar_one(), "INTERVIEW")
+            self.assertEqual(tuple(conn.execute(sa.text("SELECT status, notes FROM applications")).one()),
+                             ("WITHDRAWN", "edited in the tracker"))
 
     def test_a_dry_run_writes_nothing_and_makes_no_backup(self):
         report = self.run_import(dry_run=True)

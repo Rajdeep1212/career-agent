@@ -118,10 +118,7 @@ def import_m2(agent_db: Path, url: str | None = None, *, backup_root: Path, dry_
             fields = dict(status=row["status"], applied_at=row.get("applied_at"), channel=row.get("applied_via"),
                           notes=row.get("notes") or "", next_follow_up_at=row.get("follow_up_at"), updated_at=row["updated_at"])
             identity = f"m2:{row['job_id']}"
-            if identity in present:
-                existing = session.get(Application, present[identity])
-                for name, value in fields.items():      # the old tables are still the live ones until TRK2: follow them
-                    setattr(existing, name, value)
+            if identity in present:     # the old tables are frozen since TRK3c; the tracker row may have been edited since
                 continue
             session.add(Application(
                 id=row["id"], owner_id=owner, company_id=company_id_for(session, owner, str(job.get("company") or ""), companies),
