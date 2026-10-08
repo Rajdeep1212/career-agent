@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 
 from app.models.schemas import CandidateProfile
 from app.models.career import ContactCandidate
+from tracker_helpers import isolate_tracker
 
 
 class OutreachTests(unittest.TestCase):
@@ -166,6 +167,7 @@ class EmailSendAPITests(unittest.TestCase):
             patcher = patch.object(module, name, value)
             patcher.start()
             self.addCleanup(patcher.stop)
+        isolate_tracker(self, directory)
         self.client = TestClient(main.app, base_url='http://localhost:8010', raise_server_exceptions=False)
         self.addCleanup(self.client.close)
 

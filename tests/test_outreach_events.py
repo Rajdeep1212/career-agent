@@ -1,10 +1,11 @@
-"""M2 commit 5: outreach is recorded as events, and removing a tracked job leaves a note in its log
-(docs/M2_PLAN.md §1.1, §1.5, decisions Q2 and Q7). Fictional data and temporary databases only."""
+"""Outreach is recorded as events (in the tracker since TRK3c), and removing a tracked job leaves a note in the M2
+log (docs/M2_PLAN.md §1.1, §1.5, decisions Q2 and Q7). Fictional data and temporary databases only."""
 import json
 from unittest.mock import patch
 
 from app.models.schemas import JobPosting
 from app.storage import alert_store, career_store
+from app.tracker import service, store
 from test_security_regressions import LOCAL, _IsolatedApp
 
 SAVED = JobPosting(company='ExampleCo', title='Machine Learning Engineer', location='Bengaluru', source='Saved by you',
@@ -21,8 +22,16 @@ class _App(_IsolatedApp):
     def types(self, job_id):
         return [event['event_type'] for event in career_store.job_events(job_id)]
 
+    def timeline(self, application_id):
+        return career_store.get_application(application_id)['timeline']
+
+    def tracker_types(self, application_id):
+        return [event['event_type'] for event in self.timeline(application_id)]
+
 
 class OutreachEventTests(_App):
+    """TRK3c: outreach events are in the tracker log (data/tracker.sqlite3); the M2 log gets none."""
+
     def setUp(self):
         super().setUp()
         self.job_id = career_store.upsert_job({'company': 'ExampleCo', 'title': 'Data Analyst', 'location': 'Pune'})
@@ -31,29 +40,37 @@ class OutreachEventTests(_App):
     def test_preparing_outreach_is_one_event_per_draft(self):
         career_store.link_outreach(self.application['id'], 5, 'Hello')
         career_store.link_outreach(self.application['id'], 5, 'Hello, edited')
-        self.assertEqual(self.types(self.job_id), ['applied', 'outreach_prepared'])
-        event = career_store.job_events(self.job_id)[-1]
-        self.assertEqual(event['application_id'], self.application['id'])
-        self.assertEqual(json.loads(event['context_json']), {'draft_id': 5})
+        self.assertEqual(self.tracker_types(self.application['id']), ['applied', 'outreach_prepared'])
+        event = self.timeline(self.application['id'])[-1]
+        self.assertEqual((event['source'], event['request_id']), ('derived', 'outreach_prepared:draft:5'))
         career_store.link_outreach(self.application['id'], 6, 'Second draft')
-        self.assertEqual(self.types(self.job_id).count('outreach_prepared'), 2)
+        self.assertEqual(self.tracker_types(self.application['id']).count('outreach_prepared'), 2)
+        self.assertEqual(self.types(self.job_id), [], 'nothing goes to the M2 log')
 
     def test_sending_is_one_event_and_only_for_a_linked_draft(self):
         career_store.link_outreach(self.application['id'], 5, 'Hello')
         career_store.mark_outreach_sent(5)
         career_store.mark_outreach_sent(5)
         career_store.mark_outreach_sent(999)
-        self.assertEqual(self.types(self.job_id), ['applied', 'outreach_prepared', 'outreach_sent'])
-        self.assertEqual(json.loads(career_store.job_events(self.job_id)[-1]['context_json']), {'draft_id': 5})
+        self.assertEqual(self.tracker_types(self.application['id']), ['applied', 'outreach_prepared', 'outreach_sent'])
+        self.assertEqual(self.timeline(self.application['id'])[-1]['request_id'], 'outreach_sent:draft:5')
+        self.assertEqual(self.types(self.job_id), [])
 
-    def test_outreach_changes_neither_the_status_nor_the_response_state(self):
+    def test_outreach_changes_neither_the_status_nor_what_undo_takes_back(self):
         career_store.link_outreach(self.application['id'], 5, 'Hello')
         career_store.mark_outreach_sent(5)
         current = career_store.get_application(self.application['id'])
         self.assertEqual((current['status'], current['outreach_state']), ('APPLIED', 'SENT'))
-        self.assertEqual(current['response_state'], 'PENDING_CENSORED', 'your own email is not a response')
-        self.assertEqual(current['last_event']['event_type'], 'applied', 'Undo stays on tracker events')
-        self.assertFalse(current['shortlisted'])
+        [listed] = service.list_applications(store.LOCAL_USER_ID)
+        self.assertIsNone(listed['latest_event'], 'Undo stays on status events; only the first one is left')
+        sent = self.timeline(self.application['id'])[-1]
+        with self.assertRaises(service.Conflict):
+            service.undo_event(store.LOCAL_USER_ID, self.application['id'], sent['id'], 'undo-1')
+
+    def test_the_api_does_not_take_outreach_events(self):
+        response = self.client.post(f"/api/v1/applications/{self.application['id']}/events", headers={**LOCAL, 'Idempotency-Key': 'k-1'},
+                                    json={'event_type': 'outreach_sent'})
+        self.assertEqual(response.status_code, 422)
 
 
 class RemovalNoteTests(_App):
@@ -69,12 +86,14 @@ class RemovalNoteTests(_App):
         application = career_store.save_application(job_id)
         career_store.update_application(application['id'], status='APPLIED')
         self.assertEqual(self.remove(job_id).status_code, 200)
-        self.assertEqual(self.types(job_id), ['saved', 'applied', 'removed_from_results'])
+        self.assertEqual(self.types(job_id), ['removed_from_results'])
         note = career_store.job_events(job_id)[-1]
-        self.assertEqual((note['application_id'], note['source']), (application['id'], 'user'))
+        self.assertEqual(note['source'], 'user')
+        self.assertEqual(json.loads(note['context_json']), {'tracker_application_id': application['id']})
         self.assertIn('Saved by you', note['note'])
         current = career_store.get_application(application['id'])
         self.assertEqual(current['status'], 'APPLIED', 'removal is not a withdrawal')
+        self.assertEqual(self.tracker_types(application['id']), ['saved', 'applied'])
         self.assertIsNotNone(career_store.get_job(job_id))
 
     def test_removing_a_job_with_no_history_records_nothing(self):

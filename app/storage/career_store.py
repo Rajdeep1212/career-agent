@@ -1,4 +1,8 @@
-"""Additive career storage sharing the agent database without touching legacy tables."""
+"""Stored jobs, sessions, contacts, outreach links and thumbs in data/agent.sqlite3.
+
+Applications are in the tracker (data/tracker.sqlite3) since TRK3c; career_applications and the application and
+outreach events of job_events are kept as history and never written. Thumbs and removal notes stay here.
+"""
 import json
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -54,6 +58,23 @@ def _outreach_contact_v2(conn):
         conn.execute('ALTER TABLE career_outreach ADD COLUMN contact_id TEXT')
 
 
+def _outreach_tracker_v4(conn):
+    """career_outreach links drafts to tracker applications: no foreign key to career_applications, and the job id is
+    kept on the row. Every row is copied; the job id of an old row comes from its M2 application."""
+    columns = {row['name'] for row in conn.execute('PRAGMA table_info(career_outreach)').fetchall()}
+    if 'job_id' in columns:
+        return
+    conn.execute("""CREATE TABLE career_outreach_v4 (
+        draft_id INTEGER PRIMARY KEY, application_id TEXT NOT NULL, job_id TEXT,
+        contact_id TEXT REFERENCES career_contacts(id),
+        short_message TEXT NOT NULL, created_at TEXT NOT NULL, sent_at TEXT)""")
+    conn.execute("""INSERT INTO career_outreach_v4
+        SELECT o.draft_id, o.application_id, a.job_id, o.contact_id, o.short_message, o.created_at, o.sent_at
+        FROM career_outreach AS o LEFT JOIN career_applications AS a ON a.id = o.application_id""")
+    conn.execute('DROP TABLE career_outreach')
+    conn.execute('ALTER TABLE career_outreach_v4 RENAME TO career_outreach')
+
+
 # Versions match the ids earlier releases recorded, so existing databases have nothing pending.
 MIGRATIONS = [
     db.Migration('career_v1', _career_v1, 'Restore data/backups/<time>/agent.sqlite3; the tables are additive.'),
@@ -62,6 +83,8 @@ MIGRATIONS = [
     db.Migration('career_v3_events', career_events.migrate_v3,
                  'Restore data/backups/<time>/agent.sqlite3 (taken before this migration). The event, snapshot '
                  'and profile tables are additive; the status remap is recorded in each backfilled event note.'),
+    db.Migration('career_outreach_tracker_v4', _outreach_tracker_v4,
+                 'Restore data/backups/<time>/agent.sqlite3 (taken before this migration); every row is copied.'),
 ]
 
 
@@ -129,36 +152,34 @@ def job_events(job_id: str) -> list[dict]:
 def note_removed_from_results(job_id: str, source: str) -> dict | None:
     """A note in the log when a job with history is removed from results; its history is kept, and a
     job with no history records nothing (docs/M2_PLAN.md decision Q7)."""
+    tracked = _tracked_id(job_id)
     with _connection() as conn:
-        if not career_events.events_for_job(conn, job_id):
+        if tracked is None and not career_events.events_for_job(conn, job_id):
             return None
-        application = conn.execute('SELECT id FROM career_applications WHERE job_id=?', (job_id,)).fetchone()
         return career_events.append_event(
-            conn, job_id, 'removed_from_results', application_id=application['id'] if application else None,
+            conn, job_id, 'removed_from_results', application_id=_m2_application_id(conn, job_id),
+            context={'tracker_application_id': tracked} if tracked else None,
             note=f'Removed from results (source: {source}). Tracker history kept; this is not a withdrawal.')
 
 
-def _response_window() -> int:
-    # Some tests import this module under a minimal settings stand-in without the field.
-    return getattr(settings, 'response_window_days', 21)
+def _m2_application_id(conn, job_id: str) -> str | None:
+    # job_events.application_id references career_applications (read here, never written); the tracker link is the job id.
+    row = conn.execute('SELECT id FROM career_applications WHERE job_id=?', (job_id,)).fetchone()
+    return row['id'] if row else None
 
 
-def _application(conn, row) -> dict | None:
+class RequestConflictError(ValueError):
+    """A request_id already used for a different action."""
+
+
+def _replayed(conn, request_id: str, job_id: str, event_type: str) -> dict | None:
+    """The event an earlier request with this id recorded; a conflict if that was another action."""
+    row = conn.execute('SELECT * FROM job_events WHERE request_id=?', (request_id,)).fetchone()
     if row is None:
         return None
-    result = dict(row)
-    job = conn.execute('SELECT job_json FROM career_jobs WHERE id=?', (row['job_id'],)).fetchone()
-    result['job'] = json.loads(job['job_json']) if job else None
-    result['outreach'] = [dict(item) for item in conn.execute('SELECT * FROM career_outreach WHERE application_id=? ORDER BY created_at', (row['id'],)).fetchall()]
-    # Derived at read time from the log, never stored (docs/M2_PLAN.md §1.1).
-    events = career_events.events_for_job(conn, row['job_id'])
-    result['response_state'] = career_events.response_state(events, now=datetime.now(timezone.utc),
-                                                            window_days=_response_window())
-    result['shortlisted'] = career_events.is_shortlisted(events)
-    latest = _latest_tracker_event(events)
-    result['last_event'] = ({key: latest[key] for key in ('id', 'event_type', 'occurred_at')}
-                            if latest is not None else None)
-    return result
+    if (row['job_id'], row['event_type'], row['undoes_event_id']) != (job_id, event_type, None):
+        raise RequestConflictError('This request id was already used for a different action.')
+    return dict(row)
 
 
 def record_thumb(job_id: str, label: str, *, request_id: str, context: dict | None = None,
@@ -178,13 +199,12 @@ def record_thumb(job_id: str, label: str, *, request_id: str, context: dict | No
             return {'job_id': job_id, 'label': current, 'already_recorded': False, 'replayed': True}
         if (label == 'clear' and current is None) or label == current:
             return {'job_id': job_id, 'label': current, 'already_recorded': True, 'replayed': False}
-        application = conn.execute('SELECT id FROM career_applications WHERE job_id=?', (job_id,)).fetchone()
         snapshot_id = (career_events.capture_snapshot(conn, job_id, profile=snapshot[0], features=snapshot[1])
                        if snapshot else None)
         details = {key: value for key, value in (context or {}).items() if value is not None}
         details.update(scale=career_events.THUMBS_SCALE, rubric_version=career_events.THUMBS_RUBRIC_VERSION,
                        ranker_version=career_events.ranker_version())
-        career_events.append_event(conn, job_id, event_type, application_id=application['id'] if application else None,
+        career_events.append_event(conn, job_id, event_type, application_id=_m2_application_id(conn, job_id),
                                    request_id=request_id, snapshot_id=snapshot_id, context=details)
         return {'job_id': job_id, 'label': None if label == 'clear' else label, 'already_recorded': False,
                 'replayed': False}
@@ -233,49 +253,24 @@ def thumb_export_rows() -> list[dict]:
     return rows
 
 
-_RESPONSE_COUNTS = {'RESPONDED': 'responded', 'NO_RESPONSE': 'no_response', 'PENDING_CENSORED': 'pending_censored'}
+# Applications live in the tracker (data/tracker.sqlite3, /api/v1) since TRK3c. These functions keep the shape
+# the chat tools and the outreach workflow use; career_applications and the M2 event log are history, never written.
+
+def _tracker():
+    from app.tracker import service, store    # imported late: some tests load this module under a stub config
+    store.ensure()
+    return service, store.LOCAL_USER_ID
 
 
-def funnel(*, now: datetime | None = None) -> dict:
-    """Counts over the event log (claim level L0): how many applications reached each stage.
+def _tracked_id(job_id: str) -> str | None:
+    """The tracker application for a stored job, if there is one."""
+    from sqlalchemy import select
 
-    An application counts as applied while an applied event stands. The shortlist rate is given over
-    all applied applications, and over the resolved ones: a young application with no response is
-    unknown, never negative, so it is left out of the resolved rate (docs/M2_PLAN.md §2).
-    """
-    now = now or datetime.now(timezone.utc)
-    window = _response_window()
-    counts = dict.fromkeys(('tracked', 'applied', 'responded', 'no_response', 'pending_censored',
-                            'shortlisted', 'offers', 'rejected', 'withdrawn'), 0)
-    with _connection() as conn:
-        for row in conn.execute('SELECT job_id FROM career_applications').fetchall():
-            events = career_events.events_for_job(conn, row['job_id'])
-            counts['tracked'] += 1
-            state = career_events.response_state(events, now=now, window_days=window)
-            if state is None:
-                continue
-            counts['applied'] += 1
-            counts[_RESPONSE_COUNTS[state]] += 1
-            types = career_events.standing_types(events)
-            counts['shortlisted'] += career_events.is_shortlisted(events)
-            counts['offers'] += 'offer' in types
-            counts['rejected'] += 'rejected' in types
-            counts['withdrawn'] += 'withdrawn' in types
-    resolved = counts['applied'] - counts['pending_censored']
-
-    def rate(denominator: int) -> float | None:
-        return round(counts['shortlisted'] / denominator, 4) if denominator else None
-
-    return {
-        'claim_level': 'L0',
-        'note': 'Counts from your own tracker, not an estimate or a prediction.',
-        'response_window_days': window,
-        'counts': counts,
-        'shortlist_rate': {
-            'of_applied': {'shortlisted': counts['shortlisted'], 'applied': counts['applied'], 'rate': rate(counts['applied'])},
-            'of_resolved': {'shortlisted': counts['shortlisted'], 'resolved': resolved, 'rate': rate(resolved)},
-        },
-    }
+    from app.tracker import store
+    from app.tracker.models import Application
+    _, owner = _tracker()
+    with store.session() as session:
+        return session.scalar(select(Application.id).where(Application.owner_id == owner, Application.job_id == job_id))
 
 
 def _status(value):
@@ -283,183 +278,72 @@ def _status(value):
         raise ValueError('Unsupported application status')
 
 
-# The funnel event that sets each status.
-_STATUS_EVENTS = {status: event for event, status in career_events.FUNNEL_EVENTS.items()}
+def _outreach_state(outreach: list[dict]) -> str:
+    if any(item['sent_at'] for item in outreach):
+        return 'SENT'
+    return 'PREPARED' if outreach else 'NONE'
 
 
-def _refresh_cache(conn, application_id: str, job_id: str) -> None:
-    """status and applied_at are a cache of the log (docs/M2_PLAN.md §1.2). An application whose funnel
-    events are all undone stays tracked as SAVED; no event is invented for it."""
-    events = career_events.events_for_job(conn, job_id)
-    conn.execute('UPDATE career_applications SET status=?, applied_at=?, updated_at=? WHERE id=?',
-                 (career_events.status_from_events(events) or 'SAVED', career_events.first_applied_at(events),
-                  _now(), application_id))
-
-
-# Events recorded from the tracker's one-click buttons, and the ones Undo may cancel.
-OUTCOME_EVENTS = ('recruiter_reply', 'online_test', 'interview', 'offer', 'rejected', 'withdrawn',
-                  'no_response_confirmed')
-_TRACKER_EVENTS = (*career_events.FUNNEL_EVENTS, *career_events.RESPONSE_EVENTS)
-
-
-class RequestConflictError(ValueError):
-    """A request_id already used for a different action."""
-
-
-def _replayed(conn, request_id: str, job_id: str, event_type: str, undoes: int | None = None) -> dict | None:
-    """The event an earlier request with this id recorded; a conflict if that was another action."""
-    row = conn.execute('SELECT * FROM job_events WHERE request_id=?', (request_id,)).fetchone()
-    if row is None:
-        return None
-    if (row['job_id'], row['event_type'], row['undoes_event_id']) != (job_id, event_type, undoes):
-        raise RequestConflictError('This request id was already used for a different action.')
-    return dict(row)
-
-
-def _latest_tracker_event(events: list[dict]) -> dict | None:
-    tracker = [event for event in career_events._standing(events) if event['event_type'] in _TRACKER_EVENTS]
-    return tracker[-1] if tracker else None
-
-
-def _result(conn, application_id: str, event: dict, **flags) -> dict:
-    row = conn.execute('SELECT * FROM career_applications WHERE id=?', (application_id,)).fetchone()
-    return {'application': _application(conn, row), 'event': event, **flags}
-
-
-def _application_row(conn, application_id: str):
-    row = conn.execute('SELECT * FROM career_applications WHERE id=?', (application_id,)).fetchone()
-    if row is None:
-        raise LookupError('Application not found')
-    return row
-
-
-def record_applied(job_id: str, *, request_id: str, occurred_at: str | None = None, applied_via: str | None = None,
-                   effort_minutes: int | None = None, note: str = '', snapshot: Snapshot | None = None) -> dict:
-    """One-click Applied (docs/M2_PLAN.md §3): creates the application if needed, never a second applied
-    event while one stands, and a repeated request_id returns the first result. One transaction."""
+def _compatible(detail: dict) -> dict:
+    """A tracker application with its stored job (or the post the tracker kept) and its outreach drafts."""
     with _connection() as conn:
-        if conn.execute('SELECT 1 FROM career_jobs WHERE id=?', (job_id,)).fetchone() is None:
-            raise LookupError('Job not found')
-        replay = _replayed(conn, request_id, job_id, 'applied')
-        if replay is not None:
-            return _result(conn, replay['application_id'], replay, already_applied=False, replayed=True)
-        stamp = _now()
-        conn.execute('''INSERT OR IGNORE INTO career_applications (id, job_id, status, notes, created_at, updated_at)
-                        VALUES (?, ?, 'APPLIED', '', ?, ?)''', (str(uuid4()), job_id, stamp, stamp))
-        row = conn.execute('SELECT * FROM career_applications WHERE job_id=?', (job_id,)).fetchone()
-        standing = [event for event in career_events._standing(career_events.events_for_job(conn, job_id))
-                    if event['event_type'] == 'applied']
-        if standing:
-            return _result(conn, row['id'], standing[0], already_applied=True, replayed=False)
-        snapshot_id = (career_events.capture_snapshot(conn, job_id, profile=snapshot[0], features=snapshot[1])
-                       if snapshot else None)
-        event = career_events.append_event(conn, job_id, 'applied', application_id=row['id'], occurred_at=occurred_at,
-                                           request_id=request_id, snapshot_id=snapshot_id, note=note)
-        conn.execute('UPDATE career_applications SET applied_via=COALESCE(?, applied_via), '
-                     'effort_minutes=COALESCE(?, effort_minutes) WHERE id=?', (applied_via, effort_minutes, row['id']))
-        _refresh_cache(conn, row['id'], job_id)
-        return _result(conn, row['id'], event, already_applied=False, replayed=False)
+        job = (conn.execute('SELECT job_json FROM career_jobs WHERE id=?', (detail['job_id'],)).fetchone()
+               if detail['job_id'] else None)
+        outreach = [dict(row) for row in conn.execute(
+            'SELECT * FROM career_outreach WHERE application_id=? ORDER BY created_at, draft_id', (detail['id'],))]
+    return {**{key: detail[key] for key in ('id', 'job_id', 'status', 'notes', 'applied_at', 'created_at', 'updated_at')},
+            'job': json.loads(job['job_json']) if job else detail['snapshot'],
+            'timeline': detail['timeline'], 'outreach': outreach, 'outreach_state': _outreach_state(outreach)}
 
 
-def record_outcome(application_id: str, event_type: str, *, request_id: str, occurred_at: str | None = None,
-                   note: str = '', snapshot: Snapshot | None = None) -> dict:
-    """A one-click outcome; the same outcome twice in a row records nothing."""
-    if event_type not in OUTCOME_EVENTS:
-        raise ValueError('Only outcome events are recorded here')
-    with _connection() as conn:
-        row = _application_row(conn, application_id)
-        replay = _replayed(conn, request_id, row['job_id'], event_type)
-        if replay is not None:
-            return _result(conn, application_id, replay, already_recorded=False, replayed=True)
-        latest = _latest_tracker_event(career_events.events_for_job(conn, row['job_id']))
-        if latest is not None and latest['event_type'] == event_type:
-            return _result(conn, application_id, latest, already_recorded=True, replayed=False)
-        snapshot_id = (career_events.capture_snapshot(conn, row['job_id'], profile=snapshot[0], features=snapshot[1])
-                       if snapshot else None)
-        event = career_events.append_event(conn, row['job_id'], event_type, application_id=application_id,
-                                           occurred_at=occurred_at, request_id=request_id, snapshot_id=snapshot_id,
-                                           note=note)
-        _refresh_cache(conn, application_id, row['job_id'])
-        return _result(conn, application_id, event, already_recorded=False, replayed=False)
-
-
-def undo_event(application_id: str, event_id: int, *, request_id: str) -> dict:
-    """Cancel one tracker event of this application's job with an `undone` event; idempotent."""
-    with _connection() as conn:
-        row = _application_row(conn, application_id)
-        target = conn.execute('SELECT * FROM job_events WHERE id=? AND job_id=?', (event_id, row['job_id'])).fetchone()
-        if target is None:
-            raise LookupError('Event not found for this application')
-        if target['event_type'] not in _TRACKER_EVENTS:
-            raise ValueError('Only tracker events can be undone here')
-        replay = _replayed(conn, request_id, row['job_id'], 'undone', event_id)
-        if replay is not None:
-            return _result(conn, application_id, replay, already_undone=False, replayed=True)
-        earlier = conn.execute("SELECT * FROM job_events WHERE event_type='undone' AND undoes_event_id=?",
-                               (event_id,)).fetchone()
-        if earlier is not None:
-            return _result(conn, application_id, dict(earlier), already_undone=True, replayed=False)
-        event = career_events.append_event(conn, row['job_id'], 'undone', application_id=application_id,
-                                           request_id=request_id, undoes_event_id=event_id)
-        _refresh_cache(conn, application_id, row['job_id'])
-        return _result(conn, application_id, event, already_undone=False, replayed=False)
-
-
-def _record_status(conn, row, status: str, snapshot: Snapshot | None) -> dict:
-    snapshot_id = (career_events.capture_snapshot(conn, row['job_id'], profile=snapshot[0], features=snapshot[1])
-                   if snapshot else None)
-    event = career_events.append_event(conn, row['job_id'], _STATUS_EVENTS[status], application_id=row['id'],
-                                       snapshot_id=snapshot_id)
-    _refresh_cache(conn, row['id'], row['job_id'])
-    return event
-
-
-def save_application(job_id: str, status='SAVED', notes='', *, snapshot: Snapshot | None = None) -> dict:
-    """Track a job; a new application records its first status event, an existing one is unchanged."""
+def save_application(job_id: str, status='SAVED', notes='') -> dict:
+    """Track a stored job in the tracker; an application that exists already is returned unchanged."""
     _status(status)
-    stamp = _now()
-    with _connection() as conn:
-        if conn.execute('SELECT id FROM career_jobs WHERE id=?', (job_id,)).fetchone() is None:
-            raise ValueError('Job not found')
-        created = conn.execute('''INSERT OR IGNORE INTO career_applications
-                                  (id, job_id, status, notes, created_at, updated_at, applied_at)
-                                  VALUES (?, ?, ?, ?, ?, ?, NULL)''',
-                               (str(uuid4()), job_id, status, notes, stamp, stamp)).rowcount
-        row = conn.execute('SELECT * FROM career_applications WHERE job_id=?', (job_id,)).fetchone()
-        if row is None:
-            raise RuntimeError('Application could not be stored')
-        if created:
-            _record_status(conn, row, status, snapshot)
-        application = _application(conn, conn.execute('SELECT * FROM career_applications WHERE id=?', (row['id'],)).fetchone())
-        if application is None:
-            raise RuntimeError('Application could not be stored')
-        return application
+    service, owner = _tracker()
+    if status not in service.CREATE_STATUSES:
+        raise ValueError(f"A new application starts as {' or '.join(service.CREATE_STATUSES)}")
+    job = get_job(job_id)
+    if job is None:
+        raise ValueError('Job not found')
+    try:
+        detail, _ = service.create_application(
+            owner, f'career-store:{uuid4()}', stored_job_id=job_id, title=str(job.get('title') or ''),
+            company=str(job.get('company') or ''), url=job.get('application_url'), location=job.get('location'),
+            description=job.get('description'), source=job.get('source'), notes=notes, status=status)
+    except service.TrackerError as exc:
+        raise ValueError(str(exc)) from exc
+    return _compatible(detail)
 
 
 def list_applications() -> list:
-    with _connection() as conn:
-        return [_application(conn, row) for row in conn.execute('SELECT * FROM career_applications ORDER BY updated_at DESC, id').fetchall()]
+    service, owner = _tracker()
+    return [_compatible(service.get_application(owner, row['id'])) for row in service.list_applications(owner)]
 
 
 def get_application(identity: str) -> dict | None:
-    with _connection() as conn:
-        return _application(conn, conn.execute('SELECT * FROM career_applications WHERE id=?', (identity,)).fetchone())
+    service, owner = _tracker()
+    try:
+        return _compatible(service.get_application(owner, identity))
+    except service.NotFound:
+        return None
 
 
-def update_application(identity: str, status: str | None = None, notes: str | None = None, *,
-                       snapshot: Snapshot | None = None) -> dict | None:
-    """Change notes, and record a status change as an event; the same status again records nothing."""
+def update_application(identity: str, status: str | None = None, notes: str | None = None) -> dict | None:
+    """Change notes, and record a status change as a tracker event; the same status again records nothing."""
     if status is not None:
         _status(status)
-    with _connection() as conn:
-        row = conn.execute('SELECT * FROM career_applications WHERE id=?', (identity,)).fetchone()
-        if row is None:
-            return None
-        conn.execute('UPDATE career_applications SET notes=?, updated_at=? WHERE id=?',
-                     (notes if notes is not None else row['notes'], _now(), identity))
-        if status is not None and status != row['status']:
-            _record_status(conn, row, status, snapshot)
-        return _application(conn, conn.execute('SELECT * FROM career_applications WHERE id=?', (identity,)).fetchone())
+    service, owner = _tracker()
+    try:
+        current = service.get_application(owner, identity)
+        if status is not None and status != current['status']:
+            service.append_event(owner, identity, f'career-store:{uuid4()}', service.STATUS_EVENT[status])
+        if notes is not None:
+            service.update_application(owner, identity, {'notes': notes})
+    except service.NotFound:
+        return None
+    except service.TrackerError as exc:
+        raise ValueError(str(exc)) from exc
+    return get_application(identity)
 
 
 def save_contact(contact: ContactCandidate) -> dict:
@@ -485,51 +369,45 @@ def get_contact(identity: str) -> dict | None:
 
 def get_outreach_for_draft(draft_id: int) -> dict | None:
     with _connection() as conn:
-        row = conn.execute('''SELECT outreach.*, applications.job_id
-                              FROM career_outreach AS outreach
-                              JOIN career_applications AS applications
-                                ON applications.id=outreach.application_id
-                              WHERE outreach.draft_id=?''', (draft_id,)).fetchone()
+        row = conn.execute('SELECT * FROM career_outreach WHERE draft_id=?', (draft_id,)).fetchone()
     return dict(row) if row else None
 
 
 def link_outreach(application_id, draft_id, short_message, contact_id=None) -> None:
+    """Link a draft to a tracker application. Outreach is an event, not a status (docs/M2_PLAN.md decision Q2)."""
+    service, owner = _tracker()
+    try:
+        application = service.get_application(owner, application_id)
+    except service.NotFound as exc:
+        raise ValueError('Application not found') from exc
     with _connection() as conn:
-        if conn.execute('SELECT id FROM career_applications WHERE id=?', (application_id,)).fetchone() is None:
-            raise ValueError('Application not found')
         if contact_id is not None and conn.execute(
                 'SELECT id FROM career_contacts WHERE id=?', (contact_id,)).fetchone() is None:
             raise ValueError('Contact not found')
         existing = conn.execute('SELECT application_id FROM career_outreach WHERE draft_id=?', (draft_id,)).fetchone()
         if existing and existing['application_id'] != application_id:
             raise ValueError('Draft already belongs to another application')
-        if existing is None:
-            # Outreach is an event, not a status (docs/M2_PLAN.md decision Q2); once per draft.
-            job_id = conn.execute('SELECT job_id FROM career_applications WHERE id=?', (application_id,)).fetchone()['job_id']
-            career_events.append_event(conn, job_id, 'outreach_prepared', application_id=application_id,
-                                       context={'draft_id': draft_id})
         conn.execute('''INSERT INTO career_outreach
-                        (draft_id, application_id, contact_id, short_message, created_at, sent_at)
-                        VALUES (?, ?, ?, ?, ?, NULL)
+                        (draft_id, application_id, job_id, contact_id, short_message, created_at, sent_at)
+                        VALUES (?, ?, ?, ?, ?, ?, NULL)
                         ON CONFLICT(draft_id) DO UPDATE SET
                             short_message=excluded.short_message,
                             contact_id=excluded.contact_id''',
-                     (draft_id, application_id, contact_id, short_message, _now()))
-        sent = conn.execute('SELECT 1 FROM career_outreach WHERE application_id=? AND sent_at IS NOT NULL', (application_id,)).fetchone()
-        conn.execute('UPDATE career_applications SET outreach_state=?, updated_at=? WHERE id=?', ('SENT' if sent else 'PREPARED', _now(), application_id))
+                     (draft_id, application_id, application['job_id'], contact_id, short_message, _now()))
+        if existing is None:     # inside the block: if the tracker refuses, the link is rolled back
+            service.record_outreach(owner, application_id, 'outreach_prepared', draft_id)
 
 
 def mark_outreach_sent(draft_id) -> None:
     """Called only after the existing mail sender confirms sending."""
     with _connection() as conn:
-        row = conn.execute('''SELECT o.application_id, o.sent_at, a.job_id FROM career_outreach o
-                              JOIN career_applications a ON a.id = o.application_id WHERE o.draft_id=?''',
-                           (draft_id,)).fetchone()
+        row = conn.execute('SELECT application_id, sent_at FROM career_outreach WHERE draft_id=?', (draft_id,)).fetchone()
         if row is None:
             return
-        stamp = _now()
         if row['sent_at'] is None:
-            career_events.append_event(conn, row['job_id'], 'outreach_sent', application_id=row['application_id'],
-                                       context={'draft_id': draft_id})
-        conn.execute('UPDATE career_outreach SET sent_at=COALESCE(sent_at, ?) WHERE draft_id=?', (stamp, draft_id))
-        conn.execute("UPDATE career_applications SET outreach_state='SENT', updated_at=? WHERE id=?", (stamp, row['application_id']))
+            service, owner = _tracker()
+            try:
+                service.record_outreach(owner, row['application_id'], 'outreach_sent', draft_id)
+            except service.NotFound:
+                pass     # a link from before the tracker import, to an application it never received
+        conn.execute('UPDATE career_outreach SET sent_at=COALESCE(sent_at, ?) WHERE draft_id=?', (_now(), draft_id))

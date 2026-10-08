@@ -63,11 +63,11 @@ class _Store(unittest.TestCase):
 
 class SchemaTests(_Store):
     def test_fresh_database_has_the_event_tables_and_migration(self):
-        self.assertEqual(career_store.list_applications(), [])
+        self.assertEqual(career_store.job_events('absent'), [])
         tables = {row['name'] for row in self.rows("SELECT name FROM sqlite_master WHERE type='table'")}
         self.assertLessEqual({'job_events', 'job_snapshots', 'profile_versions'}, tables)
         versions = {row['version'] for row in self.rows('SELECT version FROM schema_migrations')}
-        self.assertEqual(versions, {'career_v1', 'career_outreach_contact_v2', 'career_v3_events'})
+        self.assertEqual(versions, {'career_v1', 'career_outreach_contact_v2', 'career_v3_events', 'career_outreach_tracker_v4'})
         columns = {row['name'] for row in self.rows('PRAGMA table_info(career_applications)')}
         self.assertLessEqual({'applied_via', 'effort_minutes', 'follow_up_at'}, columns)
 
@@ -181,7 +181,8 @@ class BackfillTests(_Store):
             # An orphan row from an older build: kept, never migrated into events.
             conn.execute('INSERT INTO career_applications VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
                          ('app-orphan', 'job-missing', 'SAVED', '', T0, T0, None, 'NONE'))
-        self.migrated = career_store.list_applications()
+        career_store.job_events('absent')       # the first use migrates
+        self.migrated = self.rows('SELECT * FROM career_applications ORDER BY id')
 
     def events(self, application_id):
         return self.rows('SELECT * FROM job_events WHERE application_id=? ORDER BY id', application_id)
@@ -242,7 +243,7 @@ class BackfillTests(_Store):
         before = self.rows('SELECT * FROM job_events ORDER BY id')
         db.reset_cache()
         self.assertEqual(db.migrate(self.path, career_store.MIGRATIONS), [])
-        career_store.list_applications()
+        career_store.job_events('absent')
         self.assertEqual(self.rows('SELECT * FROM job_events ORDER BY id'), before)
         self.assertEqual(len(list((self.path.parent / 'backups').rglob('agent.sqlite3'))), 1)
 

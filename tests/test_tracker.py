@@ -13,6 +13,7 @@ from contextlib import closing
 from fastapi.testclient import TestClient
 
 from app.models.career import ContactCandidate
+from tracker_helpers import isolate_tracker
 
 
 from app.api.career import public_career_data  # noqa: E402
@@ -40,6 +41,7 @@ class TrackerTests(unittest.TestCase):
         self.db_patch = patch.object(self.store, 'DB_PATH', self.db)
         self.db_patch.start()
         self.addCleanup(self.db_patch.stop)
+        isolate_tracker(self, Path(self.temp.name))
         self.job = {'company': 'ExampleCo', 'title': 'Data Analyst', 'location': 'Oslo',
                     'application_url': 'https://example.org/jobs/123?utm_source=test',
                     'match_result': {'overall_score': 81, 'explanation': 'SQL evidence'}}
@@ -82,8 +84,12 @@ class TrackerTests(unittest.TestCase):
         self.assertIsNotNone(applied['applied_at'])
         self.assertEqual(self.store.update_application(application['id'], notes='Added note')['applied_at'], applied['applied_at'])
 
+    def interviewing(self):
+        application = self.store.save_application(self.save_job(), status='APPLIED')
+        return self.store.update_application(application['id'], status='INTERVIEW')
+
     def test_outreach_preserves_interview_status_and_history(self):
-        application = self.store.save_application(self.save_job(), status='INTERVIEW')
+        application = self.interviewing()
         self.store.link_outreach(application['id'], 102, 'First message')
         self.store.mark_outreach_sent(102)
         current = self.store.get_application(application['id'])
@@ -99,7 +105,10 @@ class TrackerTests(unittest.TestCase):
             self.store.save_application('unknown')
         with self.assertRaises(ValueError):
             self.store.save_application(self.save_job(), status='OPENED')
+        with self.assertRaises(ValueError, msg='the tracker starts an application as SAVED or APPLIED'):
+            self.store.save_application(self.save_job(), status='INTERVIEW')
         self.assertIsNone(self.store.update_application('missing', notes='Hello'))
+        self.assertEqual(self.store.list_applications(), [])
 
     def test_additive_schema_preserves_existing_tables(self):
         with closing(sqlite3.connect(self.db)) as conn, conn:
@@ -143,13 +152,18 @@ class TrackerTests(unittest.TestCase):
                 41, 'legacy-application', 'Existing message', stamp, None,
             ))
 
-        application = self.store.get_application('legacy-application')
+        linkage = self.store.get_outreach_for_draft(41)
 
-        self.assertEqual(application['outreach'][0]['short_message'], 'Existing message')
-        self.assertIsNone(application['outreach'][0]['contact_id'])
+        self.assertEqual(linkage['short_message'], 'Existing message')
+        self.assertIsNone(linkage['contact_id'])
+        self.assertEqual((linkage['application_id'], linkage['job_id']), ('legacy-application', 'legacy-job'))
         with closing(sqlite3.connect(self.db)) as conn:
             columns = [row[1] for row in conn.execute('PRAGMA table_info(career_outreach)')]
+            references = [row[2] for row in conn.execute('PRAGMA foreign_key_list(career_outreach)')]
+            legacy = conn.execute('SELECT status, outreach_state FROM career_applications').fetchall()
         self.assertIn('contact_id', columns)
+        self.assertEqual(references, ['career_contacts'], 'drafts link to tracker applications since TRK3c')
+        self.assertEqual(legacy, [('SAVED', 'PREPARED')], 'the M2 row is kept as it was')
 
     def test_contact_roundtrip(self):
         contact = self.store.save_contact(ContactCandidate(company='ExampleCo', name='Fictional Recruiter', contact_method='recruiter@example.org', public_source='Provided by user'))
@@ -170,7 +184,7 @@ class TrackerTests(unittest.TestCase):
         )
 
     def test_stored_jobs_are_served_and_the_m2_tracker_routes_are_gone(self):
-        # TRK3b: the tracker is /api/v1 (tests/test_tracker_api.py). The store stays for outreach and the chat.
+        # TRK3b: the tracker is /api/v1 (tests/test_tracker_api.py); TRK3c: the store's applications are tracker rows.
         job_id = self.save_job()
         with self.client() as client:
             self.assertEqual(client.get('/career/jobs/' + job_id).json()['company'], 'ExampleCo')
@@ -210,6 +224,7 @@ class MainTrackerAPITests(unittest.TestCase):
         self.db_patch = patch.object(career_store, 'DB_PATH', self.db)
         self.db_patch.start()
         self.addCleanup(self.db_patch.stop)
+        isolate_tracker(self, Path(self.temp.name))
         self.client = TestClient(main.app, base_url='http://localhost:8010', raise_server_exceptions=False)
         self.addCleanup(self.client.close)
         self.job = {
@@ -251,19 +266,26 @@ class MainTrackerAPITests(unittest.TestCase):
 
     def test_status_and_notes_persist_across_supported_lifecycle(self):
         created = self.store.save_application(self.save_job())
-        # M2 status set (docs/M2_PLAN.md §1.2): DISCOVERED folds into SAVED; outreach is events, not statuses.
-        statuses = [
-            'SAVED', 'APPLIED', 'ONLINE_TEST', 'INTERVIEW', 'REJECTED', 'OFFER', 'WITHDRAWN', 'SKIPPED',
-        ]
+        # The tracker's transitions (docs/TRACKER_PLAN.md section 3); outreach is events, not statuses.
+        statuses = ['SAVED', 'APPLIED', 'ONLINE_TEST', 'INTERVIEW', 'INTERVIEW', 'OFFER', 'WITHDRAWN']
         for index, status in enumerate(statuses):
             updated = self.store.update_application(created['id'], status, f'note {index}')
             self.assertEqual(updated['status'], status)
             self.assertEqual(updated['notes'], f'note {index}')
 
         fetched = self.store.get_application(created['id'])
-        self.assertEqual(fetched['status'], 'SKIPPED')
-        self.assertEqual(fetched['notes'], 'note 7')
+        self.assertEqual(fetched['status'], 'WITHDRAWN')
+        self.assertEqual(fetched['notes'], 'note 6')
         self.assertIsNotNone(fetched['applied_at'])
+        self.assertEqual([event['event_type'] for event in fetched['timeline']],
+                         ['saved', 'applied', 'online_test', 'interview', 'offer', 'withdrawn'])
+
+    def test_a_transition_the_tracker_does_not_allow_is_refused_and_changes_nothing(self):
+        created = self.store.save_application(self.save_job())
+        with self.assertRaises(ValueError):
+            self.store.update_application(created['id'], 'OFFER', 'must not be kept')
+        fetched = self.store.get_application(created['id'])
+        self.assertEqual((fetched['status'], fetched['notes'], len(fetched['timeline'])), ('SAVED', '', 1))
 
     def test_invalid_ids_and_states_fail_safely(self):
         self.assertIsNone(self.store.get_application('missing'))
@@ -285,7 +307,8 @@ class MainTrackerAPITests(unittest.TestCase):
         self.assertIsNone(viewed_application['applied_at'])
 
     def test_outreach_state_remains_linked_without_changing_application_status(self):
-        application = self.store.save_application(self.save_job(), status='INTERVIEW')
+        application = self.store.save_application(self.save_job(), status='APPLIED')
+        application = self.store.update_application(application['id'], status='INTERVIEW')
         self.store.link_outreach(application['id'], 501, 'Prepared message')
 
         prepared = self.store.get_application(application['id'])

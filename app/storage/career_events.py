@@ -24,6 +24,12 @@ OUTREACH_EVENTS = ("outreach_prepared", "outreach_sent")
 THUMBS_EVENTS = ("thumbs_up", "thumbs_down", "thumbs_cleared")
 NOTE_EVENTS = ("removed_from_results",)
 EVENT_TYPES = (*FUNNEL_EVENTS, *RESPONSE_EVENTS, *OUTREACH_EVENTS, *THUMBS_EVENTS, *NOTE_EVENTS, "undone")
+# Since TRK3c only thumbs and removal notes are appended here; the other types are history kept from M2.
+WRITABLE_EVENTS = (*THUMBS_EVENTS, *NOTE_EVENTS, "undone")
+
+
+class ReadOnlyEventError(ValueError):
+    """An application or outreach event aimed at the M2 log, which is read-only for them."""
 SOURCES = ("user", "derived", "import", "migration")
 STATUSES = tuple(FUNNEL_EVENTS.values())
 
@@ -200,6 +206,11 @@ def append_event(conn: sqlite3.Connection, job_id: str, event_type: str, *, appl
         raise ValueError("An undone event must name the event it undoes, and only it may")
     if conn.execute("SELECT 1 FROM career_jobs WHERE id=?", (job_id,)).fetchone() is None:
         raise ValueError("Job not found")
+    target = (conn.execute("SELECT event_type FROM job_events WHERE id=?", (undoes_event_id,)).fetchone()
+              if undoes_event_id is not None else None)
+    if event_type not in WRITABLE_EVENTS or (target is not None and target["event_type"] not in WRITABLE_EVENTS):
+        raise ReadOnlyEventError(f"{event_type} events are read-only here since TRK3c; applications and outreach "
+                                 "are recorded in the tracker (data/tracker.sqlite3).")
     stamp = _now()
     identity = _inserted(conn.execute(
         """INSERT INTO job_events (job_id, application_id, event_type, occurred_at, occurred_at_exact, recorded_at,

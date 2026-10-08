@@ -89,15 +89,14 @@ class ThumbsApiTests(_Api):
         self.assertEqual(len({event['snapshot_id'] for event in labelled}), 1)
         self.assertIsNone(self.thumbs()[3]['snapshot_id'], 'clearing a label needs no snapshot')
 
-    def test_a_label_changes_neither_the_tracker_nor_the_funnel(self):
+    def test_a_label_never_changes_the_tracker(self):
         application = career_store.save_application(self.job_id, status='APPLIED')
         self.rate('down')
         current = career_store.get_application(application['id'])
-        self.assertEqual((current['status'], current['response_state'], current['shortlisted']),
-                         ('APPLIED', 'PENDING_CENSORED', False))
-        self.assertEqual(current['last_event']['event_type'], 'applied')
-        self.assertEqual(self.thumbs()[0]['application_id'], application['id'])
-        self.assertEqual(career_store.funnel()['counts']['applied'], 1)
+        self.assertEqual((current['status'], [event['event_type'] for event in current['timeline']]), ('APPLIED', ['applied']))
+        # job_events.application_id is the M2 link only; a tracker application is found by its job id.
+        self.assertIsNone(self.thumbs()[0]['application_id'])
+        self.assertEqual(current['job_id'], self.thumbs()[0]['job_id'])
 
     def test_the_scale_is_named_and_never_graded(self):
         body = self.client.get('/jobs/relevance').json()
