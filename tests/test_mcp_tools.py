@@ -16,6 +16,7 @@ from app.mcp import tools
 from app.models.schemas import CandidateProfile
 from app.sources.adapters import posting
 from app.storage import career_store, db, profile_store, radar_store
+from app.tracker import models, store
 from radar_helpers import company
 
 TODAY = date(2026, 10, 1)
@@ -49,6 +50,7 @@ class ToolCase(unittest.TestCase):
         self.target = self.root / "eval" / "target_profile.md"
         for module, name, value in ((radar_store, "DB_PATH", self.radar), (career_store, "DB_PATH", self.agent),
                                     (profile_store, "PROFILE_PATH", self.root / "current_profile.json"),
+                                    (store, "DB_PATH", self.root / "tracker.sqlite3"),
                                     (tools, "TARGET_PROFILE", self.target)):
             patcher = patch.object(module, name, value)
             patcher.start()
@@ -71,6 +73,22 @@ class ToolCase(unittest.TestCase):
         self.job_id = career_store.upsert_job(saved)
         self.application = career_store.save_application(self.job_id, "SAVED", "sentinel note copied from my CV")
         career_store.link_outreach(self.application["id"], 7, "Hi, I built a sentinel fraud detector (from my CV).")
+        # TRK3b: the tool lists the tracker (data/tracker.sqlite3). The M2 row above must not appear any more.
+        self.addCleanup(store.dispose_all)
+        store.upgrade()
+        stamp = "2026-09-21T10:00:00+00:00"
+        with store.session() as session:
+            session.add(models.User(id="other", email="other@example.com", role="student", created_at=stamp))
+            session.flush()
+            session.add_all([
+                models.Application(id="t1", owner_id=store.LOCAL_USER_ID, identity="x:1", job_id="b:1", title="Graduate AI Engineer",
+                                   company_name="Example Corp", url="https://job-boards.greenhouse.io/b/jobs/1", status="APPLIED",
+                                   applied_at="2026-09-21", notes="SENTINEL-PRIVATE-CV-LINE in my notes", created_at=stamp, updated_at=stamp,
+                                   next_follow_up_at="2026-09-28", snapshot_json={"location": "Pune, India", "description": FRESHER}),
+                models.Application(id="t2", owner_id="other", identity="x:2", title="Someone else's role", company_name="OtherCo",
+                                   status="APPLIED", created_at=stamp, updated_at=stamp)])
+            session.commit()
+        store.dispose_all()
 
     def write_target(self, text=TARGET):
         self.target.parent.mkdir(parents=True, exist_ok=True)
@@ -154,20 +172,31 @@ class ExplainFitTests(ToolCase):
 
 
 class ListApplicationsTests(ToolCase):
-    def test_rows_hold_tracker_and_job_facts_only(self):
+    def test_rows_come_from_the_tracker_and_hold_tracker_and_job_facts_only(self):
+        before = hashlib.sha256(store.DB_PATH.read_bytes()).hexdigest()
         result = tools.list_applications()
-        self.assertEqual(result["count"], 1)
+        self.assertEqual(result["count"], 1)                # not the M2 row, and not another user's
         row = result["applications"][0]
-        self.assertEqual(set(row), {"application_id", "status", "created_at", "updated_at", "applied_at", "response_state",
-                                    "shortlisted", "last_event", "job"})
+        self.assertEqual(set(row), {"application_id", "status", "created_at", "updated_at", "applied_at", "next_follow_up_at", "job"})
         self.assertEqual(set(row["job"]), {"job_id", "title", "company", "location", "link"})
-        self.assertEqual((row["status"], row["job"]["title"], row["job"]["company"]), ("SAVED", "Graduate AI Engineer", "Example Corp"))
-        self.assert_no_cv_text(result)      # notes, outreach text and the stored match are all left out
+        self.assertEqual((row["application_id"], row["status"], row["applied_at"], row["next_follow_up_at"]),
+                         ("t1", "APPLIED", "2026-09-21", "2026-09-28"))
+        self.assertEqual(row["job"], {"job_id": "b:1", "title": "Graduate AI Engineer", "company": "Example Corp", "location": "Pune, India",
+                                      "link": "https://job-boards.greenhouse.io/b/jobs/1"})
+        self.assert_no_cv_text(result)      # notes and the stored job post are left out
+        self.assertNotIn("in my notes", json.dumps(result))
+        self.assertEqual(hashlib.sha256(store.DB_PATH.read_bytes()).hexdigest(), before)        # read-only
 
     def test_the_status_filter(self):
-        self.assertEqual(tools.list_applications("saved")["count"], 1)
-        self.assertEqual(tools.list_applications("APPLIED")["count"], 0)
+        self.assertEqual(tools.list_applications("applied")["count"], 1)
+        self.assertEqual(tools.list_applications("SAVED")["count"], 0)
+        self.assertEqual(tools.list_applications("NO_RESPONSE")["count"], 0)
         self.assertIn("error", tools.list_applications("dreaming"))
+
+    def test_a_missing_tracker_is_an_empty_list_and_is_not_created(self):
+        with patch.object(store, "DB_PATH", self.root / "absent.sqlite3"):
+            self.assertEqual(tools.list_applications()["count"], 0)
+            self.assertFalse((self.root / "absent.sqlite3").exists())
 
 
 class HardRuleTests(ToolCase):

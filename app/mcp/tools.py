@@ -29,7 +29,10 @@ from app.services.freshness import freshness, today_ist
 from app.services.matching import match_job
 from app.services.search_intent import interpret_search_request
 from app.services.skills import contains_phrase, extract_skills
-from app.storage import career_events, career_store, db, profile_store, radar_store
+from app.storage import db, profile_store, radar_store
+from app.tracker import importers as tracker_importers
+from app.tracker import store as tracker_store
+from app.tracker.models import STATUSES as TRACKER_STATUSES
 
 TARGET_PROFILE = Path(settings.data_dir) / "eval" / "target_profile.md"
 TARGET_PROFILE_NAME = "data/eval/target_profile.md"
@@ -52,9 +55,9 @@ TOOLS: list[dict[str, Any]] = [
      "inputSchema": {"type": "object", "additionalProperties": False, "required": ["job_id"], "properties": {
          "job_id": {"type": "string", "description": "A job_id returned by search_jobs."}}}},
     {"name": "list_applications",
-     "description": "Rows of the application tracker: status, dates, response state and the job's title, company and link. Read-only.",
+     "description": "Rows of the application tracker: status, dates and the job's title, company and link. Read-only.",
      "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
-         "status": {"type": "string", "enum": list(career_events.STATUSES), "description": "Only applications with this status."}}}},
+         "status": {"type": "string", "enum": list(TRACKER_STATUSES), "description": "Only applications with this status."}}}},
 ]
 _TYPES = {"string": str, "integer": int}
 
@@ -147,25 +150,26 @@ def explain_fit(job_id: str, *, today: date | None = None) -> dict:
 
 
 def list_applications(status: str | None = None) -> dict:
+    """The local user's applications in data/tracker.sqlite3, opened read-only (a missing file is an empty list)."""
     wanted = status.upper() if status else None
-    if wanted and wanted not in career_events.STATUSES:
-        return {"error": f"Unknown status '{status}'. Use one of: {', '.join(career_events.STATUSES)}."}
-    rows = []
-    if career_store.DB_PATH.exists():
-        with db.read_only(career_store.DB_PATH):
-            rows = career_store.list_applications()
-    applications = []
-    for row in rows:
-        if wanted and row["status"] != wanted:
-            continue
-        job = row.get("job") or {}
-        # An explicit list of fields: notes, outreach text and the stored match can quote the CV and are never returned.
-        applications.append({"application_id": row["id"], "status": row["status"], "created_at": row["created_at"],
-                             "updated_at": row["updated_at"], "applied_at": row.get("applied_at"),
-                             "response_state": row.get("response_state"), "shortlisted": row.get("shortlisted"),
-                             "last_event": row.get("last_event"),
-                             "job": {"job_id": row["job_id"], "title": job.get("title"), "company": job.get("company"),
-                                     "location": job.get("location"), "link": job.get("application_url")}})
+    if wanted and wanted not in TRACKER_STATUSES:
+        return {"error": f"Unknown status '{status}'. Use one of: {', '.join(TRACKER_STATUSES)}."}
+    rows: list = []
+    if tracker_store.DB_PATH.exists():
+        conn = tracker_importers.open_read_only(tracker_store.DB_PATH)
+        try:
+            # An explicit list of columns: notes are never selected, and of the saved job post only its location is read.
+            rows = conn.execute(
+                """SELECT id, status, created_at, updated_at, applied_at, next_follow_up_at, job_id, title, company_name, url,
+                          json_extract(snapshot_json, '$.location') AS location
+                   FROM applications WHERE owner_id = ? ORDER BY updated_at DESC, id""", (tracker_store.LOCAL_USER_ID,)).fetchall()
+        finally:
+            conn.close()
+    applications = [{"application_id": row["id"], "status": row["status"], "created_at": row["created_at"], "updated_at": row["updated_at"],
+                     "applied_at": row["applied_at"], "next_follow_up_at": row["next_follow_up_at"],
+                     "job": {"job_id": row["job_id"], "title": row["title"], "company": row["company_name"], "location": row["location"],
+                             "link": row["url"]}}
+                    for row in rows if not wanted or row["status"] == wanted]
     return {"status": wanted, "count": len(applications), "applications": applications}
 
 
