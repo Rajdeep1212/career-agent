@@ -1,6 +1,9 @@
-"""Local career tracking endpoints. These routes never send messages or apply."""
+"""Stored jobs, search sessions, thumbs labels and contacts. These routes never send messages or apply.
+
+The application tracker is not here: it is data/tracker.sqlite3 behind /api/v1 (app/api/tracker.py). The M2
+tracker routes were retired at the TRK3b cutover; outreach and the chat still use app/storage/career_store.py.
+"""
 import re
-from datetime import datetime, timedelta, timezone
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
@@ -8,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.origin_security import has_exact_local_origin
-from app.models.career import ApplicationStatus, ContactCandidate
+from app.models.career import ContactCandidate
 from app.services.job_snapshot import snapshot_inputs
 from app.storage import career_events, career_store
 
@@ -53,58 +56,7 @@ def require_tracker_origin(request: Request) -> None:
         )
 
 
-class SaveApplicationRequest(BaseModel):
-    model_config = ConfigDict(extra='forbid')
-    job_id: str = Field(min_length=1, max_length=128)
-    status: ApplicationStatus = 'SAVED'
-    notes: str = Field(default='', max_length=20000)
-
-
-class UpdateApplicationRequest(BaseModel):
-    model_config = ConfigDict(extra='forbid')
-    status: ApplicationStatus | None = None
-    notes: str | None = Field(default=None, max_length=20000)
-
-
-BACKDATE_LIMIT_DAYS = 365
 RequestId = Annotated[str, Field(min_length=1, max_length=128, pattern=r'^[A-Za-z0-9._:-]+$')]
-
-
-class _TrackerEventRequest(BaseModel):
-    """A client-generated request_id makes retries and double clicks safe (docs/M2_PLAN.md §3)."""
-    model_config = ConfigDict(extra='forbid')
-    request_id: RequestId
-    occurred_at: datetime | None = None
-    note: str = Field(default='', max_length=2000)
-
-    @field_validator('occurred_at')
-    @classmethod
-    def _within_limits(cls, value: datetime | None) -> datetime | None:
-        if value is None:
-            return None
-        value = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
-        now = datetime.now(timezone.utc)
-        if value > now:
-            raise ValueError('The date cannot be in the future.')
-        if value < now - timedelta(days=BACKDATE_LIMIT_DAYS):
-            raise ValueError(f'The date can be at most {BACKDATE_LIMIT_DAYS} days ago.')
-        return value.astimezone(timezone.utc)
-
-
-class MarkAppliedRequest(_TrackerEventRequest):
-    job_id: str = Field(min_length=1, max_length=128)
-    applied_via: Literal['company_site', 'ats', 'job_board', 'email', 'referral', 'other'] | None = None
-    effort_minutes: int | None = Field(default=None, ge=0, le=1440)
-
-
-class OutcomeRequest(_TrackerEventRequest):
-    event_type: Literal['recruiter_reply', 'online_test', 'interview', 'offer', 'rejected', 'withdrawn',
-                        'no_response_confirmed']
-
-
-class UndoRequest(BaseModel):
-    model_config = ConfigDict(extra='forbid')
-    request_id: RequestId
 
 
 class RelevanceContext(BaseModel):
@@ -165,40 +117,10 @@ class SaveContactRequest(ContactCandidate):
         return value
 
 
-@router.get('/applications')
-def applications():
-    return public_career_data(career_store.list_applications())
-
-
-@router.get('/tracker/funnel')
-def tracker_funnel():
-    """Descriptive counts from the event log (claim level L0), never estimates."""
-    return public_career_data(career_store.funnel())
-
-
-@router.get('/applications/{application_id}')
-def get_application(application_id: str):
-    result = career_store.get_application(application_id)
-    if result is None:
-        raise HTTPException(status_code=404, detail='Application not found')
-    return public_career_data(result)
-
-
 def _snapshot(job_id: str):
     """The CV and L0 features to freeze with a status event (docs/M2_PLAN.md §1.3)."""
     job = career_store.get_job(job_id)
     return snapshot_inputs(job) if job else None
-
-
-@router.post('/applications')
-def save_application(request: SaveApplicationRequest, http_request: Request):
-    require_tracker_origin(http_request)
-    try:
-        result = career_store.save_application(request.job_id, request.status, request.notes,
-                                               snapshot=_snapshot(request.job_id))
-        return public_career_data(result)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail='Job not found') from exc
 
 
 def _event_response(call):
@@ -211,39 +133,6 @@ def _event_response(call):
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-
-def _iso(value: datetime | None) -> str | None:
-    return value.isoformat() if value else None
-
-
-@router.post('/applications/applied')
-def mark_applied(request: MarkAppliedRequest, http_request: Request):
-    """One click from a job card or the tracker (docs/M2_PLAN.md §3)."""
-    require_tracker_origin(http_request)
-    if career_store.get_job(request.job_id) is None:
-        raise HTTPException(status_code=404, detail='Job not found')
-    return _event_response(lambda: career_store.record_applied(
-        request.job_id, request_id=request.request_id, occurred_at=_iso(request.occurred_at),
-        applied_via=request.applied_via, effort_minutes=request.effort_minutes, note=request.note,
-        snapshot=_snapshot(request.job_id)))
-
-
-@router.post('/applications/{application_id}/events')
-def record_outcome(application_id: str, request: OutcomeRequest, http_request: Request):
-    require_tracker_origin(http_request)
-    current = career_store.get_application(application_id)
-    if current is None:
-        raise HTTPException(status_code=404, detail='Application not found')
-    return _event_response(lambda: career_store.record_outcome(
-        application_id, request.event_type, request_id=request.request_id, occurred_at=_iso(request.occurred_at),
-        note=request.note, snapshot=_snapshot(current['job_id'])))
-
-
-@router.post('/applications/{application_id}/events/{event_id}/undo')
-def undo_event(application_id: str, event_id: int, request: UndoRequest, http_request: Request):
-    require_tracker_origin(http_request)
-    return _event_response(lambda: career_store.undo_event(application_id, event_id, request_id=request.request_id))
 
 
 @router.get('/jobs/relevance')
@@ -262,19 +151,6 @@ def rate_job(job_id: str, request: RelevanceRequest, http_request: Request):
     snapshot = None if request.label == 'clear' else _snapshot(job_id)
     return _event_response(lambda: career_store.record_thumb(
         job_id, request.label, request_id=request.request_id, context=request.context.model_dump(), snapshot=snapshot))
-
-
-@router.patch('/applications/{application_id}')
-def update_application(application_id: str, request: UpdateApplicationRequest, http_request: Request):
-    require_tracker_origin(http_request)
-    current = career_store.get_application(application_id)
-    if current is None:
-        raise HTTPException(status_code=404, detail='Application not found')
-    snapshot = _snapshot(current['job_id']) if request.status not in (None, current['status']) else None
-    result = career_store.update_application(application_id, request.status, request.notes, snapshot=snapshot)
-    if result is None:
-        raise HTTPException(status_code=404, detail='Application not found')
-    return public_career_data(result)
 
 
 @router.get('/career/jobs/{job_id}')

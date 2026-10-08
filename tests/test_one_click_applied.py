@@ -1,14 +1,27 @@
-"""M2 commit 3: one-click Applied and outcome buttons with idempotency and undo (docs/M2_PLAN.md §3).
-Fictional data and temporary databases only."""
+"""M2 commit 3: one-click Applied and outcome events with idempotency and undo (docs/M2_PLAN.md §3).
+
+The M2 tracker routes were retired at the TRK3b cutover (the tracker is /api/v1, tested in test_tracker_api.py). The
+store functions they wrapped are still in app/storage/career_store.py, because outreach and the chat use that store,
+so these tests now drive the store directly, with the error mapping the routes had. Route-only checks (origin,
+request validation) went with the routes. Fictional data and temporary databases only."""
 import random
-from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
+from app.api.career import _snapshot, public_career_data
 from app.storage import career_events, career_store
-from test_security_regressions import LOCAL, _IsolatedApp
+from test_security_regressions import _IsolatedApp
 
 JOB = {'company': 'ExampleCo', 'title': 'NLP Engineer', 'location': 'Pune', 'description': 'Python and NLP'}
 OUTCOMES = ('recruiter_reply', 'online_test', 'interview', 'offer', 'rejected', 'withdrawn')
+
+
+class _Reply:
+    """What a retired route would have answered: a status code and a JSON body."""
+    def __init__(self, status_code, body):
+        self.status_code, self._body, self.text = status_code, body, str(body)
+
+    def json(self):
+        return self._body
 
 
 class _Api(_IsolatedApp):
@@ -21,17 +34,35 @@ class _Api(_IsolatedApp):
         self.requests += 1
         return f'req-{self.requests:04d}'
 
-    def apply(self, job_id=None, request_id=None, headers=LOCAL, **fields):
-        body = {'job_id': job_id or self.job_id, 'request_id': request_id or self.request_id(), **fields}
-        return self.client.post('/applications/applied', json=body, headers=headers)
+    @staticmethod
+    def _call(action):
+        try:
+            return _Reply(200, public_career_data(action()))
+        except LookupError as exc:
+            return _Reply(404, {'detail': str(exc)})
+        except career_store.RequestConflictError as exc:
+            return _Reply(409, {'detail': str(exc)})
+        except ValueError as exc:
+            return _Reply(422, {'detail': str(exc)})
+        except Exception as exc:        # what the server would have turned into a 500
+            return _Reply(500, {'detail': type(exc).__name__})
 
-    def outcome(self, application_id, event_type, request_id=None, headers=LOCAL, **fields):
-        body = {'event_type': event_type, 'request_id': request_id or self.request_id(), **fields}
-        return self.client.post(f'/applications/{application_id}/events', json=body, headers=headers)
+    def apply(self, job_id=None, request_id=None, **fields):
+        job_id = job_id or self.job_id
+        if career_store.get_job(job_id) is None:
+            return _Reply(404, {'detail': 'Job not found'})
+        return self._call(lambda: career_store.record_applied(job_id, request_id=request_id or self.request_id(),
+                                                              snapshot=_snapshot(job_id), **fields))
 
-    def undo(self, application_id, event_id, request_id=None, headers=LOCAL):
-        return self.client.post(f'/applications/{application_id}/events/{event_id}/undo',
-                                json={'request_id': request_id or self.request_id()}, headers=headers)
+    def outcome(self, application_id, event_type, request_id=None, **fields):
+        current = career_store.get_application(application_id)
+        if current is None:
+            return _Reply(404, {'detail': 'Application not found'})
+        return self._call(lambda: career_store.record_outcome(application_id, event_type, request_id=request_id or self.request_id(),
+                                                               snapshot=_snapshot(current['job_id']), **fields))
+
+    def undo(self, application_id, event_id, request_id=None):
+        return self._call(lambda: career_store.undo_event(application_id, event_id, request_id=request_id or self.request_id()))
 
     def events(self, *types):
         events = career_store.job_events(self.job_id)
@@ -39,16 +70,6 @@ class _Api(_IsolatedApp):
 
 
 class AppliedTests(_Api):
-    def test_the_exact_local_origin_is_required(self):
-        for headers in ({}, {'Origin': 'https://attacker.example'}):
-            self.assertEqual(self.apply(headers=headers).status_code, 403)
-        applied = self.apply().json()
-        application_id, event_id = applied['application']['id'], applied['event']['id']
-        for headers in ({}, {'Origin': 'https://attacker.example'}):
-            self.assertEqual(self.outcome(application_id, 'interview', headers=headers).status_code, 403)
-            self.assertEqual(self.undo(application_id, event_id, headers=headers).status_code, 403)
-        self.assertEqual(len(self.events()), 1)
-
     def test_an_unknown_job_or_application_is_a_404(self):
         self.assertEqual(self.apply(job_id='missing').status_code, 404)
         self.assertEqual(self.outcome('missing', 'interview').status_code, 404)
@@ -84,16 +105,6 @@ class AppliedTests(_Api):
         other = career_store.upsert_job({**JOB, 'company': 'OtherCo'})
         self.apply(request_id='reused')
         self.assertEqual(self.apply(job_id=other, request_id='reused').status_code, 409)
-
-    def test_dates_are_limited_to_the_past_365_days(self):
-        now = datetime.now(timezone.utc)
-        self.assertEqual(self.apply(occurred_at=(now + timedelta(hours=2)).isoformat()).status_code, 422)
-        self.assertEqual(self.apply(occurred_at=(now - timedelta(days=366)).isoformat()).status_code, 422)
-        yesterday = (now - timedelta(days=1)).replace(microsecond=0)
-        response = self.apply(occurred_at=yesterday.isoformat())
-        self.assertEqual(response.status_code, 200, response.text)
-        self.assertEqual(datetime.fromisoformat(self.events('applied')[0]['occurred_at']), yesterday)
-        self.assertEqual(datetime.fromisoformat(response.json()['application']['applied_at']), yesterday)
 
     def test_the_snapshot_and_the_event_are_one_transaction(self):
         with patch.object(career_events, 'append_event', side_effect=RuntimeError('disk full')):

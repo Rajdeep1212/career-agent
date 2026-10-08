@@ -11,8 +11,9 @@ from unittest.mock import patch
 
 from app.core.config import settings
 from app.models.career import ApplicationStatus
+from app.services.job_snapshot import snapshot_inputs
 from app.storage import career_events, career_store, db
-from test_security_regressions import LOCAL, _IsolatedApp
+from test_security_regressions import _IsolatedApp
 
 NEW_STATUSES = ('SAVED', 'APPLIED', 'ONLINE_TEST', 'INTERVIEW', 'OFFER', 'REJECTED', 'WITHDRAWN', 'SKIPPED')
 JOB = {'company': 'ExampleCo', 'title': 'Data Analyst', 'location': 'Pune', 'description': 'SQL and Python'}
@@ -128,24 +129,23 @@ class ResponseStateTests(unittest.TestCase):
         self.assertIsNone(self.state(self.events(('applied', 30, None), ('undone', 1, 1))))
 
 
-class ApiTests(_IsolatedApp):
+class StoreStatusTests(_IsolatedApp):
+    """The M2 routes are retired (TRK3b); the chat's update tool still changes a status through the store."""
+
     def setUp(self):
         super().setUp()
         self.job_id = career_store.upsert_job(JOB)
-        self.application = self.client.post('/applications', json={'job_id': self.job_id}, headers=LOCAL).json()
+        self.application = career_store.save_application(self.job_id)
 
-    def patch_status(self, status):
-        return self.client.patch(f"/applications/{self.application['id']}", json={'status': status}, headers=LOCAL)
-
-    def test_legacy_statuses_are_a_422(self):
+    def test_legacy_statuses_are_refused(self):
         for legacy in ('DISCOVERED', 'OUTREACH_PREPARED', 'OUTREACH_SENT'):
-            self.assertEqual(self.patch_status(legacy).status_code, 422, legacy)
+            with self.assertRaises(ValueError, msg=legacy):
+                career_store.update_application(self.application['id'], legacy)
 
-    def test_a_status_change_through_the_api_is_logged_with_an_l0_snapshot(self):
+    def test_a_status_change_is_logged_with_an_l0_snapshot(self):
         stored = career_store.get_job(self.job_id)
-        response = self.patch_status('APPLIED')
-        self.assertEqual(response.status_code, 200, response.text)
-        self.assertEqual(response.json()['response_state'], 'PENDING_CENSORED')
+        updated = career_store.update_application(self.application['id'], 'APPLIED', snapshot=snapshot_inputs(stored))
+        self.assertEqual(updated['response_state'], 'PENDING_CENSORED')
         applied = [event for event in career_store.job_events(self.job_id) if event['event_type'] == 'applied'][0]
         self.assertEqual(applied['source'], 'user')
         with career_store._connection() as conn:

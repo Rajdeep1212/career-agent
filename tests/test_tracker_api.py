@@ -499,9 +499,14 @@ class QuickAddTests(_Tracker):
 
 
 class OldRoutesTests(_Tracker):
-    def test_the_m2_routes_still_answer_and_do_not_touch_the_tracker_database(self):
-        self.assertEqual(self.client.get("/applications").status_code, 200)
-        self.assertEqual(self.client.get("/tracker/funnel").status_code, 200)
+    def test_the_m2_tracker_routes_are_retired_and_the_other_career_routes_still_answer(self):
+        for method, path in (("GET", "/applications"), ("POST", "/applications"), ("GET", "/applications/x"), ("PATCH", "/applications/x"),
+                             ("POST", "/applications/applied"), ("POST", "/applications/x/events"),
+                             ("POST", "/applications/x/events/1/undo"), ("GET", "/tracker/funnel")):
+            self.assertIn(self.client.request(method, path, json={}, headers=LOCAL).status_code, (404, 405), f"{method} {path}")
+        self.assertEqual(self.client.get("/jobs/relevance").status_code, 200)              # thumbs stay where they were
+        self.assertEqual(self.client.get("/contacts", params={"company": "ExampleCo"}).status_code, 200)
+        self.assertEqual(self.get("/applications").status_code, 200)                       # the tracker is /api/v1
         self.assertEqual(self.count("applications"), 0)
 
 
@@ -520,7 +525,8 @@ class WebOriginTests(_Tracker):
         for origin in ("http://localhost:3011", "http://127.0.0.1:3010", "https://localhost:3010", "http://localhost:3010.evil.example", "null", "*"):
             self.assertEqual(self.event(application_id, "note", headers={"Origin": origin}).status_code, 403, origin)
         self.assertEqual(self.client.put("/profile/current", json={}, headers=self.WEB).status_code, 403)       # an old route
-        self.assertEqual(self.client.post("/applications/applied", json={"job_id": "j1", "request_id": "req-0001"}, headers=self.WEB).status_code, 403)
+        relevance = {"label": "up", "request_id": "req-0001"}
+        self.assertEqual(self.client.post("/jobs/j1/relevance", json=relevance, headers=self.WEB).status_code, 403)
 
     def test_another_web_origin_comes_from_config_and_no_cors_header_is_ever_sent(self):
         from app.core.config import settings

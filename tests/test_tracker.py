@@ -2,6 +2,7 @@
 import importlib
 import sqlite3
 import sys
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,6 +13,13 @@ from contextlib import closing
 from fastapi.testclient import TestClient
 
 from app.models.career import ContactCandidate
+
+
+from app.api.career import public_career_data  # noqa: E402
+
+RETIRED = (('GET', '/applications'), ('POST', '/applications'), ('GET', '/applications/x'), ('PATCH', '/applications/x'),
+           ('POST', '/applications/applied'), ('POST', '/applications/x/events'), ('POST', '/applications/x/events/1/undo'),
+           ('GET', '/tracker/funnel'))
 
 
 class TrackerTests(unittest.TestCase):
@@ -161,20 +169,15 @@ class TrackerTests(unittest.TestCase):
             headers={'Origin': 'http://localhost:8010'},
         )
 
-    def test_api_application_lifecycle(self):
+    def test_stored_jobs_are_served_and_the_m2_tracker_routes_are_gone(self):
+        # TRK3b: the tracker is /api/v1 (tests/test_tracker_api.py). The store stays for outreach and the chat.
         job_id = self.save_job()
         with self.client() as client:
-            created = client.post('/applications', json={'job_id': job_id, 'notes': 'Saved via API'})
-            self.assertIn(created.status_code, (200, 201))
-            identity = created.json()['id']
-            updated = client.patch('/applications/' + identity, json={'status': 'APPLIED'})
-            self.assertEqual(updated.status_code, 200)
-            self.assertIsNotNone(updated.json()['applied_at'])
-            self.assertEqual(len(client.get('/applications').json()), 1)
             self.assertEqual(client.get('/career/jobs/' + job_id).json()['company'], 'ExampleCo')
             self.assertEqual(client.get('/career/jobs/absent').status_code, 404)
-            self.assertEqual(client.patch('/applications/absent', json={'notes': 'x'}).status_code, 404)
-            self.assertEqual(client.patch('/applications/' + identity, json={'status': 'OPENED'}).status_code, 422)
+            for method, path in RETIRED:
+                self.assertIn(client.request(method, path, json={'job_id': job_id}).status_code, (404, 405), path)
+        self.assertEqual(self.store.list_applications(), [])
 
     def test_api_sessions(self):
         identity = self.store.save_session(None, {'roles_requested': ['Data Analyst']}, {'jobs': []})
@@ -220,105 +223,64 @@ class MainTrackerAPITests(unittest.TestCase):
     def save_job(self, **extra):
         return self.store.upsert_job({**self.job, **extra})
 
-    def save_via_api(self, job_id, **extra):
-        return self.client.post(
-            '/applications',
-            json={'job_id': job_id, 'status': 'SAVED', 'notes': '', **extra},
-            headers=self.origin,
-        )
-
-    def test_real_app_router_is_reachable_and_save_is_idempotent(self):
+    def test_the_running_app_no_longer_serves_the_m2_tracker_routes(self):
         job_id = self.save_job()
-        self.assertEqual(self.client.get('/applications').status_code, 200)
+        for method, path in RETIRED:
+            response = self.client.request(method, path, json={'job_id': job_id, 'request_id': 'r-1'}, headers=self.origin)
+            self.assertIn(response.status_code, (404, 405), f'{method} {path}')
+        self.assertEqual(self.store.list_applications(), [])
+        self.assertEqual(self.store.job_events(job_id), [])
 
-        first = self.save_via_api(job_id, notes='Review tomorrow')
-        second = self.save_via_api(job_id, notes='Must not replace existing notes')
-
-        self.assertEqual(first.status_code, 200, first.text)
-        self.assertEqual(second.status_code, 200, second.text)
-        self.assertEqual(second.json()['id'], first.json()['id'])
-        self.assertEqual(second.json()['notes'], 'Review tomorrow')
-        fetched = self.client.get('/applications/' + first.json()['id'])
-        self.assertEqual(fetched.status_code, 200)
-        self.assertEqual(fetched.json()['job_id'], job_id)
-        self.assertEqual(len(self.client.get('/applications').json()), 1)
-
-    def test_tracker_mutations_require_exact_local_origin(self):
-        job_id = self.save_job()
-        payload = {'job_id': job_id, 'status': 'SAVED', 'notes': ''}
-        self.assertEqual(self.client.post('/applications', json=payload).status_code, 403)
-        self.assertEqual(self.client.post(
-            '/applications', json=payload, headers={'Origin': 'https://attacker.example'},
-        ).status_code, 403)
-        created = self.client.post('/applications', json=payload, headers=self.origin)
-        self.assertEqual(created.status_code, 200)
-
-        application_id = created.json()['id']
-        self.assertEqual(self.client.patch(
-            f'/applications/{application_id}', json={'notes': 'missing origin'},
-        ).status_code, 403)
-        self.assertEqual(self.client.patch(
-            f'/applications/{application_id}',
-            json={'notes': 'cross site'},
-            headers={'Origin': 'https://attacker.example'},
-        ).status_code, 403)
-        self.assertEqual(self.client.patch(
-            f'/applications/{application_id}', json={'notes': 'local update'}, headers=self.origin,
-        ).status_code, 200)
-
+    def test_contact_mutations_require_exact_local_origin(self):
         contact = {
             'company': 'RuntimeCo', 'contact_method': 'person@example.org',
             'public_source': 'Provided by user',
         }
         self.assertEqual(self.client.post('/contacts', json=contact).status_code, 403)
+        self.assertEqual(self.client.post('/contacts', json=contact, headers={'Origin': 'https://attacker.example'}).status_code, 403)
         self.assertEqual(self.client.post('/contacts', json=contact, headers=self.origin).status_code, 200)
 
+    def test_saving_twice_keeps_the_first_notes(self):
+        job_id = self.save_job()
+        first = self.store.save_application(job_id, 'SAVED', 'Review tomorrow')
+        second = self.store.save_application(job_id, 'SAVED', 'Must not replace existing notes')
+        self.assertEqual(second['id'], first['id'])
+        self.assertEqual(second['notes'], 'Review tomorrow')
+        self.assertEqual(self.store.get_application(first['id'])['job_id'], job_id)
+        self.assertEqual(len(self.store.list_applications()), 1)
+
     def test_status_and_notes_persist_across_supported_lifecycle(self):
-        created = self.save_via_api(self.save_job()).json()
+        created = self.store.save_application(self.save_job())
         # M2 status set (docs/M2_PLAN.md §1.2): DISCOVERED folds into SAVED; outreach is events, not statuses.
         statuses = [
             'SAVED', 'APPLIED', 'ONLINE_TEST', 'INTERVIEW', 'REJECTED', 'OFFER', 'WITHDRAWN', 'SKIPPED',
         ]
         for index, status in enumerate(statuses):
-            response = self.client.patch(
-                f"/applications/{created['id']}",
-                json={'status': status, 'notes': f'note {index}'},
-                headers=self.origin,
-            )
-            self.assertEqual(response.status_code, 200, response.text)
-            self.assertEqual(response.json()['status'], status)
-            self.assertEqual(response.json()['notes'], f'note {index}')
+            updated = self.store.update_application(created['id'], status, f'note {index}')
+            self.assertEqual(updated['status'], status)
+            self.assertEqual(updated['notes'], f'note {index}')
 
-        fetched = self.client.get(f"/applications/{created['id']}").json()
+        fetched = self.store.get_application(created['id'])
         self.assertEqual(fetched['status'], 'SKIPPED')
         self.assertEqual(fetched['notes'], 'note 7')
         self.assertIsNotNone(fetched['applied_at'])
 
     def test_invalid_ids_and_states_fail_safely(self):
-        self.assertEqual(self.client.get('/applications/missing').status_code, 404)
-        missing_update = self.client.patch(
-            '/applications/missing', json={'notes': 'x'}, headers=self.origin,
-        )
-        self.assertEqual(missing_update.status_code, 404)
-        invalid_state = self.client.patch(
-            '/applications/missing', json={'status': 'OPENED'}, headers=self.origin,
-        )
-        self.assertEqual(invalid_state.status_code, 422)
-        missing_job = self.save_via_api('missing')
-        self.assertEqual(missing_job.status_code, 404)
-        for response in (missing_update, invalid_state, missing_job):
-            self.assertNotIn('sqlite', response.text.lower())
-            self.assertNotIn(str(self.db).lower(), response.text.lower())
+        self.assertIsNone(self.store.get_application('missing'))
+        self.assertIsNone(self.store.update_application('missing', notes='x'))
+        with self.assertRaises(ValueError):
+            self.store.update_application('missing', status='OPENED')
+        with self.assertRaises(ValueError):
+            self.store.save_application('missing')
 
     def test_viewing_job_and_application_never_marks_applied(self):
         job_id = self.save_job()
-        viewed_job = self.client.get('/career/jobs/' + job_id)
-        self.assertEqual(viewed_job.status_code, 200)
-        self.assertEqual(self.client.get('/applications').json(), [])
-
-        created = self.save_via_api(job_id).json()
         self.assertEqual(self.client.get('/career/jobs/' + job_id).status_code, 200)
-        viewed_application = self.client.get('/applications/' + created['id']).json()
+        self.assertEqual(self.store.list_applications(), [])
+
+        created = self.store.save_application(job_id)
+        self.assertEqual(self.client.get('/career/jobs/' + job_id).status_code, 200)
+        viewed_application = self.store.get_application(created['id'])
         self.assertEqual(viewed_application['status'], 'SAVED')
         self.assertIsNone(viewed_application['applied_at'])
 
@@ -326,13 +288,13 @@ class MainTrackerAPITests(unittest.TestCase):
         application = self.store.save_application(self.save_job(), status='INTERVIEW')
         self.store.link_outreach(application['id'], 501, 'Prepared message')
 
-        prepared = self.client.get('/applications/' + application['id']).json()
+        prepared = self.store.get_application(application['id'])
         self.assertEqual(prepared['status'], 'INTERVIEW')
         self.assertEqual(prepared['outreach_state'], 'PREPARED')
         self.assertEqual(prepared['outreach'][0]['draft_id'], 501)
 
         self.store.mark_outreach_sent(501)
-        sent = self.client.get('/applications/' + application['id']).json()
+        sent = self.store.get_application(application['id'])
         self.assertEqual(sent['status'], 'INTERVIEW')
         self.assertEqual(sent['outreach_state'], 'SENT')
         self.assertIsNotNone(sent['outreach'][0]['sent_at'])
@@ -359,10 +321,10 @@ class MainTrackerAPITests(unittest.TestCase):
         )
 
         job = self.client.get('/career/jobs/' + job_id)
-        tracked = self.client.get('/applications/' + application['id'])
         session = self.client.get('/agent/sessions/' + session_id)
+        self.assertNotIn(private, json.dumps(public_career_data(self.store.get_application(application['id']))))
 
-        for response in (job, tracked, session):
+        for response in (job, session):
             self.assertEqual(response.status_code, 200, response.text)
             self.assertNotIn(private, response.text)
             self.assertNotIn('raw_provider_payload', response.text)

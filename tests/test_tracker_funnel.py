@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta, timezone
 
 from app.storage import career_events, career_store
-from test_security_regressions import LOCAL, _IsolatedApp
+from test_security_regressions import _IsolatedApp
 
 NOW = datetime.now(timezone.utc)
 
@@ -90,12 +90,11 @@ class FunnelTests(_IsolatedApp):
         self.assertIsNone(funnel['shortlist_rate']['of_applied']['rate'])
         self.assertIsNone(funnel['shortlist_rate']['of_resolved']['rate'])
 
-    def test_the_api_serves_the_funnel_and_marks_shortlisted_applications(self):
+    def test_the_funnel_route_is_retired_and_the_store_still_marks_shortlisted_applications(self):
+        # TRK3b: the dashboard's funnel line is hidden until TRK8 builds analytics on the new tracker.
         self.seed()
-        response = self.client.get('/tracker/funnel')
-        self.assertEqual(response.status_code, 200, response.text)
-        self.assertEqual(response.json()['counts']['shortlisted'], 1)
-        self.assertEqual(response.json()['claim_level'], 'L0')
-        flags = {entry['id']: entry['shortlisted'] for entry in self.client.get('/applications').json()}
+        self.assertEqual(self.client.get('/tracker/funnel').status_code, 404)
+        self.assertEqual(career_store.funnel()['counts']['shortlisted'], 1)
+        flags = {entry['id']: entry['shortlisted'] for entry in career_store.list_applications()}
         self.assertEqual([identity for identity, flag in flags.items() if flag], [self.shortlisted])
-        self.assertEqual(self.client.post('/tracker/funnel', headers=LOCAL).status_code, 405, 'read-only')
+
