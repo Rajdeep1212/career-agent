@@ -223,7 +223,23 @@ estimates with a real `docker build` in CI and a memory reading from the running
 9. **Client address behind Render.** Render's docs page does not say how the client address is forwarded.
    Recommendation: DEPLOY3 verifies it on the running service before the rate limit trusts any header.
 
-## 9. Build rows (added to the queue after approval)
+### Decisions (Rajdeep, 8 October 2026), in the order of the questions above
+
+The plan is approved.
+
+1. Static export.
+2. Keep Supabase, but build the SQLite fallback first.
+3. Rajdeep checks for a card at sign-up and stops if one is asked for.
+4. No Gemini in the demo.
+5. No Gemini in the demo, so the question does not arise.
+6. No Supabase Auth. TRK4 stays as planned.
+7. Agreed: do not rely on the workflow's own commits to keep the schedule alive.
+8. Radar index rows only.
+9. Verified in DEPLOY3.
+
+`psycopg[binary]` is approved for DEPLOY1.
+
+## 9. Build rows (in docs/ROADMAP_QUEUE.md since 8 October 2026)
 
 Each row is one session and ends at its gate. Nothing is signed up for before DEPLOY4.
 
@@ -237,4 +253,4 @@ Each row is one session and ends at its gate. Nothing is signed up for before DE
 | DEPLOY6 | Daily GitHub Actions job: polite radar sync, snapshot, image build and push, Render deploy hook, reset of the Supabase demo rows, `/health` check | Three consecutive scheduled runs green; snapshot counts from `len()` in the run log | Add the repository secrets |
 | DEPLOY7 | Docs: README "Demo" section with the URL, what is synthetic, the measured limits, and how to take the demo down | Docs only | – |
 
-Requirement cards from Gemini are not a DEPLOY row. They belong to Q10 and to open questions 4 and 5.
+Requirement cards from Gemini are not a DEPLOY row, and the demo makes no Gemini call (decisions 4 and 5).

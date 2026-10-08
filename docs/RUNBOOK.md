@@ -75,6 +75,14 @@ Decisions already made (do not reopen):
 - Tracker email: Resend is decided at TRK5 after checking its limits; the fallback is the Gmail gmail.send grant behind the same approval boundary. IMAP on the apply inbox is a constraint change decided at TRK7, not before.
 - Tracker privacy: mentors see the pipeline and analytics only. CV versions store only label, date, file hash and the local parser's skill list.
 - MCP: the three read-only tools stay as they are; track_application is a separate, explicitly enabled tool at TRK6.
+- Public demo (docs/DEPLOY_PLAN.md, approved 8 Oct 2026): a read-only demo at ₹0 with no card, separate from the laptop; real user data never leaves the laptop.
+  - Web: `web/` as a Next.js static export on Cloudflare; the browser calls the API directly, with CORS for that one exact origin. OpenNext is the fallback only.
+  - API: FastAPI in Docker on Render Free with DEMO_MODE; no embeddings in the image; no sign-in.
+  - Data: synthetic tracker rows on Supabase Postgres, with the SQLite fallback built first; the public snapshot holds radar index rows only.
+  - No Gemini in the demo. No Supabase Auth: TRK4 stays as planned.
+  - Rajdeep creates the accounts, checks for a card at sign-up and stops if one is asked for. An agent never signs up.
+  - `psycopg[binary]` is approved for DEPLOY1. How Render forwards the client address is verified in DEPLOY3 before the rate limit trusts a header.
+  - Do not rely on a workflow's own commits to keep the daily schedule alive.
 - No scraping of LinkedIn, Naukri, Indeed, Wellfound, Foundit, Instahyre, Internshala, GeeksforGeeks, LeetCode, Glassdoor or AmbitionBox. Use only pre-filled links, the user's own exports, and pages the user opens (bookmarklet).
 - No auto-apply. Nothing is sent, applied or deleted without Rajdeep's approval.
 - Interview features are practice-only. Never assist during a live interview or test.
