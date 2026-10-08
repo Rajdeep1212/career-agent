@@ -10,7 +10,7 @@ from contextlib import contextmanager
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.origin_security import has_exact_local_origin
+from app.core.origin_security import has_tracker_origin
 from app.tracker import service, store
 
 
@@ -23,8 +23,8 @@ def _database() -> None:
 
 
 def local_origin(request: Request) -> None:
-    if not has_exact_local_origin(request):
-        raise HTTPException(status_code=403, detail="Open the localhost dashboard to make this change.")
+    if not has_tracker_origin(request):
+        raise HTTPException(status_code=403, detail="Open the localhost dashboard or the tracker web app to make this change.")
 
 
 router = APIRouter(prefix="/api/v1", tags=["tracker"], dependencies=[Depends(_database)])
@@ -74,6 +74,7 @@ class QuickAdd(_Body):
     status: str = "SAVED"
     occurred_at: str | None = None
     confirm_job_id: str | None = None
+    preview: bool = False
 
 
 class ApplicationPatch(_Body):
@@ -152,7 +153,7 @@ def create_application(body: ApplicationCreate, response: Response, key: str = K
 def quick_add(body: QuickAdd, response: Response, key: str = Key, owner: str = Owner):
     with _errors():
         application, match, created = service.quick_add(owner, key, **body.model_dump())
-    _status(response, created)
+    _status(response, created)                # a preview stores nothing and answers 200
     return {"created": created, "match": match, "application": application}
 
 

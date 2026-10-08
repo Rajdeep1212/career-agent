@@ -223,13 +223,15 @@ def create_application(owner: str, request_id: str, *, job_id: str | None = None
 
 
 def quick_add(owner: str, request_id: str, *, url: str, title: str = "", company: str = "", location: str | None = None,
-              confirm_job_id: str | None = None, **fields) -> tuple[dict, dict, bool]:
+              confirm_job_id: str | None = None, preview: bool = False, **fields) -> tuple[dict | None, dict, bool]:
     """(application, match, created). A matched URL becomes an application for the index job; a probable match is
     reported and linked only when `confirm_job_id` names one of its candidates; otherwise what was given is stored."""
     if not matching.normalise_url(url):
         raise Invalid("url must be an http or https address.")
     index = matching.index_jobs()
     found = matching.match(url, title=title, company=company, location=location or "", index=index)
+    if preview:                          # the page shows the match first; nothing is stored and the key is not used
+        return None, found, False
     job_id = found["job_id"]
     if confirm_job_id is not None:
         if confirm_job_id not in [candidate["job_id"] for candidate in found["candidates"]]:

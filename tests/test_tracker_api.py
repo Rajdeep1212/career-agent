@@ -503,3 +503,57 @@ class OldRoutesTests(_Tracker):
         self.assertEqual(self.client.get("/applications").status_code, 200)
         self.assertEqual(self.client.get("/tracker/funnel").status_code, 200)
         self.assertEqual(self.count("applications"), 0)
+
+
+class WebOriginTests(_Tracker):
+    """TRK3: the web app's exact origin is allowed on /api/v1 mutations, and nowhere else."""
+    WEB = {"Origin": "http://localhost:3010"}
+
+    def test_the_configured_web_origin_may_change_the_tracker_and_nothing_else(self):
+        from app.core.config import settings
+        self.assertEqual(settings.web_origin, "http://localhost:3010")
+        created = self.post("/applications", {"title": "T", "company": "C"}, headers=self.WEB)
+        self.assertEqual(created.status_code, 201, created.text)
+        application_id = created.json()["application"]["id"]
+        self.assertEqual(self.event(application_id, "applied", headers=self.WEB).status_code, 201)
+        self.assertEqual(self.client.patch(f"{V1}/applications/{application_id}", json={"notes": "x"}, headers=self.WEB).status_code, 200)
+        for origin in ("http://localhost:3011", "http://127.0.0.1:3010", "https://localhost:3010", "http://localhost:3010.evil.example", "null", "*"):
+            self.assertEqual(self.event(application_id, "note", headers={"Origin": origin}).status_code, 403, origin)
+        self.assertEqual(self.client.put("/profile/current", json={}, headers=self.WEB).status_code, 403)       # an old route
+        self.assertEqual(self.client.post("/applications/applied", json={"job_id": "j1", "request_id": "req-0001"}, headers=self.WEB).status_code, 403)
+
+    def test_another_web_origin_comes_from_config_and_no_cors_header_is_ever_sent(self):
+        from app.core.config import settings
+        with patch.object(settings, "web_origin", "http://localhost:3999"):
+            self.assertEqual(self.post("/applications", {"title": "T", "company": "C"}, headers=self.WEB).status_code, 403)
+            allowed = self.post("/applications", {"title": "T", "company": "C"}, headers={"Origin": "http://localhost:3999"})
+            self.assertEqual(allowed.status_code, 201)
+        listed = self.client.get(f"{V1}/applications", headers=self.WEB)
+        preflight = self.client.options(f"{V1}/applications", headers={**self.WEB, "Access-Control-Request-Method": "POST"})
+        for response in (allowed, listed, preflight):
+            self.assertFalse([name for name in response.headers if name.lower().startswith("access-control-")])
+
+    def test_web_origin_must_be_one_exact_origin(self):
+        from app.core.config import Settings
+        for bad in ("*", "http://*", "http://localhost:3010/app", "localhost:3010", "http://localhost:3010,http://x.example", ""):
+            with self.assertRaises(ValueError, msg=bad):
+                Settings(web_origin=bad)
+        self.assertEqual(Settings(web_origin="http://localhost:3010/").web_origin, "http://localhost:3010")
+
+
+class QuickAddPreviewTests(_Tracker):
+    """TRK3: the page shows the match first; nothing is stored until the user decides."""
+
+    def test_a_preview_reports_the_match_and_stores_nothing(self):
+        self.index()
+        given = {"url": "https://northwind.example/jobs/graduate-swe", "title": "Graduate Software Engineer", "company": "Northwind Labs"}
+        for body, status in (({"url": "https://boards.greenhouse.io/acmerobotics/jobs/4012345?gh_src=x"}, "matched"), (given, "probable"),
+                             ({"url": "https://initech.example/jobs/12"}, "none")):
+            response = self.post("/applications/quick-add", {**body, "preview": True}, key="preview-key")
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual((response.json()["match"]["status"], response.json()["created"], response.json()["application"]), (status, False, None))
+        self.assertEqual((self.count("applications"), self.count("application_events")), (0, 0))
+        self.assertEqual(self.post("/applications/quick-add", {"url": "nope", "preview": True}).status_code, 422)
+        chosen = "northwind:b2c3d4e5-1111-2222-3333-444455556666"
+        confirmed = self.post("/applications/quick-add", {**given, "confirm_job_id": chosen}, key="preview-key")   # the key was not used up
+        self.assertEqual((confirmed.status_code, confirmed.json()["application"]["job_id"]), (201, chosen))

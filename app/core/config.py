@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     app_name: str = "Career Agent"
     # The one browser origin trusted for mutations (scheme://host:port, no path).
     app_origin: str = "http://localhost:8010"
+    # The tracker web app (web/): its one exact origin may change the tracker through /api/v1, and nothing else.
+    web_origin: str = "http://localhost:3010"
 
     # Job search provider
     rapidapi_key: str | None = None
@@ -109,18 +111,19 @@ class Settings(BaseSettings):
             raise ValueError("JOOBLE_HOST must be a Jooble country site such as in.jooble.org")
         return value
 
-    @field_validator("app_origin")
+    @field_validator("app_origin", "web_origin")
     @classmethod
-    def _plain_origin(cls, value: str) -> str:
+    def _plain_origin(cls, value: str, info) -> str:
         value = value.strip().rstrip("/")
+        message = f"{info.field_name.upper()} must be one exact origin such as http://localhost:8010"
         try:
             parts = urlsplit(value)
             parts.port
         except ValueError as exc:
-            raise ValueError("APP_ORIGIN must look like http://localhost:8010") from exc
-        if (parts.scheme not in ("http", "https") or not parts.hostname or parts.path
-                or parts.query or parts.fragment or parts.username or parts.password):
-            raise ValueError("APP_ORIGIN must look like http://localhost:8010")
+            raise ValueError(message) from exc
+        if (parts.scheme not in ("http", "https") or not parts.hostname or parts.path or parts.query or parts.fragment
+                or parts.username or parts.password or not re.fullmatch(r"[A-Za-z0-9.-]+", parts.hostname)):
+            raise ValueError(message)
         return value
 
     # Hosted demo: synthetic data only, isolated from real user state (see _demo_isolation).
