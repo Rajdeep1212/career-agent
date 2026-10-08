@@ -59,7 +59,7 @@ try {
                        ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8011"], ROOT,
                        { DATA_DIR: dataDir, APP_ORIGIN: API, WEB_ORIGIN: SITE, DEMO_MODE: "false" });
   const webLog = start(process.execPath, [path.join(WEB, "node_modules", "next", "dist", "bin", "next"), "dev", "--hostname", "127.0.0.1", "--port", "3011"], WEB,
-                       { TRACKER_API_ORIGIN: API, NEXT_DIST_DIR: ".next-smoke", NEXT_TELEMETRY_DISABLED: "1" });
+                       { TRACKER_API_ORIGIN: API, WEB_ORIGIN: SITE, NEXT_DIST_DIR: ".next-smoke", NEXT_TELEMETRY_DISABLED: "1" });
   await ready(`${API}/health`, apiLog);
   await ready(`${SITE}/`, webLog);
   const run = spawnSync(process.execPath, [path.join(WEB, "node_modules", "@playwright", "test", "cli.js"), "test"],

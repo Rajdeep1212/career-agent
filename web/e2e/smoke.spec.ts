@@ -49,3 +49,14 @@ test("add by URL, drag across a column, open the timeline, undo, pick a CV versi
   expect(stored.applications[0].status).toBe("SAVED");
   expect(stored.applications[0].cv_version_id).toBeTruthy();
 });
+
+// `next dev` prints the 127.0.0.1 address, but the API accepts changes only from the exact WEB_ORIGIN.
+test("the 127.0.0.1 address lands on the exact origin, where a change is accepted", async ({ page, baseURL }) => {
+  const site = new URL(baseURL!);
+  await page.goto(`http://127.0.0.1:${site.port}/`);
+  await expect(page).toHaveURL(`${site.origin}/`);
+  await page.getByLabel("Job URL").fill("https://jobs.example.com/smoke/origin");
+  await page.getByRole("button", { name: "Check" }).click();
+  await expect(page.getByTestId("match")).toHaveAttribute("data-status", "none");
+  await expect(page.getByRole("region", { name: "Add an application" }).getByRole("alert")).toHaveCount(0);   // not Next's route announcer
+});

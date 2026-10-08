@@ -82,7 +82,8 @@ npm install        # once
 npm run dev        # http://localhost:3010
 ```
 
-Open `http://localhost:3010` (not `127.0.0.1`: changes are accepted only from the exact origin in `WEB_ORIGIN`).
+Open `http://localhost:3010`. Changes are accepted only from the exact origin in `WEB_ORIGIN`, so the web app sends
+any other address for itself (such as the `http://127.0.0.1:3010` that `npm run dev` prints) to that origin.
 The board shows one column per status; drag a card to record an event, open a card for its timeline, undo and CV
 version, and add an application from a job URL at the top. Both servers listen on this computer only.
 
