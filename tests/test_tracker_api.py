@@ -557,3 +557,31 @@ class QuickAddPreviewTests(_Tracker):
         chosen = "northwind:b2c3d4e5-1111-2222-3333-444455556666"
         confirmed = self.post("/applications/quick-add", {**given, "confirm_job_id": chosen}, key="preview-key")   # the key was not used up
         self.assertEqual((confirmed.status_code, confirmed.json()["application"]["job_id"]), (201, chosen))
+
+
+class DashboardCutoverTests(_Tracker):
+    """TRK3b: what the vanilla dashboard needs from /api/v1 once the M2 routes are gone."""
+    STORED = "ab" * 32
+
+    def test_a_job_card_sends_its_fields_and_its_stored_job_id_and_is_one_application(self):
+        body = {"title": "NLP Engineer", "company": "ExampleCo", "url": "https://jobs.example.com/77", "location": "Pune",
+                "description": "Python and NLP.", "source": "JSearch", "stored_job_id": self.STORED}
+        first = self.post("/applications", body)
+        self.assertEqual(first.status_code, 201, first.text)
+        self.assertEqual(first.json()["application"]["job_id"], self.STORED)
+        again = self.post("/applications", {"title": "NLP Engineer (reposted)", "company": "ExampleCo", "stored_job_id": self.STORED})
+        self.assertEqual((again.status_code, again.json()["application"]["id"]), (200, first.json()["application"]["id"]))
+        self.assertEqual(self.count("applications"), 1)
+        self.assertEqual(self.post("/applications", {"stored_job_id": self.STORED}).status_code, 200)       # known: fields not needed
+        self.assertEqual(self.post("/applications", {"stored_job_id": "cd" * 32}).status_code, 422)         # unknown: fields needed
+        self.assertEqual(self.post("/applications", {"title": "T", "company": "C", "stored_job_id": "x" * 300}).status_code, 422)
+
+    def test_the_list_names_the_latest_event_that_can_be_undone(self):
+        application = self.new()
+        self.assertIsNone(self.get("/applications").json()["applications"][0]["latest_event"])       # the first event stays
+        applied = self.event(application["id"], "applied").json()["event"]
+        self.assertEqual(self.get("/applications").json()["applications"][0]["latest_event"], {"id": applied["id"], "event_type": "applied"})
+        self.post(f"/applications/{application['id']}/events/{applied['id']}/undo")
+        self.assertIsNone(self.get("/applications").json()["applications"][0]["latest_event"])
+        self.other_user()
+        self.assertEqual(len(self.get("/applications").json()["applications"]), 1)

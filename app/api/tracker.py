@@ -59,6 +59,7 @@ class ApplicationCreate(_Body):
     cv_version_id: str | None = None
     status: str = "SAVED"
     occurred_at: str | None = None
+    stored_job_id: str | None = Field(default=None, min_length=1, max_length=128)
 
 
 class QuickAdd(_Body):

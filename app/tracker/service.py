@@ -134,7 +134,16 @@ def list_applications(owner: str, *, status: str | None = None, company: str | N
         if company and company.strip():
             wanted = company_key(company)
             rows = [row for row in rows if company_key(row.company_name) == wanted or company.strip().casefold() in row.company_name.casefold()]
-        return [_summary(row) for row in rows]
+        latest: dict[str, dict | None] = {}
+        events: dict[str, list[ApplicationEvent]] = {}
+        for event in session.scalars(select(ApplicationEvent).where(ApplicationEvent.owner_id == owner).order_by(ApplicationEvent.id)):
+            events.setdefault(event.application_id, []).append(event)
+        for application_id, log in events.items():
+            live = _live(log)
+            undoable = live[-1] if live and live[-1].id != log[0].id else None
+            latest[application_id] = {"id": undoable.id, "event_type": undoable.event_type} if undoable else None
+        # latest_event: the one event Undo would take back, or None when only the first event is left.
+        return [{**_summary(row), "latest_event": latest.get(row.id)} for row in rows]
 
 
 def get_application(owner: str, application_id: str) -> dict:
@@ -173,15 +182,21 @@ def create_application(owner: str, request_id: str, *, job_id: str | None = None
                        title: str = "", company: str = "", url: str | None = None, location: str | None = None,
                        description: str | None = None, source: str | None = None, channel: str | None = None,
                        notes: str = "", cv_version_id: str | None = None, status: str = "SAVED",
-                       occurred_at: str | None = None) -> tuple[dict, bool]:
-    """(application, created). From an index job (its post is the snapshot) or from the fields the user gave."""
+                       occurred_at: str | None = None, stored_job_id: str | None = None) -> tuple[dict, bool]:
+    """(application, created). From an index job (its post is the snapshot) or from the fields the user gave.
+
+    `stored_job_id` is the dashboard's id for a job card (a stored search result, not an index job): it is kept in
+    `job_id` so the card and the application find each other, and nothing is looked up with it.
+    """
     if status not in CREATE_STATUSES:
         raise Invalid(f"status must be one of {', '.join(CREATE_STATUSES)}.")
-    if job_id is not None and job is None:
+    reference = job_id or stored_job_id
+    if reference is not None and job is None:
         with store.session() as session:         # already tracked: answered even after the job has left the index
-            tracked = session.scalar(select(Application).where(Application.owner_id == owner, Application.job_id == job_id))
+            tracked = session.scalar(select(Application).where(Application.owner_id == owner, Application.job_id == reference))
             if tracked is not None:
                 return _detail(session, tracked), False
+    if job_id is not None and job is None:
         job = index_job(job_id)
     if job is not None:
         post = job.model_dump(mode="json")
@@ -203,14 +218,14 @@ def create_application(owner: str, request_id: str, *, job_id: str | None = None
                     session, _application(session, owner, prior.application_id))[0].id:
                 raise Conflict("This Idempotency-Key was already used for another request.")
             return _detail(session, _application(session, owner, prior.application_id)), False
-        existing = _same_application(session, owner, identity, normalised, job_id)
+        existing = _same_application(session, owner, identity, normalised, reference)
         if existing is not None:
             return _detail(session, existing), False
         _cv_version(session, owner, cv_version_id)
         kept, digest = snapshot_of(post)
         stamp = _now()
         application = Application(
-            id=str(uuid4()), owner_id=owner, company_id=company_id_for(session, owner, company, {}), job_id=job_id, identity=identity,
+            id=str(uuid4()), owner_id=owner, company_id=company_id_for(session, owner, company, {}), job_id=reference, identity=identity,
             title=title, company_name=company, url=url, source=source, channel=channel, status=status,
             applied_at=when if status == "APPLIED" else None, cv_version_id=cv_version_id, notes=notes, created_at=stamp,
             updated_at=stamp, snapshot_json=kept, snapshot_sha256=digest, snapshot_captured_at=stamp)

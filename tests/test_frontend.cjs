@@ -23,9 +23,10 @@ assert.doesNotMatch(html, /Gemini/i);
 assert.match(css, /\.icon-btn\.mobile-menu\s*\{\s*display:\s*none/);
 assert.match(html, /class="inline-results-head sr-only"/);
 // M2 status set: the tracker offers exactly these; outreach is events, not statuses.
-assert.match(script, /const applicationStatuses = \['SAVED', 'APPLIED', 'ONLINE_TEST', 'INTERVIEW', 'OFFER', 'REJECTED', 'WITHDRAWN', 'SKIPPED'\];/);
+assert.match(script, /const applicationStatuses = \['SAVED', 'APPLIED', 'ONLINE_TEST', 'INTERVIEW', 'OFFER', 'REJECTED', 'WITHDRAWN', 'NO_RESPONSE', 'SKIPPED'\];/);
+// TRK3b: the tracker lives behind /api/v1; the M2 tracker routes are never called.
+assert.doesNotMatch(script, /api\(['`]\/applications|\/tracker\/funnel/);
 assert.doesNotMatch(script, /'DISCOVERED'|'OUTREACH_PREPARED'|'OUTREACH_SENT'/);
-assert.match(script, /PENDING_CENSORED: 'Waiting for a reply'/);
 
 // Let pending promise chains (e.g. the search-cost preview) finish.
 const settle = () => new Promise(resolve => setImmediate(resolve));
@@ -95,7 +96,7 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
     location: { search: query, pathname: '/app/', hash: '' },
     history: { replaceState(_a, _b, path) { replacement = path; } },
     fetch: async (path, options = {}) => {
-      calls.push([path, options.method, typeof options.body === 'string' ? JSON.parse(options.body) : options.body ?? null]);
+      calls.push([path, options.method, typeof options.body === 'string' ? JSON.parse(options.body) : options.body ?? null, options.headers || {}]);
       if (path === '/auth/linkedin/disconnect') {
         if (disconnectFails) throw Error('private provider exception');
         linkedin = { configured: true, connected: false };
@@ -105,7 +106,8 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
         : path === '/auth/linkedin/status' ? linkedin
         : path === '/auth/google/status' ? { configured: false, connected: false }
         : path === '/connections/search/status' ? { configured: true }
-        : path === '/email/drafts' || path === '/applications' ? [] : {};
+        : path === '/email/drafts' ? [] : path === '/api/v1/applications' ? { count: 0, applications: [] } : {};
+      if (data && data.__status) return { ok: false, status: data.__status, json: async () => data.body };
       return { ok: true, json: async () => data };
     },
     alert() { throw Error('Unexpected alert'); }
@@ -172,7 +174,7 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   d = await dashboard({ configured: true, connected: false }, '', false, {
     '/chat/run': () => chatReplies[Math.min(chatCall++, chatReplies.length - 1)],
     '/agent/sessions/session-1': { id: 'session-1', intent: storedSearch.intent, response: storedSearch },
-    '/applications': [{ id: 'application-1', job_id: jobId, status: 'SAVED', outreach_state: 'NONE', notes: '', job }]
+    '/api/v1/applications': [{ id: 'application-1', job_id: jobId, status: 'SAVED', outreach_state: 'NONE', notes: '', title: job.title, company_name: job.company, url: job.application_url }]
   });
   assert.equal(d.elements.get('searchView').classList.contains('conversation-started'), false);
   await d.suggestionChips[0].handlers.click();
@@ -190,7 +192,7 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   d = await dashboard({ configured: true, connected: false }, '', false, {
     '/chat/run': () => chatReplies[Math.min(chatCall++, chatReplies.length - 1)],
     '/agent/sessions/session-1': { id: 'session-1', intent: storedSearch.intent, response: storedSearch },
-    '/applications': [{ id: 'application-1', job_id: jobId, status: 'SAVED', outreach_state: 'NONE', notes: '', job }]
+    '/api/v1/applications': [{ id: 'application-1', job_id: jobId, status: 'SAVED', outreach_state: 'NONE', notes: '', title: job.title, company_name: job.company, url: job.application_url }]
   });
   d.elements.get('searchQuery').value = 'Find design roles';
   await d.elements.get('searchForm').handlers.submit({ preventDefault() {} });
@@ -213,7 +215,7 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
     const view = await dashboard({ configured: true, connected: false }, '', false, {
       '/chat/run': () => chatReplies[0],
       '/agent/sessions/session-1': { id: 'session-1', intent: search.intent, response: search },
-      '/applications': []
+      '/api/v1/applications': []
     });
     view.elements.get('searchQuery').value = 'Find design roles';
     await view.elements.get('searchForm').handlers.submit({ preventDefault() {} });
@@ -267,13 +269,18 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   assert.equal(d.calls.filter(([path]) => path === '/chat/resume').length, resumesBeforeEscape);
   d.context.window.selectJob(0);
   await d.context.window.saveJob(0);
-  assert.ok(d.calls.some(([path, method, body]) => path === '/applications' && method === 'POST' && body.job_id === jobId && body.status === 'SAVED'));
+  const savePost = d.calls.find(([path, method]) => path === '/api/v1/applications' && method === 'POST');
+  assert.equal(savePost[2].stored_job_id, jobId);
+  assert.equal(savePost[2].title, d.context.window.lastJobs[0].title, 'the card sends its own fields, as text');
+  assert.equal(savePost[2].company, d.context.window.lastJobs[0].company);
+  assert.equal(savePost[2].job_id, undefined, 'a stored search result is not an index job');
+  assert.ok(savePost[3]['Idempotency-Key']);
   d.elements.get('closeJobDrawer').handlers.click();
   assert.equal(d.elements.get('jobDetailDrawer').classList.contains('hidden'), true);
 
   d = await dashboard({ configured: true, connected: false }, '', false, {
     '/chat/run': { thread_id: 'keyboard', turn_id: 'turn', stage: 'completed', message: 'Done', recommendation_ids: [], advisory_roles: [], replayed: false },
-    '/applications': []
+    '/api/v1/applications': []
   });
   d.elements.get('searchQuery').value = 'Keyboard request';
   await d.elements.get('searchQuery').handlers.keydown({ key: 'Enter', shiftKey: true, preventDefault() { throw Error('Shift+Enter must not submit'); } });
@@ -290,7 +297,7 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   const waitingChat = new Promise(resolve => { releaseChat = resolve; });
   d = await dashboard({ configured: true, connected: false }, '', false, {
     '/chat/run': () => waitingChat,
-    '/applications': []
+    '/api/v1/applications': []
   });
   d.elements.get('searchQuery').value = 'Find analyst jobs';
   const firstSubmit = d.elements.get('searchForm').handlers.submit({ preventDefault() {} });
@@ -306,7 +313,7 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
     '/chat/run': { thread_id: 'thread', turn_id: 'turn', stage: 'awaiting_send_confirmation', message: 'Review the editable draft.', recommendation_ids: [], advisory_roles: [], draft_id: 77, application_id: 'application-1', replayed: false },
     '/chat/resume': { thread_id: 'thread', turn_id: 'resume', stage: 'completed', message: 'The approved draft was sent.', recommendation_ids: [], advisory_roles: [], draft_id: 77, application_id: 'application-1', replayed: false },
     '/email/drafts/77': () => (++draftRead === 1 ? draftForReview : { ...draftForReview, status: 'sent' }),
-    '/applications': [{ id: 'application-1', job_id: jobId, status: 'SAVED', outreach_state: 'PREPARED', notes: '', job }]
+    '/api/v1/applications': [{ id: 'application-1', job_id: jobId, status: 'SAVED', outreach_state: 'PREPARED', notes: '', title: job.title, company_name: job.company, url: job.application_url }]
   });
   await vm.runInContext('loadTracker()', d.context);
   vm.runInContext(`window.lastJobs = [${JSON.stringify(job)}]`, d.context);
@@ -335,7 +342,7 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
     '/chat/run': { thread_id: 'cancel-thread', turn_id: 'turn', stage: 'awaiting_send_confirmation', message: 'Review the editable draft.', recommendation_ids: [], advisory_roles: [], draft_id: 77, application_id: 'application-1', replayed: false },
     '/chat/resume': { thread_id: 'cancel-thread', turn_id: 'cancel-turn', stage: 'cancelled', message: 'Send cancelled.', recommendation_ids: [], advisory_roles: [], draft_id: 77, application_id: 'application-1', replayed: false },
     '/email/drafts/77': draftForReview,
-    '/applications': [{ id: 'application-1', job_id: jobId, status: 'SAVED', outreach_state: 'PREPARED', notes: '', job }]
+    '/api/v1/applications': [{ id: 'application-1', job_id: jobId, status: 'SAVED', outreach_state: 'PREPARED', notes: '', title: job.title, company_name: job.company, url: job.application_url }]
   });
   await vm.runInContext('loadTracker()', d.context);
   vm.runInContext(`window.lastJobs = [${JSON.stringify(job)}]`, d.context);
@@ -432,8 +439,8 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   const local = new Date('2026-09-25T12:49:14.072+00:00');
   const expectedLocal = `${local.getDate()} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][local.getMonth()]} ${local.getFullYear()}`;
   d = await dashboard({ configured: true, connected: false }, '', false, {
-    '/applications': [{ id: 'app-1', job_id: 'j'.repeat(64), status: 'APPLIED', notes: '', updated_at: stamp, created_at: stamp,
-                        job: { title: 'Data Analyst', company: 'Example', application_url: 'https://example.com/jobs/1' } }]
+    '/api/v1/applications': [{ id: 'app-1', job_id: 'j'.repeat(64), status: 'APPLIED', notes: '', updated_at: stamp, created_at: stamp,
+                        title: 'Data Analyst', company_name: 'Example', url: 'https://example.com/jobs/1' }]
   });
   await vm.runInContext('loadTracker()', d.context);
   const tracker = d.elements.get('trackerList').innerHTML;
@@ -515,7 +522,7 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   d = await dashboard({ configured: true, connected: false }, '', false, {
     '/agent/search/preview': costly,
     '/chat/run': { thread_id: 'cost', turn_id: 'turn', stage: 'completed', message: 'Done', recommendation_ids: [], advisory_roles: [], replayed: false },
-    '/applications': []
+    '/api/v1/applications': []
   });
   const prompts = [];
   d.context.window.confirm = text => { prompts.push(text); return false; };
@@ -538,7 +545,7 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   d = await dashboard({ configured: true, connected: false }, '', false, {
     '/agent/search/preview': () => { throw Error('preview unavailable'); },
     '/chat/run': { thread_id: 'cost2', turn_id: 'turn', stage: 'completed', message: 'Done', recommendation_ids: [], advisory_roles: [], replayed: false },
-    '/applications': []
+    '/api/v1/applications': []
   });
   d.context.window.confirm = () => { throw Error('must not ask without a warning'); };
   d.elements.get('searchQuery').value = 'Find python developer jobs';
@@ -557,7 +564,7 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   assert.match(html, /Upload a newer PDF or \.docx any time/);
   assert.match(html, /id="chatCvButton"/);
   d = await dashboard({ configured: true, connected: false }, '', false, {
-    '/applications': [],
+    '/api/v1/applications': [],
     '/cv/upload': { profile: { name: 'Test Student', skills: ['Python', 'PyTorch', 'SQL'], preferred_roles: [], preferred_locations: [] },
                     attachment: { id: 'att-1', original_name: 'my_cv.pdf' } }
   });
@@ -574,7 +581,7 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   // Saved and alert-email jobs can be removed from their card; official jobs cannot.
   const savedId = 'c'.repeat(64);
   const officialId = 'd'.repeat(64);
-  d = await dashboard({ configured: true, connected: false }, '', false, { '/applications': [] });
+  d = await dashboard({ configured: true, connected: false }, '', false, { '/api/v1/applications': [] });
   const cards = [
     { id: savedId, title: 'Machine Learning Engineer', company: 'Naukri Test', source: 'Saved by you', match: {}, eligibility: {} },
     { id: officialId, title: 'Data Analyst', company: 'Example', source: 'Company Radar', match: {}, eligibility: {} }
@@ -593,54 +600,111 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   assert.doesNotMatch(d.elements.get('workspaceJobResults').innerHTML, /Naukri Test/);
   assert.match(d.elements.get('workspaceJobResults').innerHTML, /Data Analyst/);
 
-  // One click marks a job applied (one request even when double-clicked), with Undo in a toast.
+  // One click marks a job applied through /api/v1 (one request even when double-clicked), with Undo in a toast.
   const applyJobId = 'd'.repeat(64);
+  const applyJob = { id: applyJobId, title: 'NLP Engineer', company: 'ExampleCo', location: 'Pune', description: 'Python and NLP.',
+                     application_url: 'https://jobs.example.com/9', source: 'Company Radar', match: { explanation: 'SENTINEL-CV-LINE' }, eligibility: {} };
   d = await dashboard({ configured: true, connected: false }, '', false, {
-    '/applications': [],
-    '/applications/applied': { application: { id: 'app-9', job_id: applyJobId, status: 'APPLIED', response_state: 'PENDING_CENSORED' },
-                               event: { id: 41, event_type: 'applied' }, already_applied: false, replayed: false },
-    '/applications/app-9/events/41/undo': { application: { id: 'app-9', status: 'SAVED' }, event: { id: 42 }, already_undone: false, replayed: false }
+    '/api/v1/applications': options => options.method === 'POST'
+      ? { created: true, application: { id: 'app-9', job_id: applyJobId, status: 'SAVED', title: 'NLP Engineer', company_name: 'ExampleCo' } }
+      : { count: 0, applications: [] },
+    '/api/v1/applications/app-9/events': { replayed: false, event: { id: 41, event_type: 'applied' }, application: { id: 'app-9', status: 'APPLIED' } },
+    '/api/v1/applications/app-9/events/41/undo': { replayed: false, event: { id: 42, event_type: 'undone' }, application: { id: 'app-9', status: 'SAVED' } }
   });
-  d.context.renderJobs([{ id: applyJobId, title: 'NLP Engineer', company: 'ExampleCo', source: 'Company Radar', match: {}, eligibility: {} }]);
+  d.context.renderJobs([applyJob]);
   assert.match(d.elements.get('workspaceJobResults').innerHTML, new RegExp(`markAppliedById\\('${applyJobId}'\\)`));
   await Promise.all([d.context.window.markAppliedById(applyJobId), d.context.window.markAppliedById(applyJobId)]);
-  const applyPosts = d.calls.filter(([path]) => path === '/applications/applied');
-  assert.equal(applyPosts.length, 1, 'a double click sends one request');
-  assert.equal(applyPosts[0][1], 'POST');
-  assert.equal(applyPosts[0][2].job_id, applyJobId);
-  assert.ok(applyPosts[0][2].request_id);
+  const createPosts = d.calls.filter(([path, method]) => path === '/api/v1/applications' && method === 'POST');
+  assert.equal(createPosts.length, 1, 'a double click sends one request');
+  assert.deepEqual(createPosts[0][2], { title: 'NLP Engineer', company: 'ExampleCo', url: 'https://jobs.example.com/9', location: 'Pune',
+                                        description: 'Python and NLP.', source: 'Company Radar', stored_job_id: applyJobId });
+  assert.doesNotMatch(JSON.stringify(createPosts[0][2]), /SENTINEL-CV-LINE/, 'the stored match can quote the CV and is not sent');
+  const appliedPosts = d.calls.filter(([path]) => path === '/api/v1/applications/app-9/events');
+  assert.equal(appliedPosts.length, 1);
+  assert.deepEqual(appliedPosts[0][2], { event_type: 'applied' });
+  assert.ok(createPosts[0][3]['Idempotency-Key'] && appliedPosts[0][3]['Idempotency-Key']);
+  assert.notEqual(createPosts[0][3]['Idempotency-Key'], appliedPosts[0][3]['Idempotency-Key']);
   assert.equal(d.elements.get('undoToast').classList.contains('hidden'), false);
   assert.match(d.elements.get('undoToastText').textContent, /Marked as applied/);
   await d.elements.get('undoToastBtn').handlers.click();
-  assert.ok(d.calls.some(([path, method]) => path === '/applications/app-9/events/41/undo' && method === 'POST'));
+  const undoPost = d.calls.find(([path, method]) => path === '/api/v1/applications/app-9/events/41/undo' && method === 'POST');
+  assert.ok(undoPost[3]['Idempotency-Key']);
   assert.equal(d.elements.get('undoToast').classList.contains('hidden'), true);
 
-  // Tracker cards: one-click outcomes and Undo of the latest tracker event.
+  // A job that is already past SAVED is not applied twice.
   d = await dashboard({ configured: true, connected: false }, '', false, {
-    '/applications': [{ id: 'app-9', job_id: applyJobId, status: 'APPLIED', notes: '', response_state: 'PENDING_CENSORED',
-                        last_event: { id: 41, event_type: 'applied' }, job: { title: 'NLP Engineer', company: 'ExampleCo' } }],
-    '/applications/app-9/events': { application: { id: 'app-9', status: 'INTERVIEW' }, event: { id: 43, event_type: 'interview' },
-                                    already_recorded: false, replayed: false }
+    '/api/v1/applications': options => options.method === 'POST'
+      ? { created: false, application: { id: 'app-9', job_id: applyJobId, status: 'INTERVIEW' } } : { count: 0, applications: [] }
+  });
+  d.context.renderJobs([applyJob]);
+  await d.context.window.markAppliedById(applyJobId);
+  assert.equal(d.calls.some(([path]) => path === '/api/v1/applications/app-9/events'), false);
+  assert.match(d.elements.get('undoToastText').textContent, /Already marked as applied/);
+
+  // Applications view: read from /api/v1, one-click outcomes, Undo of the latest event, no funnel line.
+  const trackedEntry = { id: 'app-9', job_id: applyJobId, status: 'APPLIED', notes: 'old note', title: 'NLP Engineer', company_name: 'ExampleCo',
+                         url: 'https://jobs.example.com/9', applied_at: '2026-10-01', latest_event: { id: 41, event_type: 'applied' } };
+  d = await dashboard({ configured: true, connected: false }, '', false, {
+    '/api/v1/applications': { count: 1, applications: [trackedEntry] },
+    '/api/v1/applications/app-9/events': { replayed: false, event: { id: 43, event_type: 'interview' }, application: { id: 'app-9', status: 'INTERVIEW' } },
+    '/api/v1/applications/app-9': { application: { id: 'app-9', status: 'INTERVIEW', notes: 'new note' } }
   });
   await vm.runInContext('loadTracker()', d.context);
-  // No applications yet in the funnel response: the summary stays hidden rather than showing zeros.
-  assert.equal(d.elements.get('trackerFunnel').classList.contains('hidden'), true);
-  const trackerHtml = d.elements.get('trackerList').innerHTML;
+  assert.ok(d.calls.some(([path, method]) => path === '/api/v1/applications' && method === undefined));
+  assert.equal(d.elements.has('trackerFunnel'), false, 'the funnel line is gone until TRK8');
+  let trackerHtml = d.elements.get('trackerList').innerHTML;
+  assert.match(trackerHtml, /NLP Engineer/);
+  assert.match(trackerHtml, /ExampleCo/);
+  assert.match(trackerHtml, /href="https:\/\/jobs\.example\.com\/9"/);
   for (const outcome of ['recruiter_reply', 'online_test', 'interview', 'offer', 'rejected', 'withdrawn']) {
     assert.match(trackerHtml, new RegExp(`recordOutcome\\('app-9', '${outcome}'\\)`), outcome);
   }
   assert.match(trackerHtml, /undoEvent\('app-9', 41\)/);
-  assert.match(trackerHtml, /Waiting for a reply/);
   await d.context.window.recordOutcome('app-9', 'interview');
-  const outcomePost = d.calls.find(([path]) => path === '/applications/app-9/events');
-  assert.equal(outcomePost?.[2].event_type, 'interview');
-  assert.ok(outcomePost?.[2].request_id);
+  const outcomePost = d.calls.find(([path]) => path === '/api/v1/applications/app-9/events');
+  assert.deepEqual(outcomePost[2], { event_type: 'interview' });
+  assert.ok(outcomePost[3]['Idempotency-Key']);
+
+  // "Save changes": a changed status is an event, the notes are a PATCH; neither sends the other's fields.
+  d.calls.length = 0;
+  d.elements.set('trackerState0', { value: 'INTERVIEW' });
+  d.elements.set('trackerNotes0', { value: 'new note' });
+  await d.context.window.updateApplication(0);
+  const changes = d.calls.filter(([, method]) => method === 'POST' || method === 'PATCH');
+  assert.deepEqual(changes.map(([path, method, body]) => [path, method, body]), [
+    ['/api/v1/applications/app-9/events', 'POST', { event_type: 'interview' }],
+    ['/api/v1/applications/app-9', 'PATCH', { notes: 'new note' }]]);
+  assert.ok(changes.every(call => call[3]['Idempotency-Key']));
+
+  // A refused transition shows the server's message with the allowed list, and the notes are not saved.
+  d = await dashboard({ configured: true, connected: false }, '', false, {
+    '/api/v1/applications': { count: 1, applications: [trackedEntry] },
+    '/api/v1/applications/app-9/events': { __status: 409, body: { detail: { message: 'APPLIED cannot become SAVED. Allowed next: ONLINE_TEST, INTERVIEW.',
+                                                                            status: 'APPLIED', allowed: ['ONLINE_TEST', 'INTERVIEW'] } } }
+  });
+  await vm.runInContext('loadTracker()', d.context);
+  d.elements.set('trackerState0', { value: 'SAVED' });
+  await d.context.window.updateApplication(0);
+  assert.match(d.elements.get('trackerStatus').textContent, /APPLIED cannot become SAVED\. Allowed next: ONLINE_TEST, INTERVIEW\./);
+  assert.equal(d.calls.some(([, method]) => method === 'PATCH'), false);
+
+  // Outreach from a tracked application names the stored job, never a tracker id (outreach still links in the old store).
+  d.context.window.composeTrackedEmail(0);
+  assert.equal(vm.runInContext('selectedJob.id', d.context), applyJobId);
+  assert.equal(vm.runInContext('selectedJob.application_id', d.context) ?? null, null);
+  assert.equal(vm.runInContext('selectedJob.title', d.context), 'NLP Engineer');
+  d = await dashboard({ configured: true, connected: false }, '', false, {
+    '/api/v1/applications': { count: 1, applications: [{ ...trackedEntry, job_id: 'acme:4012345' }] }
+  });
+  await vm.runInContext('loadTracker()', d.context);
+  d.context.window.composeTrackedEmail(0);
+  assert.equal(vm.runInContext('selectedJob.id', d.context) ?? null, null, 'an index job id is not a stored job id');
 
   // Thumbs up/down on a job card: one click labels, the same click again clears; the card shows the state.
   const thumbJobId = 'e'.repeat(64);
   let thumbLabel = null;
   d = await dashboard({ configured: true, connected: false }, '', false, {
-    '/applications': [],
+    '/api/v1/applications': [],
     '/jobs/relevance': () => ({ scale: 'thumbs', rubric_version: 'thumbs-v1', labels: thumbLabel ? { [thumbJobId]: thumbLabel } : {} }),
     [`/jobs/${thumbJobId}/relevance`]: options => {
       const sent = JSON.parse(options.body).label;
@@ -666,24 +730,6 @@ async function dashboard(linkedin, query = '', disconnectFails = false, response
   thumbPosts = d.calls.filter(([path, method]) => path === `/jobs/${thumbJobId}/relevance` && method === 'POST');
   assert.equal(thumbPosts[1][2].label, 'clear', 'clicking the active thumb clears it');
   assert.doesNotMatch(thumbHtml(), /aria-pressed="true"/);
-
-  // The tracker shows the funnel as counts (L0), never as an estimate, and tags shortlisted applications.
-  d = await dashboard({ configured: true, connected: false }, '', false, {
-    '/applications': [{ id: 'app-9', job_id: applyJobId, status: 'INTERVIEW', notes: '', response_state: 'RESPONDED', shortlisted: true,
-                        last_event: { id: 44, event_type: 'interview' }, job: { title: 'NLP Engineer', company: 'ExampleCo' } }],
-    '/tracker/funnel': { claim_level: 'L0', response_window_days: 21,
-      counts: { tracked: 7, applied: 5, responded: 3, no_response: 1, pending_censored: 1, shortlisted: 1, offers: 0, rejected: 1, withdrawn: 0 },
-      shortlist_rate: { of_applied: { shortlisted: 1, applied: 5, rate: 0.2 }, of_resolved: { shortlisted: 1, resolved: 4, rate: 0.25 } } }
-  });
-  await vm.runInContext('loadTracker()', d.context);
-  const funnelText = d.elements.get('trackerFunnel').textContent;
-  assert.equal(d.elements.get('trackerFunnel').classList.contains('hidden'), false);
-  assert.match(funnelText, /Applied 5/);
-  assert.match(funnelText, /Shortlisted 1 of 5 applied/);
-  assert.match(funnelText, /1 still waiting/);
-  assert.match(funnelText, /Counts from your tracker \(L0\), not an estimate/);
-  assert.doesNotMatch(funnelText, /%|chance|probab/i);
-  assert.match(d.elements.get('trackerList').innerHTML, /Shortlisted/);
 
   // Both approval views name the attached file: the Email view and the chat's final confirmation.
   const reviewDraft = { recipient: 'hr@example.org', subject: 'Application', body: 'Review me', status: 'draft' };

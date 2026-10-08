@@ -16,9 +16,8 @@ let applicationsByJob = new Map();
 let relevanceByJob = new Map();   // job id -> 'up' | 'down' (live thumbs; feedback only)
 const jobsById = new Map();
 const conversation = [];
-const applicationStatuses = ['SAVED', 'APPLIED', 'ONLINE_TEST', 'INTERVIEW', 'OFFER', 'REJECTED', 'WITHDRAWN', 'SKIPPED'];
+const applicationStatuses = ['SAVED', 'APPLIED', 'ONLINE_TEST', 'INTERVIEW', 'OFFER', 'REJECTED', 'WITHDRAWN', 'NO_RESPONSE', 'SKIPPED'];
 // Derived from the event log by the server; a pending reply is unknown, never a rejection.
-const RESPONSE_LABELS = { PENDING_CENSORED: 'Waiting for a reply', NO_RESPONSE: 'No response yet', RESPONDED: 'Responded' };
 const dialogReturnFocus = new WeakMap();
 let jobDrawerReturnFocus = null;
 let jobDrawerReturnJobId = null;
@@ -70,7 +69,9 @@ async function api(path, options = {}) {
   try { data = await res.json(); } catch { data = null; }
   if (!res.ok) {
     const detail = data?.detail || data?.message || `Request failed (${res.status})`;
-    throw new Error(typeof detail === 'string' ? detail : 'Please check the entered values and try again.');
+    // The tracker API explains a refusal in detail.message (for example the statuses that are allowed next).
+    const text = typeof detail === 'string' ? detail : typeof detail?.message === 'string' ? detail.message : '';
+    throw new Error(text || 'Please check the entered values and try again.');
   }
   return data;
 }
@@ -394,7 +395,7 @@ function addRecommendationArtifact(jobs) {
 }
 
 async function refreshApplicationIndex() {
-  const data = await api('/applications');
+  const data = await api(`${TRACKER_API}/applications`);
   trackerEntries = Array.isArray(data) ? data : data.applications || [];
   applicationsByJob = new Map(trackerEntries.filter(entry => entry.job_id).map(entry => [entry.job_id, entry]));
   try { relevanceByJob = new Map(Object.entries((await api('/jobs/relevance')).labels || {})); } catch { /* labels are optional */ }
@@ -507,14 +508,13 @@ async function runChat(message, extra = {}) {
     return null;
   }
   if (!retryingSameTurn) addConversation('user', value);
-  const application = selectedJob?.id ? applicationsByJob.get(selectedJob.id) : null;
   const payload = {
     thread_id: chatThreadId,
     turn_id: pendingTurn.turnId,
     message: value,
     career_session_id: searchSessionId,
     selected_job_id: selectedJob?.id || null,
-    application_id: selectedJob?.application_id || application?.id || null,
+    application_id: selectedJob?.application_id || null,
     draft_id: pendingDraftId,
     include_seen: $('includeSeen').checked,
     strict_mode: $('strictSearch').checked,
@@ -721,7 +721,7 @@ function renderSelectedJobContext() {
     <section class="drawer-section"><h3>Eligibility: ${ELIGIBILITY_LABELS[eligibilityStatus(selectedJob)][0]}</h3><p>${escapeHtml(eligibilitySummary(selectedJob) || 'No eligibility evidence recorded.')}</p>${(eligibility.evidence || []).length ? `<ul>${textList(eligibility.evidence.map(describeEvidence))}</ul>` : eligibility.warnings?.length ? `<ul>${textList(eligibility.warnings)}</ul>` : ''}<p class="muted">Heuristic check (L0) from the listing text, not a prediction. ${escapeHtml(eligibility.confidence ? `Confidence: ${eligibility.confidence}.` : '')}</p></section>
     <section class="drawer-section"><h3>Verification</h3><p>${escapeHtml(selectedJob.verification_reason || 'Application page has not been verified.')}</p></section>
     <div class="context-actions">${url ? `<a class="secondary" target="_blank" rel="noopener noreferrer" href="${escapeHtml(url)}">Open job</a>` : ''}<button class="secondary" type="button" onclick="saveSelectedJob()">${application ? 'Refresh saved state' : 'Save to tracker'}</button></div>`;
-  selectedJob.application_id = application?.id || selectedJob.application_id || null;
+  selectedJob.application_id = selectedJob.application_id || null;   // set only by the chat and outreach replies
   $('contextOutreachPanel').classList.remove('hidden');
 }
 
@@ -783,6 +783,23 @@ const eventLabel = type => ({ applied: 'applied', saved: 'saved', skipped: 'skip
   || (OUTCOME_BUTTONS.find(([key]) => key === type)?.[1] || type).toLowerCase();
 const pendingActions = new Set();
 const newRequestId = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+// The tracker (data/tracker.sqlite3) is reached only through /api/v1. Each change carries an Idempotency-Key.
+const TRACKER_API = '/api/v1';
+const STATUS_EVENTS = { SAVED: 'saved', APPLIED: 'applied', ONLINE_TEST: 'online_test', INTERVIEW: 'interview', OFFER: 'offer',
+  REJECTED: 'rejected', WITHDRAWN: 'withdrawn', NO_RESPONSE: 'no_response_confirmed', SKIPPED: 'skipped' };
+const STORED_JOB_ID = /^[0-9a-f]{64}$/;
+function trackerOptions(method, body = {}) {
+  const options = jsonOptions(method, body);
+  options.headers = { ...options.headers, 'Idempotency-Key': newRequestId() };
+  return options;
+}
+// A job card becomes an application from its own fields; the stored match is left out because it can quote the CV.
+async function trackJob(job) {
+  const body = { title: job.title, company: job.company, url: safeExternalUrl(job.application_url) || null, location: job.location || null,
+    description: job.description || null, source: job.source || null, stored_job_id: job.id };
+  return (await api(`${TRACKER_API}/applications`, trackerOptions('POST', body))).application;
+}
+const trackerPath = (applicationId, rest = '') => `${TRACKER_API}/applications/${encodeURIComponent(applicationId)}${rest}`;
 let undoTarget = null;
 let undoTimer = null;
 
@@ -824,29 +841,31 @@ window.rateJob = (id, label, position) => oncePerAction(`thumb:${id}`, async () 
 });
 
 window.markAppliedById = id => oncePerAction(`applied:${id}`, async () => {
-  if (!id) return;
+  const job = jobsById.get(id);
+  if (!job) return;
   try {
-    const data = await api('/applications/applied', jsonOptions('POST', { job_id: id, request_id: newRequestId() }));
-    showUndo(data.already_applied ? 'Already marked as applied.' : 'Marked as applied.',
-             data.already_applied ? null : { applicationId: data.application.id, eventId: data.event.id });
+    const application = await trackJob(job);
+    if (application.status === 'SAVED') {
+      const data = await api(trackerPath(application.id, '/events'), trackerOptions('POST', { event_type: 'applied' }));
+      showUndo('Marked as applied.', { applicationId: application.id, eventId: data.event.id });
+    } else {
+      showUndo('Already marked as applied.', null);
+    }
     await refreshAfterTrackerEvent();
   } catch (error) { showStatus($('resultActionStatus'), error.message, 'error'); }
 });
 
 window.recordOutcome = (applicationId, type) => oncePerAction(`${type}:${applicationId}`, async () => {
   try {
-    const data = await api(`/applications/${encodeURIComponent(applicationId)}/events`,
-                           jsonOptions('POST', { event_type: type, request_id: newRequestId() }));
-    showUndo(data.already_recorded ? `Already recorded: ${eventLabel(type)}.` : `Recorded: ${eventLabel(type)}.`,
-             data.already_recorded ? null : { applicationId, eventId: data.event.id });
+    const data = await api(trackerPath(applicationId, '/events'), trackerOptions('POST', { event_type: type }));
+    showUndo(`Recorded: ${eventLabel(type)}.`, { applicationId, eventId: data.event.id });
     await loadTracker();
   } catch (error) { showStatus($('trackerStatus'), error.message, 'error'); }
 });
 
 window.undoEvent = (applicationId, eventId) => oncePerAction(`undo:${eventId}`, async () => {
   try {
-    await api(`/applications/${encodeURIComponent(applicationId)}/events/${encodeURIComponent(eventId)}/undo`,
-              jsonOptions('POST', { request_id: newRequestId() }));
+    await api(trackerPath(applicationId, `/events/${encodeURIComponent(eventId)}/undo`), trackerOptions('POST'));
     $('undoToast').classList.add('hidden');
     undoTarget = null;
     await refreshAfterTrackerEvent();
@@ -884,10 +903,7 @@ window.saveJob = async function(index) {
 async function saveStoredJob(job) {
   if (!job?.id) return;
   try {
-    const entry = await api('/applications', jsonOptions('POST', { job_id: job.id, status: 'SAVED', notes: '' }));
-    job.application_id = entry.id;
-    applicationsByJob.set(job.id, entry);
-    if (selectedJob?.id === job.id) selectedJob.application_id = entry.id;
+    applicationsByJob.set(job.id, await trackJob(job));
     renderJobs(window.lastJobs || []);
     renderConversation();
     renderSelectedJobContext();
@@ -896,28 +912,13 @@ async function saveStoredJob(job) {
   } catch (error) { showStatus($('resultActionStatus'), error.message, 'error'); }
 };
 
-// The funnel is a set of counts from the event log (L0): plain numbers, never a percentage or a chance.
-async function renderFunnel() {
-  let funnel = null;
-  try { funnel = await api('/tracker/funnel'); } catch { funnel = null; }
-  const counts = funnel?.counts;
-  if (!counts?.applied) { $('trackerFunnel').classList.add('hidden'); return; }
-  const parts = [`Applied ${counts.applied}`, `Responded ${counts.responded}`,
-    `Shortlisted ${counts.shortlisted} of ${counts.applied} applied`];
-  if (counts.pending_censored) parts.push(`${counts.pending_censored} still waiting`);
-  if (counts.no_response) parts.push(`${counts.no_response} with no response after ${funnel.response_window_days} days`);
-  $('trackerFunnel').textContent = `${parts.join(' · ')}. Counts from your tracker (${funnel.claim_level}), not an estimate.`;
-  $('trackerFunnel').classList.remove('hidden');
-}
-
 async function loadTracker() {
   try {
     await refreshApplicationIndex();
-    await renderFunnel();
     $('trackerList').innerHTML = trackerEntries.length ? trackerEntries.map((entry, index) => {
-      const job = entry.job || entry;
-      const url = safeExternalUrl(job.application_url);
-      return `<article class="tracker-card"><div class="panel-head"><div><h3>${escapeHtml(job.title || entry.job_title || 'Saved opportunity')}</h3><p>${escapeHtml(job.company || entry.company || '')}</p></div>${url ? `<a class="secondary" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open job</a>` : ''}</div>${RESPONSE_LABELS[entry.response_state] || entry.shortlisted ? `<p>${RESPONSE_LABELS[entry.response_state] ? `<span class="tag">${escapeHtml(RESPONSE_LABELS[entry.response_state])}</span>` : ''}${entry.shortlisted ? '<span class="tag good">Shortlisted</span>' : ''}</p>` : ''}<label for="trackerState${index}">Application status</label><select id="trackerState${index}">${applicationStatuses.map(status => `<option value="${status}" ${entry.status === status ? 'selected' : ''}>${status.replaceAll('_', ' ')}</option>`).join('')}</select><label for="trackerNotes${index}">Your notes</label><textarea id="trackerNotes${index}" rows="3">${escapeHtml(entry.notes || '')}</textarea><div class="card-actions section-gap">${OUTCOME_BUTTONS.map(([type, label]) => `<button class="secondary" onclick="recordOutcome('${escapeHtml(entry.id)}', '${type}')">${label}</button>`).join('')}${entry.last_event ? `<button class="secondary" onclick="undoEvent('${escapeHtml(entry.id)}', ${Number(entry.last_event.id)})">Undo ${escapeHtml(eventLabel(entry.last_event.event_type))}</button>` : ''}</div><div class="card-actions section-gap"><button class="primary" onclick="updateApplication(${index})">Save changes</button><button class="secondary" onclick="composeTrackedEmail(${index})">Prepare outreach</button></div><p class="muted">Last updated: ${escapeHtml(formatDate(entry.updated_at || entry.created_at) || 'Unknown')}</p></article>`;
+      const url = safeExternalUrl(entry.url);
+      const undo = entry.latest_event;
+      return `<article class="tracker-card"><div class="panel-head"><div><h3>${escapeHtml(entry.title || 'Saved opportunity')}</h3><p>${escapeHtml(entry.company_name || '')}</p></div>${url ? `<a class="secondary" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open job</a>` : ''}</div><label for="trackerState${index}">Application status</label><select id="trackerState${index}">${applicationStatuses.map(status => `<option value="${status}" ${entry.status === status ? 'selected' : ''}>${status.replaceAll('_', ' ')}</option>`).join('')}</select><label for="trackerNotes${index}">Your notes</label><textarea id="trackerNotes${index}" rows="3">${escapeHtml(entry.notes || '')}</textarea><div class="card-actions section-gap">${OUTCOME_BUTTONS.map(([type, label]) => `<button class="secondary" onclick="recordOutcome('${escapeHtml(entry.id)}', '${type}')">${label}</button>`).join('')}${undo ? `<button class="secondary" onclick="undoEvent('${escapeHtml(entry.id)}', ${Number(undo.id)})">Undo ${escapeHtml(eventLabel(undo.event_type))}</button>` : ''}</div><div class="card-actions section-gap"><button class="primary" onclick="updateApplication(${index})">Save changes</button><button class="secondary" onclick="composeTrackedEmail(${index})">Prepare outreach</button></div><p class="muted">Last updated: ${escapeHtml(formatDate(entry.updated_at || entry.created_at) || 'Unknown')}</p></article>`;
     }).join('') : '<p class="muted">No saved applications yet. Save an opportunity from Recommendations to start tracking it.</p>';
     if (window.lastJobs) renderJobs(window.lastJobs);
     renderConversation();
@@ -928,7 +929,10 @@ window.updateApplication = async function(index) {
   const entry = trackerEntries[index];
   if (!entry) return;
   try {
-    await api('/applications/' + encodeURIComponent(entry.id), jsonOptions('PATCH', { status: $('trackerState' + index).value, notes: $('trackerNotes' + index).value }));
+    // A status changes only by an event, which the server may refuse (it then lists what is allowed); notes are a PATCH.
+    const status = $('trackerState' + index).value;
+    if (status !== entry.status) await api(trackerPath(entry.id, '/events'), trackerOptions('POST', { event_type: STATUS_EVENTS[status] }));
+    await api(trackerPath(entry.id), trackerOptions('PATCH', { notes: $('trackerNotes' + index).value }));
     showStatus($('trackerStatus'), 'Application updated.', 'success');
     await loadTracker();
   } catch (error) { showStatus($('trackerStatus'), error.message, 'error'); }
@@ -936,8 +940,9 @@ window.updateApplication = async function(index) {
 window.composeTrackedEmail = function(index) {
   const entry = trackerEntries[index];
   if (!entry) return;
-  const job = entry.job || entry;
-  selectedJob = { ...job, id: entry.job_id || job.id, title: job.title || entry.job_title || 'Opportunity', company: job.company || entry.company || '', application_id: entry.id };
+  // Outreach still links through the old store: it gets the stored job when there is one, and never a tracker id.
+  selectedJob = { id: STORED_JOB_ID.test(entry.job_id || '') ? entry.job_id : null, title: entry.title || 'Opportunity',
+    company: entry.company_name || '', application_url: entry.url || null };
   showEmailComposer();
 };
 $('reloadTracker').addEventListener('click', loadTracker);
@@ -964,11 +969,10 @@ $('prepareContextOutreachBtn').addEventListener('click', async () => {
     $('contextRecipient').focus();
     return;
   }
-  const application = applicationsByJob.get(selectedJob.id);
   await runChat('Prepare outreach for the selected job.', {
     recipient,
     selected_job_id: selectedJob.id,
-    application_id: selectedJob.application_id || application?.id || null
+    application_id: selectedJob.application_id || null
   });
 });
 
