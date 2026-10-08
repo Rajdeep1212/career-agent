@@ -6,5 +6,5 @@ export default defineConfig({
   timeout: 120_000,
   workers: 1,
   reporter: "line",
-  use: { baseURL: process.env.SMOKE_WEB_ORIGIN ?? "http://localhost:3011", headless: true },
+  use: { baseURL: process.env.SMOKE_WEB_ORIGIN ?? "http://localhost:3011", headless: true, trace: "retain-on-failure" },
 });

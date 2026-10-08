@@ -1,4 +1,11 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
+
+// goto resolves on the load event, which can come before React has hydrated the page (measured: up to 80 ms earlier).
+// Text typed in that gap is wiped by hydration, so wait for the board, which only the hydrated page renders.
+async function open(page: Page, url: string) {
+  await page.goto(url);
+  await expect(page.getByTestId("column-SAVED")).toBeVisible();
+}
 
 // Runs only through e2e/run-smoke.mjs, against a tracker database in a temporary directory.
 test("add by URL, drag across a column, open the timeline, undo, pick a CV version", async ({ page, request }) => {
@@ -6,7 +13,7 @@ test("add by URL, drag across a column, open the timeline, undo, pick a CV versi
   expect(api, "start this with: npm run smoke").toBeTruthy();
   expect((await (await request.get(`${api}/api/v1/applications`)).json()).count).toBe(0);      // a fresh, disposable tracker
 
-  await page.goto("/");
+  await open(page, "/");
   await page.getByLabel("Job URL").fill("https://jobs.example.com/smoke/1?utm_source=newsletter");
   await page.getByLabel("Title").fill("Smoke Test Engineer");
   await page.getByLabel("Company").fill("Example Labs");
@@ -53,7 +60,7 @@ test("add by URL, drag across a column, open the timeline, undo, pick a CV versi
 // `next dev` prints the 127.0.0.1 address, but the API accepts changes only from the exact WEB_ORIGIN.
 test("the 127.0.0.1 address lands on the exact origin, where a change is accepted", async ({ page, baseURL }) => {
   const site = new URL(baseURL!);
-  await page.goto(`http://127.0.0.1:${site.port}/`);
+  await open(page, `http://127.0.0.1:${site.port}/`);
   await expect(page).toHaveURL(`${site.origin}/`);
   await page.getByLabel("Job URL").fill("https://jobs.example.com/smoke/origin");
   await page.getByRole("button", { name: "Check" }).click();
