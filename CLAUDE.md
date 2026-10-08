@@ -71,7 +71,8 @@ LinkedIn, Naukri and Indeed pages are never fetched (`application_verifier.never
 ## Working rules
 
 - Run the full offline suite after every change: `python -m pytest` (or `python run_tests.py`),
-  `node tests/test_frontend.cjs`, `python -m ruff check .` and `python -m mypy`.
+  `node tests/test_frontend.cjs`, `python -m ruff check .` and `python -m mypy`; and in `web/`,
+  `npm run typecheck`, `npm test` and `npm run smoke` (a disposable tracker database, never `data/`).
 - Write a failing regression test before fixing a bug.
 - Keep commits small, with one concern each.
 - Database and path migrations need a backup first, must be idempotent, and must be tested. Never

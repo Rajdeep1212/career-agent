@@ -60,3 +60,19 @@ survives the next run.
 | alembic 1.20.0 with Mako and MarkupSafe (TRK1) | C:, site-packages (488 MB before, 491 MB after) | 3 MB |
 
 Installed with `pip install --no-cache-dir`, so nothing was left in the pip cache on C:.
+
+## Web app footprint (measured 8 October 2026, TRK3)
+
+Added by hand, like the section above.
+
+| What | Where | Size |
+|---|---|---|
+| `web/node_modules`: next 16.4.0, react and react-dom 19.3.0, typescript 7.0.2, tailwindcss and @tailwindcss/postcss 4.3.3, postcss, vitest 5.0.3, @vitejs/plugin-react, jsdom, @testing-library/react and /dom, @playwright/test 1.64.0, @types/* | C:, inside the repository | 481 MB |
+| Next's build directory (`web/.next`, and `web/.next-smoke` for the smoke run) | C:, inside the repository | 45 MB each after one run |
+| npm cache | F:\npm-cache (`npm_config_cache`, set for the install command only) | 473 MB |
+| Playwright browser: Chromium headless shell 1248, ffmpeg, winldd | F:\playwright-browsers (`PLAYWRIGHT_BROWSERS_PATH`) | 282 MB |
+
+C: had 3.3 GB free before the install and 3.6 GB after it; other programs moved the figure by more than the install
+did during the hour, so the sizes above are measured per folder. Nothing was installed globally and no npm or
+Playwright setting was changed outside the commands that were run. Set `PLAYWRIGHT_BROWSERS_PATH=F:\playwright-browsers`
+before `npm run smoke`; without it Playwright looks on C: and finds no browser.

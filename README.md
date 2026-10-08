@@ -66,6 +66,26 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8010
 Open `http://localhost:8010/app/`. Windows users may instead run
 `01_SETUP_WINDOWS.ps1` once and `02_START_WINDOWS.ps1` to start the app.
 
+### Application tracker (web/)
+
+The tracker board is a separate Next.js app in `web/`. It needs Node 20 or newer and talks only to the
+`/api/v1` routes of the FastAPI server, through its own proxy; it never opens a database. Start both, each in its
+own terminal:
+
+```powershell
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8010
+```
+
+```powershell
+cd web
+npm install        # once
+npm run dev        # http://localhost:3010
+```
+
+Open `http://localhost:3010` (not `127.0.0.1`: changes are accepted only from the exact origin in `WEB_ORIGIN`).
+The board shows one column per status; drag a card to record an event, open a card for its timeline, undo and CV
+version, and add an application from a job URL at the top. Both servers listen on this computer only.
+
 ## Configuration
 
 `.env.example` documents every public setting. The main options are:
@@ -73,6 +93,7 @@ Open `http://localhost:8010/app/`. Windows users may instead run
 | Setting | Purpose |
 | --- | --- |
 | `APP_ORIGIN` | The only browser origin allowed to change data; defaults to `http://localhost:8010`. |
+| `WEB_ORIGIN` | The tracker web app's one exact origin, allowed to change the tracker through `/api/v1` only; defaults to `http://localhost:3010`. No wildcard is accepted. |
 | `JOB_PROVIDERS` | Job providers to use (default `radar,alerts,jsearch,adzuna,jooble`); `radar` is the local Company Radar index (used once it has data), `alerts` your alert-email and saved jobs, and a provider without its key is skipped. |
 | `RAPIDAPI_KEY` | Enables live JSearch requests. |
 | `RAPIDAPI_HOST` | JSearch RapidAPI host. |
@@ -227,6 +248,19 @@ python -m mypy
 ```
 
 `python run_tests.py` runs the same suite without the dev tools.
+
+The tracker web app has its own checks, run from `web/`:
+
+```powershell
+npm run typecheck
+npm test                                   # component tests (Vitest, jsdom)
+npx playwright install chromium --only-shell   # once; set PLAYWRIGHT_BROWSERS_PATH first to choose the drive
+npm run smoke                              # one Playwright run
+```
+
+`npm run smoke` starts FastAPI on port 8011 with `DATA_DIR` set to a new temporary directory and the web app on
+port 3011, runs the browser test and removes the directory; it never opens `data/`. Set `CAREER_AGENT_PYTHON` to
+the app's Python if `python` on PATH is another one.
 
 ## Documentation
 
