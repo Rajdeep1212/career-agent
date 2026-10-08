@@ -317,12 +317,14 @@ def append_event(owner: str, application_id: str, request_id: str, event_type: s
         return _event(event), _detail(session, application), False
 
 
-def record_outreach(owner: str, application_id: str, event_type: str, draft_id: int) -> tuple[dict, bool]:
-    """(event, replayed). Written by the email workflow, never through the API: one event per draft and kind; the status
-    stays. `outreach_sent` comes only after Gmail confirmed a send the user approved (app/services/email_send_boundary.py)."""
+def record_outreach(owner: str, application_id: str, event_type: str, draft_id: int, linked_at: str) -> tuple[dict, bool]:
+    """(event, replayed). Written by the email workflow, never through the API: one event per draft link and kind; the
+    status stays. `outreach_sent` comes only after Gmail confirmed a send the user approved
+    (app/services/email_send_boundary.py). `linked_at` keeps a draft id that a restored agent.sqlite3 hands out again
+    from replaying an older link's event."""
     if event_type not in OUTREACH_EVENTS:
         raise Invalid(f"event_type must be one of {', '.join(OUTREACH_EVENTS)}.")
-    request_id = f"{event_type}:draft:{draft_id}"
+    request_id = f"{event_type}:draft:{draft_id}:{linked_at}"
     with store.session() as session:
         application = _application(session, owner, application_id)
         prior = _by_request(session, owner, request_id)

@@ -97,3 +97,43 @@ class OldTablesReadOnlyTests(_IsolatedApp):
         writes = re.compile(r'(INSERT\s+(OR\s+\w+\s+)?INTO|UPDATE|DELETE\s+FROM)\s+career_applications\b', re.IGNORECASE)
         found = sorted(str(path.relative_to(ROOT)) for path in (ROOT / 'app').rglob('*.py') if writes.search(path.read_text(encoding='utf-8')))
         self.assertEqual(found, ['app/storage/career_events.py'], 'only the v3 backfill migration (career_events.migrate_v3)')
+
+
+class OutreachAfterSendTests(_IsolatedApp):
+    """Once Gmail has confirmed a send, the tracker cannot turn it into an uncertain one."""
+
+    def setUp(self):
+        super().setUp()
+        for module in (email_store, career_store):
+            patcher = patch.object(module, 'DB_PATH', self.directory / 'agent.sqlite3')
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.job_id = career_store.upsert_job(JOB)
+        self.application = career_store.save_application(self.job_id)
+
+    def test_a_tracker_failure_after_a_confirmed_send_keeps_the_draft_sent(self):
+        draft = email_store.create_draft('recruiter@example.org', 'Hello', 'Review me', None)
+        career_store.link_outreach(self.application['id'], draft['id'], 'Hello')
+        email_store.approve_draft(draft['id'])
+        gmail = Mock(return_value={'id': 'fictional-gmail-id'})
+        with patch.object(main, 'send_approved_email', gmail), \
+                patch.object(service, 'record_outreach', side_effect=RuntimeError('tracker locked')), \
+                self.assertLogs('app.storage.career_store', 'WARNING') as logs:
+            response = self.client.post(f"/email/drafts/{draft['id']}/send", headers=LOCAL)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(email_store.get_draft(draft['id'])['status'], 'sent')
+        self.assertIsNotNone(career_store.get_outreach_for_draft(draft['id'])['sent_at'])
+        self.assertEqual(logs.output, [f"WARNING:app.storage.career_store:outreach_sent for draft {draft['id']} "
+                                       'not recorded in the tracker (RuntimeError)'])
+
+    def test_a_draft_id_reused_after_restoring_agent_sqlite3_is_a_new_outreach(self):
+        career_store.link_outreach(self.application['id'], 5, 'First')
+        career_store.mark_outreach_sent(5)
+        with career_store._connection() as conn:        # agent.sqlite3 restored from a backup taken before draft 5
+            conn.execute('DELETE FROM career_outreach WHERE draft_id=5')
+        other = career_store.save_application(career_store.upsert_job({**JOB, 'title': 'Other Analyst',
+                                                                        'application_url': 'https://careers.example.org/jobs/8'}))
+        career_store.link_outreach(other['id'], 5, 'Second')
+        career_store.mark_outreach_sent(5)
+        self.assertEqual([event['event_type'] for event in career_store.get_application(other['id'])['timeline']],
+                         ['saved', 'outreach_prepared', 'outreach_sent'])

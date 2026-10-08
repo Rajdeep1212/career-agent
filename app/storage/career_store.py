@@ -4,6 +4,7 @@ Applications are in the tracker (data/tracker.sqlite3) since TRK3c; career_appli
 outreach events of job_events are kept as history and never written. Thumbs and removal notes stay here.
 """
 import json
+import logging
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,6 +19,7 @@ from app.storage import career_events, db
 
 
 DB_PATH = Path(settings.data_dir) / 'agent.sqlite3'
+logger = logging.getLogger(__name__)
 _STATUSES = get_args(ApplicationStatus)
 Snapshot = tuple[dict, dict]   # (profile, L0 features) captured with an event
 
@@ -387,27 +389,29 @@ def link_outreach(application_id, draft_id, short_message, contact_id=None) -> N
         existing = conn.execute('SELECT application_id FROM career_outreach WHERE draft_id=?', (draft_id,)).fetchone()
         if existing and existing['application_id'] != application_id:
             raise ValueError('Draft already belongs to another application')
+        linked_at = _now()
         conn.execute('''INSERT INTO career_outreach
                         (draft_id, application_id, job_id, contact_id, short_message, created_at, sent_at)
                         VALUES (?, ?, ?, ?, ?, ?, NULL)
                         ON CONFLICT(draft_id) DO UPDATE SET
                             short_message=excluded.short_message,
                             contact_id=excluded.contact_id''',
-                     (draft_id, application_id, application['job_id'], contact_id, short_message, _now()))
+                     (draft_id, application_id, application['job_id'], contact_id, short_message, linked_at))
         if existing is None:     # inside the block: if the tracker refuses, the link is rolled back
-            service.record_outreach(owner, application_id, 'outreach_prepared', draft_id)
+            service.record_outreach(owner, application_id, 'outreach_prepared', draft_id, linked_at)
 
 
 def mark_outreach_sent(draft_id) -> None:
-    """Called only after the existing mail sender confirms sending."""
+    """Called only after the existing mail sender confirms sending. The send is stored first; the tracker event is
+    best effort, because nothing may turn a send Gmail confirmed into an uncertain one."""
     with _connection() as conn:
-        row = conn.execute('SELECT application_id, sent_at FROM career_outreach WHERE draft_id=?', (draft_id,)).fetchone()
-        if row is None:
+        row = conn.execute('SELECT application_id, created_at, sent_at FROM career_outreach WHERE draft_id=?',
+                           (draft_id,)).fetchone()
+        if row is None or row['sent_at'] is not None:
             return
-        if row['sent_at'] is None:
-            service, owner = _tracker()
-            try:
-                service.record_outreach(owner, row['application_id'], 'outreach_sent', draft_id)
-            except service.NotFound:
-                pass     # a link from before the tracker import, to an application it never received
-        conn.execute('UPDATE career_outreach SET sent_at=COALESCE(sent_at, ?) WHERE draft_id=?', (_now(), draft_id))
+        conn.execute('UPDATE career_outreach SET sent_at=? WHERE draft_id=?', (_now(), draft_id))
+    try:
+        service, owner = _tracker()
+        service.record_outreach(owner, row['application_id'], 'outreach_sent', draft_id, row['created_at'])
+    except Exception as exc:     # e.g. a link from before the tracker import, or a locked tracker file
+        logger.warning('outreach_sent for draft %s not recorded in the tracker (%s)', draft_id, type(exc).__name__)

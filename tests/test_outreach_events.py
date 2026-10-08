@@ -42,7 +42,8 @@ class OutreachEventTests(_App):
         career_store.link_outreach(self.application['id'], 5, 'Hello, edited')
         self.assertEqual(self.tracker_types(self.application['id']), ['applied', 'outreach_prepared'])
         event = self.timeline(self.application['id'])[-1]
-        self.assertEqual((event['source'], event['request_id']), ('derived', 'outreach_prepared:draft:5'))
+        self.assertEqual(event['source'], 'derived')
+        self.assertTrue(event['request_id'].startswith('outreach_prepared:draft:5:'), event['request_id'])
         career_store.link_outreach(self.application['id'], 6, 'Second draft')
         self.assertEqual(self.tracker_types(self.application['id']).count('outreach_prepared'), 2)
         self.assertEqual(self.types(self.job_id), [], 'nothing goes to the M2 log')
@@ -53,7 +54,7 @@ class OutreachEventTests(_App):
         career_store.mark_outreach_sent(5)
         career_store.mark_outreach_sent(999)
         self.assertEqual(self.tracker_types(self.application['id']), ['applied', 'outreach_prepared', 'outreach_sent'])
-        self.assertEqual(self.timeline(self.application['id'])[-1]['request_id'], 'outreach_sent:draft:5')
+        self.assertTrue(self.timeline(self.application['id'])[-1]['request_id'].startswith('outreach_sent:draft:5:'))
         self.assertEqual(self.types(self.job_id), [])
 
     def test_outreach_changes_neither_the_status_nor_what_undo_takes_back(self):
