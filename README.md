@@ -87,6 +87,39 @@ any other address for itself (such as the `http://127.0.0.1:3010` that `npm run 
 The board shows one column per status; drag a card to record an event, open a card for its timeline, undo and CV
 version, and add an application from a job URL at the top. Both servers listen on this computer only.
 
+## Use it like an app
+
+On Windows the tracker can open in its own window, start with Windows, and sit on the desktop. Nothing new is
+installed: it uses the Python and Node you already have and the Edge or Chrome already on the computer.
+
+```powershell
+# Once: a desktop shortcut, and the two servers started hidden at login (current user only, no administrator rights)
+powershell -ExecutionPolicy Bypass -File scripts\install_app.ps1 -AutoStart on -DesktopShortcut on
+```
+
+- **Open it.** Double-click **Career Agent** on the desktop, or run `scripts\start_app.ps1`. It starts FastAPI
+  (`127.0.0.1:8010`) and the built web app (`next start` on `127.0.0.1:3010`) hidden in the background, skips one that
+  is already running, and opens an app window on `http://localhost:3010`. The first start builds the web app
+  (`next build`, about 20 seconds); it rebuilds by itself when the committed `web/` source has changed, and
+  `-Rebuild` forces it.
+- **Install it (optional).** In that window, or in Edge or Chrome at `http://localhost:3010`, choose
+  *Apps > Install this site as an app* (Edge) or *Cast, save and share > Install page as app* (Chrome). The app has a
+  web app manifest with 192 px and 512 px icons and `display: standalone`, which is what both browsers ask for; no
+  service worker is needed ([web.dev install criteria](https://web.dev/articles/install-criteria),
+  [Microsoft Edge: "A service worker is optional"](https://learn.microsoft.com/en-us/microsoft-edge/progressive-web-apps/how-to/),
+  [MDN: Making PWAs installable](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable),
+  read 8 October 2026). Without a service worker the window shows a connection error while the servers are stopped.
+- **Auto-start on or off.** `scripts\install_app.ps1 -AutoStart off` removes the login shortcut and `-AutoStart on`
+  puts it back; it is the file `Career Agent (start at login).lnk` in the Startup folder (`shell:startup`), which
+  can also be deleted by hand. `-DesktopShortcut off` removes the desktop one. Run with no arguments to see what is
+  installed.
+- **Stop it.** `scripts\stop_app.ps1` stops the two servers; a port held by any other program is left alone.
+- **Logs.** `data\logs\launcher.log`, `api.*.log`, `web.*.log` and `web-build.*.log`.
+
+The app window always uses `localhost`, never `127.0.0.1`: changes are accepted only from the exact origin in
+`WEB_ORIGIN`. Both servers listen on this computer only. Measured on 8 October 2026: the production build is about
+6 MB under `web/.next` (0.6 MB static, 5.3 MB server), plus a 25 MB build cache.
+
 ## Configuration
 
 `.env.example` documents every public setting. The main options are:
