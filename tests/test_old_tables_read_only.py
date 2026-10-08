@@ -95,7 +95,7 @@ class OldTablesReadOnlyTests(_IsolatedApp):
 
     def test_no_app_code_writes_career_applications_outside_its_migrations(self):
         writes = re.compile(r'(INSERT\s+(OR\s+\w+\s+)?INTO|UPDATE|DELETE\s+FROM)\s+career_applications\b', re.IGNORECASE)
-        found = sorted(str(path.relative_to(ROOT)) for path in (ROOT / 'app').rglob('*.py') if writes.search(path.read_text(encoding='utf-8')))
+        found = sorted(path.relative_to(ROOT).as_posix() for path in (ROOT / 'app').rglob('*.py') if writes.search(path.read_text(encoding='utf-8')))
         self.assertEqual(found, ['app/storage/career_events.py'], 'only the v3 backfill migration (career_events.migrate_v3)')
 
 
