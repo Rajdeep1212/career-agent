@@ -2,20 +2,25 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 
-export const metadata: Metadata = { title: "Application tracker", description: "Career Agent: where each application stands." };
+// The address this build is published at: the public site when NEXT_PUBLIC_SITE_URL is set, otherwise the local app.
+const site = (process.env.NEXT_PUBLIC_SITE_URL ?? process.env.WEB_ORIGIN ?? "http://localhost:3010").replace(/\/$/, "");
+const title = "Career Agent: evidence-first job search for Indian freshers";
+const description = "Finds jobs on official company boards, checks eligibility with the listing quoted, ranks them honestly and tracks your applications. Local-first and open source.";
+const image = { url: "/og.png", width: 1200, height: 630, alt: "Career Agent: evidence-first job search for Indian freshers" };
+
+export const metadata: Metadata = {
+  metadataBase: new URL(site),
+  title,
+  description,
+  applicationName: "Career Agent",
+  openGraph: { type: "website", siteName: "Career Agent", title, description, url: "/", images: [image] },
+  twitter: { card: "summary_large_image", title, description, images: [image] },
+};
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen antialiased">
-        <header className="border-b border-line bg-surface">
-          <div className="mx-auto flex max-w-[1500px] items-baseline gap-3 px-4 py-3">
-            <a href="/" className="text-base font-semibold tracking-tight">Application tracker</a>
-            <span className="text-sm text-muted">Career Agent, on this computer</span>
-          </div>
-        </header>
-        <main className="mx-auto max-w-[1500px] px-4 py-5">{children}</main>
-      </body>
+      <body className="min-h-screen antialiased">{children}</body>
     </html>
   );
 }

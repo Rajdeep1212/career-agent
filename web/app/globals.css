@@ -26,3 +26,17 @@ body {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
+
+/* The landing page follows the visitor's light or dark setting. The tracker stays light. */
+@media (prefers-color-scheme: dark) {
+  :root:has(.landing) {
+    color-scheme: dark;
+    --color-paper: #14161a;
+    --color-surface: #1c1f25;
+    --color-ink: #e8e9ec;
+    --color-muted: #a9adb6;
+    --color-line: #3a3f4a;
+    --color-accent: #9bbcff;
+    --color-accent-soft: #233252;
+  }
+}
