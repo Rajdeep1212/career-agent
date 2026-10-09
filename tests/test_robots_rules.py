@@ -4,6 +4,7 @@ Python's urllib.robotparser takes the first matching line instead, which refuses
 Allow permits, and permits a path that a later, more specific Disallow refuses.
 """
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -61,6 +62,36 @@ class RobotsRulesTests(unittest.TestCase):
         text = "# hello\nUSER-AGENT: *   # everyone\ndisallow: /a?b=1  # one page\n"
         self.assertFalse(allowed(text, "/a?b=1&c=2"))
         self.assertTrue(allowed(text, "/a?c=2"))
+
+    def test_a_leading_byte_order_mark_does_not_hide_the_first_group(self):
+        self.assertFalse(allowed("\ufeffUser-agent: *\nDisallow: /\n", "/admin"))
+
+    def test_a_rule_with_many_stars_is_answered_quickly(self):
+        text = "User-agent: *\nDisallow: /" + "*a" * 12 + "$\nDisallow: /x***y\n"
+        started = time.perf_counter()
+        self.assertTrue(allowed(text, "/careers/" + "a" * 2000 + "b"))
+        self.assertFalse(allowed(text, "/careers/" + "a" * 2000))
+        self.assertLess(time.perf_counter() - started, 0.5)
+        self.assertFalse(allowed(text, "/x1y2"))
+
+    def test_stars_match_in_order_and_the_end_anchor_holds_after_a_star(self):
+        text = "User-agent: *\nDisallow: /a*b*c$\nDisallow: /exact$\n"
+        self.assertFalse(allowed(text, "/a1b2c"))
+        self.assertFalse(allowed(text, "/abcbc"))
+        self.assertTrue(allowed(text, "/a1c2b"))
+        self.assertTrue(allowed(text, "/a1b2cd"))
+        self.assertTrue(allowed(text, "/abc/abc/x"))
+        self.assertFalse(allowed(text, "/exact"))
+        self.assertTrue(allowed(text, "/exact/1"))
+
+    def test_a_group_for_an_agent_whose_name_is_part_of_ours_is_not_ours(self):
+        text = "User-agent: *\nDisallow: /\n\nUser-agent: Agent\nAllow: /\n"
+        self.assertFalse(allowed(text, "/admin"))
+        self.assertTrue(allowed("User-agent: *\nDisallow: /\n\nUser-agent: careerAGENT\nAllow: /\n", "/admin"))
+
+    def test_percent_escapes_compare_without_case(self):
+        self.assertFalse(allowed("User-agent: *\nDisallow: /a%2Fb\n", "/a%2fb"))
+        self.assertFalse(allowed("User-agent: *\nDisallow: /a%2fb\n", "/a%2Fb/c"))
 
 
 class FetcherUsesTheRulesTests(unittest.IsolatedAsyncioTestCase):

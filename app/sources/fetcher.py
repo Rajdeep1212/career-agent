@@ -54,6 +54,11 @@ class Fetched:
 Getter = Callable[..., Awaitable[httpx.Response]]
 
 
+def _upper_escapes(text: str) -> str:
+    """`%2f` and `%2F` are the same octet (RFC 3986), so they must compare equal."""
+    return re.sub(r"%[0-9a-fA-F]{2}", lambda escape: escape.group().upper(), text)
+
+
 class RobotsRules:
     """robots.txt as RFC 9309 reads it: the group naming this app, else the `*` group; among the rules that match
     a path the longest wins, and Allow wins a tie. `*` matches any characters and a trailing `$` ends the path.
@@ -67,7 +72,7 @@ class RobotsRules:
         agents: list[str] = []
         rules: list[tuple[bool, str]] = []
         in_rules = False
-        for raw in text.splitlines():
+        for raw in text.lstrip("\ufeff").splitlines():     # a byte order mark would hide the first User-agent line
             key, _, value = raw.split("#", 1)[0].partition(":")
             key, value = key.strip().lower(), value.strip()
             if key == "user-agent":
@@ -83,23 +88,36 @@ class RobotsRules:
 
     def _rules_for(self, user_agent: str) -> list[tuple[bool, str]]:
         token = user_agent.split("/", 1)[0].strip().lower()
-        named = [rule for agents, rules in self._groups if any(agent != "*" and agent in token for agent in agents) for rule in rules]
-        if named or any(agent != "*" and agent in token for agents, _ in self._groups for agent in agents):
-            return named
-        return [rule for agents, rules in self._groups if "*" in agents for rule in rules]
+        for name in (token, "*"):                 # the product token must equal the group's name, not contain it
+            groups = [rules for agents, rules in self._groups if name in agents]
+            if groups:
+                return [rule for rules in groups for rule in rules]
+        return []
 
     @staticmethod
     def _matches(pattern: str, path: str) -> bool:
+        # No regex: one `.*` per star backtracks for seconds on a rule with many stars.
         anchored = pattern.endswith("$")
-        body = ".*".join(re.escape(part) for part in pattern.rstrip("$").split("*"))
-        return re.match(body + ("$" if anchored else ""), path) is not None
+        first, *rest = pattern.rstrip("$").split("*")
+        if not path.startswith(first):
+            return False
+        if anchored and not rest:
+            return path == first
+        end = rest.pop() if anchored else ""      # an anchored rule's last part must end the path
+        at = len(first)
+        for part in rest:                         # the parts between stars, each at its first place after the last
+            at = path.find(part, at)
+            if at < 0:
+                return False
+            at += len(part)
+        return len(path) - at >= len(end) and path.endswith(end)
 
     def can_fetch(self, user_agent: str, url: str) -> bool:
         parts = urlsplit(url)
-        path = (parts.path or "/") + (f"?{parts.query}" if parts.query else "")
+        path = _upper_escapes((parts.path or "/") + (f"?{parts.query}" if parts.query else ""))
         best: tuple[int, bool] | None = None
         for allow, pattern in self._rules_for(user_agent):
-            if self._matches(pattern, path):
+            if self._matches(_upper_escapes(pattern), path):
                 candidate = (len(pattern), allow)
                 if best is None or candidate > best:      # longer wins; at equal length Allow (True) wins
                     best = candidate
