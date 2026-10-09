@@ -32,6 +32,8 @@ class FetchResult:
     details_pending: list[str] = field(default_factory=list)  # source ids whose description still needs a detail fetch
     rejected: list[str] = field(default_factory=list)         # source ids read and found outside India or expired
     deferred: int = 0                                         # new jobs left for the next run by a per-run cap
+    malformed: int = 0                                        # records the source returned that could not be read as a job
+    date_mismatches: int = 0                                  # jobs whose posted date disagrees with the source's own day count
 
 
 def posting(company: CompanyEntry, *, job_id, title, location, description, url, posted=None,

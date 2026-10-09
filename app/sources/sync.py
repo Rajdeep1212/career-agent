@@ -20,7 +20,7 @@ from app.sources.alerts.daily import run_alerts
 from app.sources.alerts.daily import summary as alerts_summary
 from app.sources.daily_jsearch import run_daily_jsearch
 from app.sources.digest import build_digest, write_digest
-from app.sources.adapters import FetchResult, SourceError, ashby, greenhouse, lever, sitemap, smartrecruiters
+from app.sources.adapters import FetchResult, SourceError, ashby, greenhouse, keka, lever, sitemap, smartrecruiters
 from app.sources.fetcher import HostBlocked, PoliteFetcher, RobotsDisallowed
 from app.sources.registry import CompanyEntry, RadarConfig, RadarConfigError, load_config, syncable
 from app.storage import radar_store
@@ -76,6 +76,8 @@ async def _fetch(company: CompanyEntry, fetcher: PoliteFetcher, *, known: dict[s
         return await ashby.fetch(company, fetcher), 0
     if kind == "smartrecruiters":
         return await _smartrecruiters(company, fetcher, known)
+    if kind == "keka":
+        return await keka.fetch(company, fetcher, today=today), 0
     if kind in ("workday", "sitemap_jsonld"):
         return await sitemap.fetch(company, fetcher, known=known, skip=skip, today=today), 0
     raise SourceError(f"No adapter for source type '{kind}' yet.")
@@ -103,6 +105,10 @@ async def sync_company(company: CompanyEntry, fetcher: PoliteFetcher, *, today: 
     try:
         result, failures = await _fetch(company, fetcher, known=known, skip=skip, today=today)
         outcome = Outcome(company.id, "ok", fetched=result.fetched, india=len(result.jobs), http_status=result.http_status)
+        # Oddities in the source's own data: reported in the note; the listing is still complete.
+        odd = [f"{count} {text}" for count, text in ((result.malformed, "records could not be read"),
+                                                     (result.date_mismatches, "posted dates disagree with the source's day count")) if count]
+        outcome.note = "; ".join(odd)
         if dry_run:
             outcome.listed = len(result.jobs)
             return outcome
@@ -121,7 +127,7 @@ async def sync_company(company: CompanyEntry, fetcher: PoliteFetcher, *, today: 
         if failed_checks:
             notes.append(f"{failed_checks} job-page checks failed")
         if notes:
-            outcome.status, outcome.note = "partial", "; ".join(notes)
+            outcome.status, outcome.note = "partial", "; ".join(notes + odd)
     # OSError covers TimeoutError (a slow board) and dropped connections: one company's error, not the run's.
     except (SourceError, HostBlocked, RobotsDisallowed, httpx.HTTPError, ValueError, OSError) as exc:
         status = exc.http_status if isinstance(exc, SourceError) else None

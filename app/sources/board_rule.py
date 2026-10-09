@@ -10,14 +10,15 @@ so it needs the API's organisation name or the job descriptions to match; detect
 address the seed list or the company's own careers page gave it.
 
 The readers return what a public job API said about one board: counts are len() of the lists it
-returned. SmartRecruiters counts are of one page of at most 100 postings.
+returned. SmartRecruiters counts are of one page of at most 100 postings. Keka's feed is the tenant's careers page's
+own, so its reader checks robots.txt.
 """
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from urllib.parse import quote
 
-from app.sources.adapters import ashby, lever
+from app.sources.adapters import ashby, keka, lever
 from app.sources.fetcher import PoliteFetcher
 from app.sources.registry import DEFAULT_INDIA_FILTER
 
@@ -145,7 +146,24 @@ async def _workable(key: str, fetcher: PoliteFetcher, region: str) -> Board | No
                  [job.get("published_on") or job.get("created_at") for job in jobs])
 
 
-READERS = {"greenhouse": _greenhouse, "lever": _lever, "ashby": _ashby, "smartrecruiters": _smartrecruiters, "workable": _workable}
+async def _keka(key: str, fetcher: PoliteFetcher, region: str) -> Board | None:
+    """`key` is the tenant, or its host as detection finds it (<tenant>.keka.com). robots.txt is checked: the feed
+    is the careers page's own, not a documented API."""
+    tenant = key.lower().removesuffix(".keka.com")
+    response = await fetcher.get(keka.API.format(tenant=quote(tenant)), check_robots=True, accept="application/json")
+    if response.status_code != 200:
+        raise BoardError(f"Keka tenant '{tenant}'", response.status_code)
+    jobs = response.json()
+    if not isinstance(jobs, list):
+        return None
+    listed = [job for job in jobs if keka.well_formed(job)]
+    india = [job for job in listed if keka.in_india(job, _INDIA)]
+    return Board(len(listed), len(india), None, [str(job.get("description") or "") for job in listed], tenant,
+                 [job.get("publishedOn") for job in listed])
+
+
+READERS = {"greenhouse": _greenhouse, "lever": _lever, "ashby": _ashby, "smartrecruiters": _smartrecruiters, "workable": _workable,
+           "keka": _keka}
 
 
 async def read_board(ats: str, key: str, fetcher: PoliteFetcher, region: str = "", *, need_name: bool = True) -> Board | None:

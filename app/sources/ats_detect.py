@@ -6,8 +6,8 @@ Claim level L0: a deterministic pattern match, each with the text that matched.
 2. Otherwise the careers page is read once (robots.txt honoured, one request per
    host every `delay` seconds, a 429 stops that host) and matched by the address
    it redirected to, or by a board address it embeds or links.
-3. A Greenhouse, Lever, Ashby or SmartRecruiters board is then read through its
-   documented public API and judged by the one pollable rule
+3. A Greenhouse, Lever, Ashby, SmartRecruiters or Keka board is then read through its
+   public job API (for Keka, the feed its careers page reads; robots.txt is checked) and judged by the one pollable rule
    (app/sources/board_rule.py): an India job and a posting at most 180 days old.
    Job counts are len() of the list that API returned.
 
@@ -35,7 +35,7 @@ from app.sources.registry import DEFAULT_INDIA_FILTER
 # Outside data/: a run in the background must never change the user's data directory. .cache/ is git-ignored.
 CACHE_DIR = Path(__file__).resolve().parents[2] / ".cache" / "ats"
 STATUSES = ["pollable", "stale_no_india", "detected", "board_missing", "not_detected", "not_read", "no_careers_url"]
-_WITH_ADAPTER = {"greenhouse", "lever", "ashby", "smartrecruiters"}     # the Company Radar can poll these
+_WITH_ADAPTER = {"greenhouse", "lever", "ashby", "smartrecruiters", "keka"}     # the Company Radar can poll these
 _START = r"(?<![A-Za-z0-9.-])"
 _HOST = r"(?P<key>[a-z0-9-]+\.{domain})"
 # Order matters only for ties: the most specific board addresses come first.
@@ -422,7 +422,7 @@ def _probe_section(seed: SeedFile, results: list[Detection], review: list[dict[s
     before = "unknown" if baseline_pollable is None else str(baseline_pollable)
     lines += ["## Pollable companies", "",
               f"Pollable companies: before {before}, after {len(ready)}. Pollable means the board passed the rule above and "
-              "the Company Radar has an adapter for it (Greenhouse, Lever, Ashby, SmartRecruiters).", ""]
+              "the Company Radar has an adapter for it (Greenhouse, Lever, Ashby, SmartRecruiters, Keka).", ""]
     lines += _table(["List", "Pollable"], [[kind, count] for kind, count in Counter(f.list_type for f in ready).most_common()])
     city_of = {row.line: row.city_group for row in seed.rows}
     cities = Counter(city.strip() or "(not stated)" for f in ready for city in (city_of.get(f.line) or "").split(";"))
