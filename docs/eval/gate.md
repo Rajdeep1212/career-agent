@@ -5,7 +5,7 @@ level L0: counts printed by the test runners. Every test is offline and uses rec
 
 | Check | Command | Result |
 |---|---|---|
-| Python tests | `python run_tests.py` | 1035 offline Python tests run, 0 failed, 2 skipped |
+| Python tests | `python run_tests.py` | 1039 offline Python tests run, 0 failed, 2 skipped |
 | Dashboard script | `node tests/test_frontend.cjs` | passed |
 | Lint | `python -m ruff check .` | no findings |
 | Types | `python -m mypy` | no issues in 121 source files |
