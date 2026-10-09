@@ -23,8 +23,8 @@ const agreement = { exact: "54 of 106", batch: "0.498", reverse: "0.458" };
 const baseline = { aShown: "0.735", aPool: "0.708", bShown: "0.660", bPool: "0.557" };
 const sem2 = { eligibility: "+0.070 [-0.103, +0.254]", bm25: "-0.241 [-0.436, -0.004]", dense: "-0.279 [-0.428, -0.056]", hybrid: "-0.229 [-0.422, -0.037]" };
 const filter = { matches: "300", stale: "74", ineligible: "187", shown: "39" };
-const boards = { pollable: "22", seed: "356" };
-const tests = { python: "1003 offline Python tests", web: "57 web tests", browser: "8 browser tests" };
+const boards = { pollable: "32", seed: "356" };
+const tests = { python: "1030 offline Python tests", web: "57 web tests", browser: "8 browser tests" };
 
 export const RESULTS: Result[] = [
   {
@@ -75,9 +75,9 @@ export const RESULTS: Result[] = [
   {
     id: "boards",
     title: "Official company boards that can be polled",
-    text: `${boards.pollable} of ${boards.seed} seed companies pass one rule: the board's public API answers, at least one job is in India, and the newest posting is at most 180 days old.`,
+    text: `${boards.pollable} of ${boards.seed} seed companies pass one rule: the board's public feed answers, at least one job is in India, and the newest posting is at most 180 days old.`,
     figures: [`${boards.pollable} of ${boards.seed}`],
-    inSource: ["| pollable | 22 |", "Rows: 356"],
+    inSource: ["| pollable | 32 |", "Rows: 356"],
     source: "docs/eval/ats_detection.md",
     level: "L0",
   },
