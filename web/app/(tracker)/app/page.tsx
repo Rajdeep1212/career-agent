@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Kanban } from "../components/Kanban";
-import { QuickAdd } from "../components/QuickAdd";
-import { api } from "../lib/api";
-import type { ApplicationSummary } from "../lib/types";
+import { Kanban } from "../../../components/Kanban";
+import { QuickAdd } from "../../../components/QuickAdd";
+import { api } from "../../../lib/api";
+import type { ApplicationSummary } from "../../../lib/types";
 
 export default function BoardPage() {
   const [applications, setApplications] = useState<ApplicationSummary[] | null>(null);
