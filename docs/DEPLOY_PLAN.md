@@ -28,7 +28,7 @@ limiting, any CORS handling.
 
 | Layer | Choice | Fallback |
 |---|---|---|
-| Web | `web/` as a Next.js static export, served as Cloudflare Workers static assets. The browser calls the API on Render directly | Workers through `@opennextjs/cloudflare`, keeping the `/api/v1` rewrite |
+| Web | `web/` as a Next.js static export on Cloudflare Pages (`<name>.pages.dev`, section 8a; first written as Workers static assets). The browser calls the API on Render directly | Workers through `@opennextjs/cloudflare`, keeping the `/api/v1` rewrite |
 | API | The existing FastAPI app in Docker on one Render Free web service, `DEMO_MODE=true` plus a new `PUBLIC_DEMO=true` | Hugging Face Spaces, which the Dockerfile already targets (limits not checked here) |
 | Tracker data | Synthetic applications in Supabase Postgres (Free), created by the existing Alembic migration | A SQLite file baked into the image |
 | Job index | A read-only SQLite snapshot of the radar index inside the image, rebuilt by a daily GitHub Actions job | — |
@@ -238,6 +238,44 @@ The plan is approved.
 9. Verified in DEPLOY3.
 
 `psycopg[binary]` is approved for DEPLOY1.
+
+## 8a. Domain (added by LAND1, 9 October 2026)
+
+Read on 9 October 2026 from the pages cited. Nothing was registered, created or changed.
+
+| Option | What it gives | Cost | Verified facts | Source |
+|---|---|---|---|---|
+| Cloudflare Pages subdomain | `https://<name>.pages.dev` | Free | The project is served at `<PROJECT_NAME>.pages.dev`, or at the name "plus a few random characters if your project name is already taken". Free plan: 500 builds a month, 20,000 files per site, 25 MiB per file, 100 custom domains per project | https://developers.cloudflare.com/pages/get-started/direct-upload/ (updated 21 Apr 2026), https://developers.cloudflare.com/pages/platform/limits/ (updated 5 Sep 2026) |
+| Cloudflare Workers subdomain | `https://<worker>.<account>.workers.dev` | Free | Included with a Workers account; Cloudflare advises a route or custom domain for production and describes `workers.dev` as for projects that are not business-critical | https://developers.cloudflare.com/workers/configuration/routing/workers-dev/ (updated 22 Sep 2026) |
+| is-a.dev subdomain | `https://<name>.is-a.dev` | Free | "a service that allows developers to get a sweet-looking .is-a.dev subdomain for their personal websites"; registered by a pull request to `is-a-dev/register`, reviewed by its maintainers; the README says "Do not use AI to generate your request". `rajdeep.is-a.dev` is taken (`domains/rajdeep.json` belongs to another GitHub user); `career-agent.is-a.dev` had no file on this date | https://github.com/is-a-dev/register (README and `domains/`) |
+| A paid domain | any name | Paid | Not considered: the demo costs nothing | — |
+
+**Decision.** `<name>.pages.dev` first; an is-a.dev subdomain is optional and later; no paid domain.
+
+**What follows from it**
+
+- Section 2 chose Workers static assets for the web app. A `pages.dev` address needs a Cloudflare Pages project
+  instead. Both serve a static export for free; DEPLOY5 uses Pages, and the 10 ms Worker CPU limit in section 3 does
+  not apply because no Worker runs.
+- Whether a wanted `<name>` is free is known only when the project is created. Rajdeep creates it; an agent never
+  signs up.
+- An is-a.dev request is a pull request to another repository, written by Rajdeep himself, as that project's
+  README asks. It is for personal developer sites, so its maintainers may refuse a project site.
+- The public build sets `NEXT_PUBLIC_SITE_URL` to the chosen address so the social tags carry the right address,
+  and `NEXT_PUBLIC_DEMO_URL` once the demo is live; without it the landing page says "coming soon".
+
+### Static export, tried on 9 October 2026 (LAND1)
+
+A scratch build with `output: "export"`, nothing committed:
+
+| Attempt | Result |
+|---|---|
+| The config as it is | Next warns that `rewrites` and `redirects` "will not automatically work", then stops: `Page "/applications/[id]" is missing "generateStaticParams()"` |
+| Without the two rules and with the detail route set aside | `/`, `/app`, `/manifest.webmanifest` and a 404 page export as static files, 0.9 MB in total. The landing page works as exported. `/app` exports but has no API to call |
+
+Waiting for DEPLOY5: the detail route (a fixed list of demo ids, or a query-string page), the `/api/v1` proxy (the
+browser must call the API directly), the redirect to the exact origin (local only), and the two environment
+variables above.
 
 ## 9. Build rows (in docs/ROADMAP_QUEUE.md since 8 October 2026)
 

@@ -10,6 +10,16 @@ Its claims are measured: every number below names the file it comes from and how
 
 On Windows it opens in its own window from a desktop shortcut: see [Use it like an app](#use-it-like-an-app).
 
+## Demo
+
+**Live demo: not published yet.** The address will be `https://<name>.pages.dev` (see
+[docs/DEPLOY_PLAN.md](docs/DEPLOY_PLAN.md), "Domain"). It will show synthetic applications and public job posts only.
+Until then, the [5-minute quick start](#5-minute-quick-start) runs the same demo data on your own computer.
+
+![The application tracker board with synthetic applications in the Saved, Applied, Online test and Interview columns](docs/images/board.png)
+
+*The tracker board. Every company and application in this picture is synthetic; it is taken by `npm run screenshot`.*
+
 ## Evaluation
 
 Measured on one frozen copy of the job index (1 October 2026) and one labelled batch. These are measurements on 106
@@ -21,12 +31,54 @@ jobs for one candidate profile (claim level L0), not calibrated probabilities an
 | Agreement with hosted labels | Exact match 54 of 106 (0.509); quadratic weighted kappa 0.498 (batch order) and 0.458 (reverse order). The hosted labeller against itself in the two orders: 95 of 106, kappa 0.904. Hosted labels never saw CV text and are used for agreement only | [agreement_gold-20261001-r1.md](docs/eval/agreement_gold-20261001-r1.md) |
 | Ranking baseline (the current ranker, v1) | NDCG@10 against the gold labels: search A ("AI Engineer jobs for freshers in India") 0.735 over the jobs shown, 0.708 over the judged pool; search B ("Software Engineer fresher jobs in India") 0.660 and 0.557 | same file |
 | Semantic ranking (SEM2) | BM25, dense embeddings and their hybrid all ranked worse than v1: mean NDCG@10 change over A and B of -0.241 [-0.436, -0.004], -0.279 [-0.428, -0.056] and -0.229 [-0.422, -0.037] (paired bootstrap 95% intervals). Hybrid with eligibility detectors: +0.070 [-0.103, +0.254], an interval that includes zero, and those detectors were designed on this same batch. Verdict: **v1 stays** | [sem2_results.md](docs/eval/sem2_results.md) |
+| Freshness and eligibility filter | For search B, of 300 index matches 74 were hidden as stale and 187 excluded as ineligible; 39 were shown | [searches.md](docs/eval/searches.md) |
 | Company boards that can be polled | 22 of 356 seed companies pass one rule (the board's public API answers, at least one job is in India, the newest posting is at most 180 days old). The first detection run confirmed 8 boards, on the 94 rows that then had a careers page and under a looser rule, so 8 to 22 is growth in coverage, not a like-for-like comparison | [ats_detection.md](docs/eval/ats_detection.md); the 8 is in its revision `5fbdd0a` |
-| Tests | 1003 offline Python tests (2 skipped), 25 web component tests, 2 browser smoke tests; lint and type checks clean | [gate.md](docs/eval/gate.md) |
+| Tests | 1003 offline Python tests (2 skipped), 57 web tests and 8 browser tests; lint and type checks clean | [gate.md](docs/eval/gate.md) |
 
 What the numbers argue against: similarity alone does not find jobs a fresher can get, and in search B only 4 of 49
 judged jobs were grade 3, so finding more good jobs is a sourcing problem, not a ranking one
 ([sem2_results.md](docs/eval/sem2_results.md)). The out-of-sample test of the eligibility detectors is still to do.
+
+## How it works
+
+```mermaid
+flowchart LR
+    S["Sources<br/>official company job boards,<br/>alert emails, pages you save"] --> F["Freshness<br/>hide closed and stale posts"]
+    F --> E["Eligibility<br/>eligible / uncertain / excluded,<br/>with the listing quoted"]
+    E --> R["Ranking<br/>heuristic fit (L0)"]
+    R --> T["Tracker<br/>applications, events, undo"]
+    T --> O["Outreach<br/>draft, your approval, send"]
+    subgraph PC["Your computer"]
+        F
+        E
+        R
+        T
+        O
+    end
+```
+
+Two local servers do this: FastAPI (`app/`, port 8010) holds the job index, the search and the tracker API in SQLite
+files under `data/`; the Next.js app (`web/`, port 3010) is the landing page at `/` and the tracker board at `/app`,
+and reaches FastAPI only through its own `/api/v1` proxy. More in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## 5-minute quick start
+
+Demo data only: a synthetic profile and synthetic jobs, no API key, and nothing leaves the computer. It needs
+Python 3.11 or newer. The time depends mostly on the package download and has not been measured.
+
+```powershell
+git clone https://github.com/Rajdeep1212/career-agent.git
+cd career-agent
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+$env:DEMO_MODE = "true"
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8010
+```
+
+Open `http://localhost:8010/app/`. To use your own CV and real searches, follow [Setup](#setup) instead; for the
+tracker board and the desktop window, see [Application tracker (web/)](#application-tracker-web) and
+[Use it like an app](#use-it-like-an-app).
 
 ## Overview
 
@@ -110,7 +162,8 @@ npm install        # once
 npm run dev        # http://localhost:3010
 ```
 
-Open `http://localhost:3010`. Changes are accepted only from the exact origin in `WEB_ORIGIN`, so the web app sends
+Open `http://localhost:3010/app` for the board; `http://localhost:3010` is the project's landing page. Changes are
+accepted only from the exact origin in `WEB_ORIGIN`, so the web app sends
 any other address for itself (such as the `http://127.0.0.1:3010` that `npm run dev` prints) to that origin.
 The board shows one column per status; drag a card to record an event, open a card for its timeline, undo and CV
 version, and add an application from a job URL at the top. Both servers listen on this computer only.
@@ -127,7 +180,7 @@ powershell -ExecutionPolicy Bypass -File scripts\install_app.ps1 -AutoStart on -
 
 - **Open it.** Double-click **Career Agent** on the desktop, or run `scripts\start_app.ps1`. It starts FastAPI
   (`127.0.0.1:8010`) and the built web app (`next start` on `127.0.0.1:3010`) hidden in the background, skips one that
-  is already running, and opens an app window on `http://localhost:3010`. The first start builds the web app
+  is already running, and opens an app window on `http://localhost:3010/app`. The first start builds the web app
   (`next build`, about 20 seconds); it rebuilds by itself when the committed `web/` source has changed, and
   `-Rebuild` forces it.
 - **Install it (optional).** In that window, or in Edge or Chrome at `http://localhost:3010`, choose
@@ -317,7 +370,8 @@ The tracker web app has its own checks, run from `web/`:
 npm run typecheck
 npm test                                   # component tests (Vitest, jsdom)
 npx playwright install chromium --only-shell   # once; set PLAYWRIGHT_BROWSERS_PATH first to choose the drive
-npm run smoke                              # one Playwright run
+npm run smoke                              # the Playwright tests
+npm run screenshot                         # optional: retake docs/images/ from synthetic data
 ```
 
 `npm run smoke` starts FastAPI on port 8011 with `DATA_DIR` set to a new temporary directory and the web app on
