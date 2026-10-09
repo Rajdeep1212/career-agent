@@ -4,6 +4,8 @@
 // /api/v1 passed on to it. data/tracker.sqlite3 and the other files under data/ are never opened: the run refuses to
 // start if the temporary directory is inside the repository. Everything is stopped and removed afterwards.
 //
+// Arguments are passed on to Playwright, e.g. one spec file (npm run screenshot).
+//
 //   CAREER_AGENT_PYTHON       the app's Python (default: python on PATH)
 //   PLAYWRIGHT_BROWSERS_PATH  where "npx playwright install chromium" put the browser
 import { spawn, spawnSync } from "node:child_process";
@@ -62,7 +64,7 @@ try {
                        { TRACKER_API_ORIGIN: API, WEB_ORIGIN: SITE, NEXT_DIST_DIR: ".next-smoke", NEXT_TELEMETRY_DISABLED: "1" });
   await ready(`${API}/health`, apiLog);
   await ready(`${SITE}/`, webLog);
-  const run = spawnSync(process.execPath, [path.join(WEB, "node_modules", "@playwright", "test", "cli.js"), "test"],
+  const run = spawnSync(process.execPath, [path.join(WEB, "node_modules", "@playwright", "test", "cli.js"), "test", ...process.argv.slice(2)],
                         { cwd: WEB, stdio: "inherit", env: { ...process.env, SMOKE_WEB_ORIGIN: SITE, SMOKE_API_ORIGIN: API } });
   code = run.status ?? 1;
   if (code !== 0) console.error(`--- FastAPI ---\n${apiLog()}\n--- Next ---\n${webLog()}`);
