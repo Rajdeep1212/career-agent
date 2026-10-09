@@ -4,10 +4,14 @@ The seed (app/core/radar/seed_vN.json) is versioned and never edited after
 release. On first use it is copied to data/company_radar.json, which the user
 owns: enable/disable entries, review them, add companies. The sync only uses
 entries that are enabled, reviewed and have a source.
+
+When a newer seed is released, the companies it adds are appended to the user's
+file once (a backup is taken first); nothing the user has is changed or removed.
 """
 import json
 import re
-from datetime import date
+import shutil
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Literal
 
@@ -15,11 +19,11 @@ from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from app.core.config import settings
 
-SEED_VERSION = 1
+SEED_VERSION = 2
 SEED_DIR = Path(__file__).resolve().parents[1] / "core" / "radar"
 CONFIG_PATH = Path(settings.data_dir) / "company_radar.json"
 
-SourceType = Literal["greenhouse", "lever", "ashby", "smartrecruiters", "workday", "sitemap_jsonld", "undocumented_json", "none"]
+SourceType = Literal["greenhouse", "lever", "ashby", "smartrecruiters", "keka", "workday", "sitemap_jsonld", "undocumented_json", "none"]
 Tag = Literal["big_tech", "gcc", "it_services", "ai_startup", "india_product"]
 DEFAULT_INDIA_FILTER = r"India(?!na)|Bengaluru|Bangalore|Hyderabad|Pune|Chennai|Mumbai|Gurugram|Gurgaon|Noida|Delhi|Kolkata|Ahmedabad|Kochi|Jaipur|Coimbatore"
 
@@ -34,6 +38,7 @@ class SourceSpec(BaseModel):
     site: str | None = None             # lever
     region: Literal["global", "eu"] = "global"
     company: str | None = None          # smartrecruiters
+    tenant: str | None = None           # keka: <tenant>.keka.com
     host: str | None = None             # workday: <tenant>.wdN.myworkdayjobs.com
     sites: list[str] = Field(default_factory=list)
     sitemap_capped: bool = False
@@ -44,11 +49,13 @@ class SourceSpec(BaseModel):
 
     @model_validator(mode="after")
     def _required_fields(self):
-        required = {"greenhouse": ["board"], "ashby": ["board"], "lever": ["site"], "smartrecruiters": ["company"],
+        required = {"greenhouse": ["board"], "ashby": ["board"], "lever": ["site"], "smartrecruiters": ["company"], "keka": ["tenant"],
                     "workday": ["host", "sites"], "sitemap_jsonld": ["sitemaps"], "undocumented_json": ["endpoint"]}
         missing = [name for name in required.get(self.type, []) if not getattr(self, name)]
         if missing:
             raise ValueError(f"{self.type} source needs {', '.join(missing)}")
+        if self.type == "keka" and not re.fullmatch(r"[a-z0-9][a-z0-9-]*", self.tenant or ""):
+            raise ValueError("keka tenant must be the subdomain label of <tenant>.keka.com")
         if self.type == "workday" and not re.fullmatch(r"[a-z0-9-]+\.wd\d+\.myworkdayjobs\.com", self.host or ""):
             raise ValueError("workday host must look like <tenant>.wdN.myworkdayjobs.com")
         return self
@@ -113,21 +120,46 @@ def save_config(config: RadarConfig) -> None:
     temporary.replace(CONFIG_PATH)
 
 
-def load_config() -> RadarConfig:
-    """The user's radar config; created from the seed on first use, never overwritten."""
-    if not CONFIG_PATH.exists():
-        config = load_seed()
-        save_config(config)
-        return config
+def _stored() -> RadarConfig:
     try:
         return RadarConfig.model_validate_json(CONFIG_PATH.read_text(encoding="utf-8"))
     except (OSError, ValueError, ValidationError) as exc:
         raise RadarConfigError(f"{CONFIG_PATH.name} could not be read; fix or delete it to re-create it from the seed.") from exc
 
 
+def _with_new_seed_companies(config: RadarConfig) -> RadarConfig:
+    """The config plus the companies a newer seed added. Existing entries, the user's edits and ids they already use stay as they are."""
+    if config.seed_version >= SEED_VERSION:
+        return config
+    have = {company.id for company in config.companies}
+    # Only what the newer seed added: a company the user removed from an older seed is not brought back.
+    earlier = {company.id for company in load_seed(config.seed_version).companies}
+    added = [company for company in load_seed().companies if company.id not in earlier and company.id not in have]
+    return RadarConfig(version=1, seed_version=SEED_VERSION, companies=[*config.companies, *added])
+
+
+def load_config() -> RadarConfig:
+    """The user's radar config; created from the seed on first use, never overwritten.
+
+    A file made from an older seed gains the newer seed's new companies once; the file is backed up
+    first to <data dir>/backups/<UTC time>/company_radar.json."""
+    if not CONFIG_PATH.exists():
+        config = load_seed()
+        save_config(config)
+        return config
+    config = _stored()
+    if config.seed_version < SEED_VERSION:
+        backup = CONFIG_PATH.parent / "backups" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ") / CONFIG_PATH.name
+        backup.parent.mkdir(parents=True, exist_ok=False)
+        shutil.copy2(CONFIG_PATH, backup)
+        config = _with_new_seed_companies(config)
+        save_config(config)
+    return config
+
+
 def read_config() -> RadarConfig:
-    """The user's config if it exists, else the seed; never writes a file."""
-    return load_config() if CONFIG_PATH.exists() else load_seed()
+    """The user's config if it exists (with a newer seed's new companies), else the seed; never writes a file."""
+    return _with_new_seed_companies(_stored()) if CONFIG_PATH.exists() else load_seed()
 
 
 def alias_map(config: RadarConfig) -> dict[str, str]:
