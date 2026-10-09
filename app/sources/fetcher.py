@@ -1,6 +1,6 @@
 """Polite HTTP for the Company Radar sync.
 
-- Crawled pages (sitemaps, job pages) honour robots.txt; documented public
+- Crawled pages (sitemaps, job pages) honour robots.txt, read as RFC 9309 says (RobotsRules); documented public
   APIs (Greenhouse, Lever, Ashby, SmartRecruiters) skip that check.
 - Requests to one host are spaced by at least `delay` seconds.
 - A 429 stops every further request to that host for the rest of the run.
@@ -11,12 +11,12 @@
 import asyncio
 import hashlib
 import json
+import re
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
-from urllib.robotparser import RobotFileParser
 
 import httpx
 
@@ -54,6 +54,58 @@ class Fetched:
 Getter = Callable[..., Awaitable[httpx.Response]]
 
 
+class RobotsRules:
+    """robots.txt as RFC 9309 reads it: the group naming this app, else the `*` group; among the rules that match
+    a path the longest wins, and Allow wins a tie. `*` matches any characters and a trailing `$` ends the path.
+
+    urllib.robotparser takes the first matching line instead, so it refuses a path that a later, more specific
+    Allow permits (and permits one that a later, more specific Disallow refuses).
+    """
+
+    def __init__(self, text: str):
+        self._groups: list[tuple[list[str], list[tuple[bool, str]]]] = []
+        agents: list[str] = []
+        rules: list[tuple[bool, str]] = []
+        in_rules = False
+        for raw in text.splitlines():
+            key, _, value = raw.split("#", 1)[0].partition(":")
+            key, value = key.strip().lower(), value.strip()
+            if key == "user-agent":
+                if in_rules:                      # a new group starts after the previous group's rules
+                    agents, rules, in_rules = [], [], False
+                if not agents:
+                    self._groups.append((agents, rules))
+                agents.append(value.lower())
+            elif key in ("allow", "disallow") and agents:
+                in_rules = True
+                if value:                         # an empty Disallow refuses nothing
+                    rules.append((key == "allow", value))
+
+    def _rules_for(self, user_agent: str) -> list[tuple[bool, str]]:
+        token = user_agent.split("/", 1)[0].strip().lower()
+        named = [rule for agents, rules in self._groups if any(agent != "*" and agent in token for agent in agents) for rule in rules]
+        if named or any(agent != "*" and agent in token for agents, _ in self._groups for agent in agents):
+            return named
+        return [rule for agents, rules in self._groups if "*" in agents for rule in rules]
+
+    @staticmethod
+    def _matches(pattern: str, path: str) -> bool:
+        anchored = pattern.endswith("$")
+        body = ".*".join(re.escape(part) for part in pattern.rstrip("$").split("*"))
+        return re.match(body + ("$" if anchored else ""), path) is not None
+
+    def can_fetch(self, user_agent: str, url: str) -> bool:
+        parts = urlsplit(url)
+        path = (parts.path or "/") + (f"?{parts.query}" if parts.query else "")
+        best: tuple[int, bool] | None = None
+        for allow, pattern in self._rules_for(user_agent):
+            if self._matches(pattern, path):
+                candidate = (len(pattern), allow)
+                if best is None or candidate > best:      # longer wins; at equal length Allow (True) wins
+                    best = candidate
+        return True if best is None else best[1]
+
+
 class PoliteFetcher:
     def __init__(self, *, delay: float = 1.5, get: Getter | None = None, clock: Callable[[], float] = time.monotonic,
                  sleep: Callable[[float], Awaitable[None]] = asyncio.sleep, cache_dir: Path | None = None,
@@ -67,7 +119,7 @@ class PoliteFetcher:
         self._max_bytes = max_bytes
         self._last_request: dict[str, float] = {}
         self._blocked: set[str] = set()
-        self._robots: dict[str, RobotFileParser | None] = {}
+        self._robots: dict[str, RobotsRules | None] = {}
         self._robots_unavailable: dict[str, str] = {}   # origin -> why robots.txt could not be read
         self.requests = 0  # requests actually sent this run
 
@@ -93,13 +145,12 @@ class PoliteFetcher:
         parts = urlsplit(url)
         origin = f"{parts.scheme}://{parts.netloc}"
         if origin not in self._robots:
-            parser: RobotFileParser | None = None   # None: disallow everything this run
+            parser: RobotsRules | None = None   # None: disallow everything this run
             try:
                 response = await self._request(origin + "/robots.txt", {"Accept": "text/plain"})
                 if response.status_code == 200 or 400 <= response.status_code < 500:
-                    parser = RobotFileParser()
                     # A missing robots.txt (4xx) allows everything; a server error stays conservative.
-                    parser.parse(response.text.splitlines() if response.status_code == 200 else [])
+                    parser = RobotsRules(response.text if response.status_code == 200 else "")
                 else:
                     self._robots_unavailable[origin] = (f"robots.txt returned HTTP {response.status_code}; "
                                                         "the site may be down or under maintenance")
@@ -110,7 +161,7 @@ class PoliteFetcher:
                 self._robots_unavailable[origin] = f"robots.txt could not be read ({type(exc).__name__})"
             self._robots[origin] = parser
         parser = self._robots[origin]
-        return bool(parser and parser.can_fetch(USER_AGENT, url))
+        return parser is not None and parser.can_fetch(USER_AGENT, url)
 
     def _cache_path(self, url: str) -> Path:
         return self._cache_dir / (hashlib.sha256(url.encode("utf-8")).hexdigest()[:32] + ".json")
