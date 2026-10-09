@@ -49,7 +49,7 @@ class LauncherTests(unittest.TestCase):
         for name in ("api_command", "web_command"):
             self.assertIn("127.0.0.1", plan[name], name)
             self.assertNotIn("0.0.0.0", plan[name], name)
-        self.assertTrue(plan["window_url"].startswith("http://localhost:"), plan["window_url"])   # never 127.0.0.1
+        self.assertRegex(plan["window_url"], r"^http://localhost:\d+/app$")   # the board, and never 127.0.0.1
 
     def test_shortcuts_are_created_and_removed_for_this_user_only(self):
         with tempfile.TemporaryDirectory() as startup, tempfile.TemporaryDirectory() as desktop:

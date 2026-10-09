@@ -13,7 +13,7 @@ test("add by URL, drag across a column, open the timeline, undo, pick a CV versi
   expect(api, "start this with: npm run smoke").toBeTruthy();
   expect((await (await request.get(`${api}/api/v1/applications`)).json()).count).toBe(0);      // a fresh, disposable tracker
 
-  await open(page, "/");
+  await open(page, "/app");
   await page.getByLabel("Job URL").fill("https://jobs.example.com/smoke/1?utm_source=newsletter");
   await page.getByLabel("Title").fill("Smoke Test Engineer");
   await page.getByLabel("Company").fill("Example Labs");
@@ -60,8 +60,8 @@ test("add by URL, drag across a column, open the timeline, undo, pick a CV versi
 // `next dev` prints the 127.0.0.1 address, but the API accepts changes only from the exact WEB_ORIGIN.
 test("the 127.0.0.1 address lands on the exact origin, where a change is accepted", async ({ page, baseURL }) => {
   const site = new URL(baseURL!);
-  await open(page, `http://127.0.0.1:${site.port}/`);
-  await expect(page).toHaveURL(`${site.origin}/`);
+  await open(page, `http://127.0.0.1:${site.port}/app`);
+  await expect(page).toHaveURL(`${site.origin}/app`);
   await page.getByLabel("Job URL").fill("https://jobs.example.com/smoke/origin");
   await page.getByRole("button", { name: "Check" }).click();
   await expect(page.getByTestId("match")).toHaveAttribute("data-status", "none");

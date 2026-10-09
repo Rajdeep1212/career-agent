@@ -32,7 +32,7 @@ export function ApplicationView({ id }: { id: string }) {
   }
 
   if (!application) {
-    return error ? <p role="alert" className="text-sm text-warn">{error} <a href="/" className="underline">Back to the board</a></p>
+    return error ? <p role="alert" className="text-sm text-warn">{error} <a href="/app" className="underline">Back to the board</a></p>
                  : <p className="text-sm text-muted">Loading…</p>;
   }
   const description = typeof application.snapshot?.description === "string" ? application.snapshot.description : "";
@@ -40,7 +40,7 @@ export function ApplicationView({ id }: { id: string }) {
 
   return (
     <article className="space-y-5">
-      <a href="/" className="text-sm text-muted hover:underline">← Board</a>
+      <a href="/app" className="text-sm text-muted hover:underline">← Board</a>
       <header className="space-y-1">
         <h1 className="text-xl font-semibold tracking-tight">{application.title}</h1>
         <p className="text-sm text-muted">

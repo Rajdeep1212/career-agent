@@ -21,8 +21,8 @@ describe("web app manifest", () => {
     expect(sizes).toEqual(expect.arrayContaining(["192x192", "512x512"]));
   });
 
-  it("starts on localhost, the origin the API accepts changes from, never 127.0.0.1", () => {
-    expect(made.start_url).toBe("http://localhost:3010/");
+  it("opens the tracker board on localhost, the origin the API accepts changes from, never 127.0.0.1", () => {
+    expect(made.start_url).toBe("http://localhost:3010/app");
     expect(made.scope).toBe("http://localhost:3010/");
   });
 

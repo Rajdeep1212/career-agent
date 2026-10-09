@@ -50,7 +50,7 @@ function Get-WebSourceId {
 
 $ApiArguments = @("-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "$ApiPort")
 $WebArguments = @("node_modules\next\dist\bin\next", "start", "--hostname", "127.0.0.1", "--port", "$WebPort")
-$WindowUrl = "http://localhost:$WebPort"
+$WindowUrl = "http://localhost:$WebPort/app"      # the tracker board; "/" is the landing page
 $ApiRunning = Test-Listening $ApiPort
 $WebRunning = Test-Listening $WebPort
 
