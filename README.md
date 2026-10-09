@@ -33,7 +33,7 @@ jobs for one candidate profile (claim level L0), not calibrated probabilities an
 | Semantic ranking (SEM2) | BM25, dense embeddings and their hybrid all ranked worse than v1: mean NDCG@10 change over A and B of -0.241 [-0.436, -0.004], -0.279 [-0.428, -0.056] and -0.229 [-0.422, -0.037] (paired bootstrap 95% intervals). Hybrid with eligibility detectors: +0.070 [-0.103, +0.254], an interval that includes zero, and those detectors were designed on this same batch. Verdict: **v1 stays** | [sem2_results.md](docs/eval/sem2_results.md) |
 | Freshness and eligibility filter | For search B, of 300 index matches 74 were hidden as stale and 187 excluded as ineligible; 39 were shown | [searches.md](docs/eval/searches.md) |
 | Company boards that can be polled | 32 of 356 seed companies pass one rule (the board's public feed answers, at least one job is in India, the newest posting is at most 180 days old). It was 22 until the Keka adapter (9 October 2026) added 10 tenants, whose first sync put 116 India jobs in the index. The first detection run confirmed 8 boards, on the 94 rows that then had a careers page and under a looser rule, so 8 to 32 is growth in coverage, not a like-for-like comparison | [ats_detection.md](docs/eval/ats_detection.md) (the 8 is in its revision `5fbdd0a`), [keka_sync.md](docs/eval/keka_sync.md) |
-| Tests | 1039 offline Python tests (2 skipped), 57 web tests and 8 browser tests; lint and type checks clean | [gate.md](docs/eval/gate.md) |
+| Tests | 1054 offline Python tests (2 skipped), 57 web tests and 8 browser tests; lint and type checks clean | [gate.md](docs/eval/gate.md) |
 
 What the numbers argue against: similarity alone does not find jobs a fresher can get, and in search B only 4 of 49
 judged jobs were grade 3, so finding more good jobs is a sourcing problem, not a ranking one
@@ -348,6 +348,24 @@ the newest `data/backups/<time>/` folder back into `data/`, and start the
 previous version. The seen-job history moved from `app/storage/` to
 `data/job_history.sqlite3`; the old file is copied once and never modified or
 deleted, so removing `data/job_history.sqlite3` re-imports it on the next start.
+
+**Tracker backups:** the daily sync task first copies `data/tracker.sqlite3`
+to `data/backups/tracker/` (set `CAREER_AGENT_BACKUP_DIR` to use another
+folder), checks the copy with SQLite's integrity check and keeps the newest
+seven. The same copy is made before a tracker migration, and the migration is
+not applied without it. A folder on a drive with less than 2 GB free is
+skipped with a message in `data\logs\sync-<date>.log`. Only the tracker is
+copied; `data/agent.sqlite3` is not.
+
+```powershell
+python scripts/tracker_admin.py backup          # take one now
+python scripts/tracker_admin.py restore-check   # restore the newest copy into a temporary folder and compare counts
+```
+
+**Restoring the tracker:** stop the app (`scripts\stop_app.ps1`), move
+`data\tracker.sqlite3` aside, copy the newest
+`data\backups\tracker\tracker-<UTC time>.sqlite3` to `data\tracker.sqlite3`,
+and start the app again.
 
 ## Verification
 
