@@ -3,17 +3,20 @@
 Local and tests: `data/tracker.sqlite3`, a file of its own, so `data/agent.sqlite3` and the radar index are never
 touched by the tracker. Deployment (not decided yet): a Postgres URL through the same functions.
 """
+import sqlite3
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
+from app.tracker import backup
 
 DB_PATH = Path(settings.data_dir) / "tracker.sqlite3"
 LOCAL_USER_ID = "local"                 # the one user of AUTH_MODE=local; real users come with TRK4
@@ -63,9 +66,28 @@ def _config(url: str | None) -> Config:
     return config
 
 
+def _backup_before_migration(path: Path, config: Config, revision: str) -> None:
+    """Back up an existing database that has a migration pending; if no backup is made, nothing is applied."""
+    if not path.exists():
+        return
+    with closing(sqlite3.connect(path)) as conn:
+        try:
+            row = conn.execute("SELECT version_num FROM alembic_version").fetchone()
+        except sqlite3.OperationalError:                         # no migration has run yet, so there is nothing to keep
+            return
+    target = ScriptDirectory.from_config(config).get_current_head() if revision == "head" else revision
+    if row is None or row[0] == target:
+        return
+    report = backup.backup(path)
+    if not report["backup"]:
+        raise RuntimeError(f"Tracker migration not applied, because no backup was made. {report['message']}")
+
+
 def upgrade(url: str | None = None, revision: str = "head") -> None:
     if (url or default_url()).startswith("sqlite"):
-        Path((url or default_url()).removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
+        path = Path((url or default_url()).removeprefix("sqlite:///"))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        _backup_before_migration(path, _config(url), revision)
     command.upgrade(_config(url), revision)
 
 

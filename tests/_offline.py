@@ -20,6 +20,7 @@ def configure_environment(directory: str) -> None:
     os.environ.update({"DATA_DIR": directory, "UPLOAD_DIR": str(Path(directory) / "uploads"),
                        "JOB_PROVIDERS": "jsearch,adzuna,jooble", "DEMO_MODE": "false",
                        "LEGACY_HISTORY_PATH": "", "SEARCH_CACHE_HOURS": "0",
+                       "CAREER_AGENT_BACKUP_DIR": "",       # tests never write to, or prune, the user's real backup folder
                        **{name: "" for name in BLANK_SETTINGS}})
 
 

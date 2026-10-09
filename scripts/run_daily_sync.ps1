@@ -15,8 +15,13 @@ if (-not $Python) {
     Add-Content -Path $Log -Value "$(Get-Date -Format s) Project Python environment not found."
     exit 1
 }
+Add-Content -Path $Log -Value "$(Get-Date -Format s) Backing up the tracker database"
+& $Python scripts\tracker_admin.py backup *>> $Log
+$BackupCode = $LASTEXITCODE
 Add-Content -Path $Log -Value "$(Get-Date -Format s) Starting Company Radar sync"
 & $Python -m app.sources.sync *>> $Log
 $Code = $LASTEXITCODE
-Add-Content -Path $Log -Value "$(Get-Date -Format s) Finished with exit code $Code"
+Add-Content -Path $Log -Value "$(Get-Date -Format s) Finished with exit code $Code (backup exit code $BackupCode)"
+# A sync that worked still reports a backup that did not, so the task's last result shows it.
+if ($Code -eq 0) { $Code = $BackupCode }
 exit $Code
