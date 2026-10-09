@@ -24,7 +24,7 @@ const baseline = { aShown: "0.735", aPool: "0.708", bShown: "0.660", bPool: "0.5
 const sem2 = { eligibility: "+0.070 [-0.103, +0.254]", bm25: "-0.241 [-0.436, -0.004]", dense: "-0.279 [-0.428, -0.056]", hybrid: "-0.229 [-0.422, -0.037]" };
 const filter = { matches: "300", stale: "74", ineligible: "187", shown: "39" };
 const boards = { pollable: "32", seed: "356" };
-const tests = { python: "1030 offline Python tests", web: "57 web tests", browser: "8 browser tests" };
+const tests = { python: "1035 offline Python tests", web: "57 web tests", browser: "8 browser tests" };
 
 export const RESULTS: Result[] = [
   {

@@ -1,11 +1,11 @@
 # Offline gate: test counts
 
-Measured on 9 October 2026 on Windows 11 (Python 3.11.16, Node 24.19.0) with the KEKA1 changes. Claim
+Measured on 9 October 2026 on Windows 11 (Python 3.11.16, Node 24.19.0) with the ROB1 changes. Claim
 level L0: counts printed by the test runners. Every test is offline and uses recorded fixtures.
 
 | Check | Command | Result |
 |---|---|---|
-| Python tests | `python run_tests.py` | 1030 offline Python tests run, 0 failed, 2 skipped |
+| Python tests | `python run_tests.py` | 1035 offline Python tests run, 0 failed, 2 skipped |
 | Dashboard script | `node tests/test_frontend.cjs` | passed |
 | Lint | `python -m ruff check .` | no findings |
 | Types | `python -m mypy` | no issues in 121 source files |
