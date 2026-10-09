@@ -251,6 +251,16 @@ def finish_run(run_id: int, *, status: str, fetched: int | None = None, india: i
                      (_now(), status, fetched, india, listed, new, closed, http_status, error, run_id))
 
 
+def close_stale_runs() -> None:
+    """Runs still marked running belong to a sync that stopped early; they become errors.
+
+    shortcut: a second sync running at the same moment has its live rows marked too (its own finish_run then
+    corrects them); give runs an owner id if two syncs at once ever become normal."""
+    with _connect() as conn:
+        conn.execute("UPDATE radar_sync_runs SET status='error', finished_at=?, error=? WHERE status='running'",
+                     (_now(), "interrupted: the sync stopped before this company finished"))
+
+
 def ran_today(company_id: str, *, today: date) -> bool:
     with _connect() as conn:
         return conn.execute("SELECT 1 FROM radar_sync_runs WHERE company_id=? AND day=? AND status IN ('ok', 'partial')",

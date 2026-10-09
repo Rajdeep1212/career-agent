@@ -1,4 +1,5 @@
 """Sync engine: adapter dispatch, status transitions, run logs, same-day idempotence; the network is never used."""
+import sqlite3
 import tempfile
 import unittest
 from datetime import date
@@ -138,6 +139,36 @@ class SyncTests(unittest.IsolatedAsyncioTestCase):
     async def test_rate_limit_is_an_error_for_that_company(self):
         outcomes = await self._run(FakeFetcher(routes(**{GH: 429})), D1, GREENHOUSE)
         self.assertEqual(outcomes["gh"].status, "error")
+
+    async def test_an_unexpected_error_is_that_company_s_error_only(self):
+        # A board whose data has an unforeseen shape raised TypeError or KeyError out of the whole sync.
+        for failure in (TypeError("boom"), KeyError("id")):
+            with self.subTest(failure=type(failure).__name__):
+                outcomes = await self._run(FakeFetcher(routes(**{GH: failure})), D1, GREENHOUSE, LEVER_CO, force=True)
+                self.assertEqual((outcomes["gh"].status, outcomes["lv"].status), ("error", "ok"))
+                self.assertIn(type(failure).__name__, outcomes["gh"].note)
+                self.assertEqual([run["status"] for run in radar_store.runs(day=D1) if run["company_id"] == "gh"][-1], "error")
+
+    async def test_a_run_left_running_by_an_interrupted_sync_is_closed_as_an_error(self):
+        radar_store.start_run("gh", today=D1)
+        await self._run(FakeFetcher(routes()), D2, LEVER_CO)
+        stale = radar_store.runs(day=D1)[0]
+        self.assertEqual(stale["status"], "error")
+        self.assertIn("interrupted", stale["error"])
+        self.assertIsNotNone(stale["finished_at"])
+
+    async def test_a_stop_request_ends_the_run_and_leaves_no_run_marked_running(self):
+        class Stop(BaseException):      # stands in for Ctrl+C and task cancellation
+            pass
+
+        with self.assertRaises(Stop):
+            await self._run(FakeFetcher(routes(**{GH: Stop()})), D1, GREENHOUSE, LEVER_CO)
+        self.assertEqual([(run["company_id"], run["status"]) for run in radar_store.runs(day=D1)], [("gh", "error")])
+
+    async def test_a_database_error_is_raised_not_recorded_as_the_company_s_error(self):
+        with patch.object(radar_store, "record_listing", side_effect=sqlite3.OperationalError("disk I/O error")):
+            with self.assertRaises(sqlite3.OperationalError):
+                await self._run(FakeFetcher(routes()), D1, GREENHOUSE, LEVER_CO)
 
     async def test_dry_run_saves_nothing(self):
         outcomes = await self._run(FakeFetcher(routes()), D1, GREENHOUSE, dry_run=True)

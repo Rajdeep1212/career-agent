@@ -8,6 +8,7 @@ PoliteFetcher, so every host sees at most one request per 1.5 s.
 """
 import argparse
 import asyncio
+import sqlite3
 import sys
 from dataclasses import asdict, dataclass
 from datetime import date
@@ -132,6 +133,10 @@ async def sync_company(company: CompanyEntry, fetcher: PoliteFetcher, *, today: 
     except (SourceError, HostBlocked, RobotsDisallowed, httpx.HTTPError, ValueError, OSError) as exc:
         status = exc.http_status if isinstance(exc, SourceError) else None
         outcome = Outcome(company.id, "error", http_status=status, note=str(exc)[:300] or type(exc).__name__)
+    except sqlite3.Error:        # the index itself failed: the run's error, never one company's
+        raise
+    except Exception as exc:     # a board whose data has an unforeseen shape; Ctrl+C and cancellation still stop the run
+        outcome = Outcome(company.id, "error", note=f"{type(exc).__name__}: {exc}"[:200])
     if run_id is not None:
         radar_store.finish_run(run_id, status=outcome.status, fetched=outcome.fetched, india=outcome.india,
                                listed=outcome.listed, new=outcome.new, closed=outcome.closed,
@@ -154,11 +159,17 @@ async def run_sync(*, company_ids: list[str] | None = None, dry_run: bool = Fals
                      for company_id in company_ids if company_id not in {company.id for company in companies}]
         companies = [company for company in companies if company.id in wanted]
     fetcher = fetcher or PoliteFetcher(max_bytes=MAX_BYTES)
-    for company in companies:
-        if not dry_run and not force and radar_store.ran_today(company.id, today=today):
-            outcomes.append(Outcome(company.id, "skipped", note="already synced today"))
-            continue
-        outcomes.append(await sync_company(company, fetcher, today=today, dry_run=dry_run))
+    if not dry_run:
+        radar_store.close_stale_runs()      # left by a sync that was killed
+    try:
+        for company in companies:
+            if not dry_run and not force and radar_store.ran_today(company.id, today=today):
+                outcomes.append(Outcome(company.id, "skipped", note="already synced today"))
+                continue
+            outcomes.append(await sync_company(company, fetcher, today=today, dry_run=dry_run))
+    finally:
+        if not dry_run:
+            radar_store.close_stale_runs()  # whatever stopped the loop, no run stays "running"
     return outcomes
 
 
