@@ -1,0 +1,56 @@
+{
+ "total": 1168,
+ "jobPostings": [
+  {
+   "title": "Analyst II Business Process Transactions",
+   "externalPath": "/job/PHL---TAGUIG-CITY/Analyst-II-Business-Process-Transactions_51590587",
+   "locationsText": "PHL - TAGUIG CITY",
+   "postedOn": "Posted Today",
+   "bulletFields": [
+    "51590587"
+   ]
+  },
+  {
+   "title": "OASIS-SQL DB Agent Product Owner",
+   "externalPath": "/job/IND---KA---BANGALORE/OASIS-SQL-DB-Agent-Product-Owner_51583093",
+   "locationsText": "2 Locations",
+   "postedOn": "Posted Today",
+   "bulletFields": [
+    "51583093"
+   ]
+  },
+  {
+   "title": "Oracle Apps DBA Senior Specialist",
+   "externalPath": "/job/AUS---NSW---MACQUARIE-PARK/Oracle-Apps-DBA-Senior-Specialist_51591226",
+   "locationsText": "AUS - NSW - MACQUARIE PARK",
+   "postedOn": "Posted Today",
+   "bulletFields": [
+    "51591226"
+   ]
+  }
+ ],
+ "facets": [
+  {
+   "facetParameter": "locationCountry",
+   "descriptor": "Country",
+   "values": [
+    {
+     "descriptor": "India",
+     "id": "c4f78be1a8f14da0ab49ce1162348a5e",
+     "count": 148
+    },
+    {
+     "descriptor": "Australia",
+     "id": "d903bb3fedad45039383f6de334ad4db",
+     "count": 64
+    },
+    {
+     "descriptor": "Austria",
+     "id": "d004c0d1a6c84511ab048669fcdf9fd7",
+     "count": 2
+    }
+   ]
+  }
+ ],
+ "userAuthenticated": false
+}

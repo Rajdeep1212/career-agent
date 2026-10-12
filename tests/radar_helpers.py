@@ -20,15 +20,18 @@ def company(source: dict, **overrides) -> CompanyEntry:
 
 
 class FakeFetcher:
-    """Serves canned bodies by URL and records every call (url, check_robots)."""
+    """Serves canned bodies by URL and records every call (url, check_robots) and every POSTed body."""
 
     def __init__(self, routes: dict):
         self.routes = routes
         self.calls: list[tuple[str, bool]] = []
+        self.bodies: list[dict] = []
 
-    async def get(self, url, *, check_robots=True, conditional=False, accept=None):
+    async def get(self, url, *, check_robots=True, conditional=False, accept=None, body=None):
         self.calls.append((url, check_robots))
         route = self.routes.get(url)
+        if callable(route):             # a POST route: a function of the JSON body sent
+            route = route(body)
         if route is None:
             return Fetched(url, 404, "")
         if route == 429:
@@ -37,3 +40,7 @@ class FakeFetcher:
             raise route
         status, body = route if isinstance(route, tuple) else (200, route)
         return Fetched(url, status, body if isinstance(body, str) else json.dumps(body))
+
+    async def post(self, url, body, *, check_robots=True, accept=None):
+        self.bodies.append(body)
+        return await self.get(url, check_robots=check_robots, body=body)

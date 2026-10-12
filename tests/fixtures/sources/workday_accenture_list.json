@@ -1,0 +1,56 @@
+{
+ "total": 2000,
+ "jobPostings": [
+  {
+   "title": "Banking Strategy Process Consultant",
+   "externalPath": "/job/New-York-One-Manhattan-West-Corp/Banking-Strategy-Process-Consultant_R00351594",
+   "postedOn": "Posted Today",
+   "bulletFields": [
+    "R00351594",
+    "Location Negotiable"
+   ]
+  },
+  {
+   "title": "Soporte a proyectos con nivel de alem\u00e1n alto",
+   "externalPath": "/job/Madrid-Torre-Chamartin/Soporte-a-proyectos-con-nivel-de-alemn-alto_R00363265-1",
+   "postedOn": "Posted Today",
+   "bulletFields": [
+    "R00363265",
+    "Location Negotiable"
+   ]
+  },
+  {
+   "title": "Sales Systems Associate Manager",
+   "externalPath": "/job/Buenos-Aires/Sales-Excellence-CoE-Application-Architecture-Associate-Manager_R00359867",
+   "postedOn": "Posted Today",
+   "bulletFields": [
+    "R00359867",
+    "Buenos Aires"
+   ]
+  }
+ ],
+ "facets": [
+  {
+   "facetParameter": "locationCountry",
+   "descriptor": "Country",
+   "values": [
+    {
+     "descriptor": "India",
+     "id": "c4f78be1a8f14da0ab49ce1162348a5e",
+     "count": 36055
+    },
+    {
+     "descriptor": "Argentina",
+     "id": "e42ad5eac46d4cc9b367ceaef42577c5",
+     "count": 143
+    },
+    {
+     "descriptor": "Australia",
+     "id": "d903bb3fedad45039383f6de334ad4db",
+     "count": 294
+    }
+   ]
+  }
+ ],
+ "userAuthenticated": false
+}

@@ -14,9 +14,11 @@ class FakeWeb:
     def __init__(self, routes):
         self.routes = routes
         self.calls = []
+        self.bodies = []
 
-    async def get(self, url, *, timeout, headers, max_bytes):
+    async def get(self, url, *, timeout, headers, max_bytes, json_body=None):
         self.calls.append((url, dict(headers)))
+        self.bodies.append(json_body)
         route = self.routes.get(url, (404, "", {}))
         status, body, response_headers = route(headers) if callable(route) else route
         return httpx.Response(status, text=body, headers=response_headers, request=httpx.Request("GET", url))
@@ -112,6 +114,25 @@ class PoliteFetcherTests(unittest.IsolatedAsyncioTestCase):
         second = await self.fetcher(web).get("https://site.example/sitemap.xml", check_robots=False, conditional=True)
         self.assertEqual((first.text, first.from_cache), ("<urlset/>", False))
         self.assertEqual((second.text, second.from_cache, second.status_code), ("<urlset/>", True, 200))
+
+    async def test_a_post_follows_the_same_robots_delay_and_429_rules(self):
+        search = "https://site.example/wday/cxs/site/External/jobs"
+        web = FakeWeb({"https://site.example/robots.txt": (200, "User-agent: *\nDisallow: /private/\n", {}),
+                       search: (200, '{"total": 0}', {}), "https://slow.example/search": (429, "slow down", {})})
+        fetcher = self.fetcher(web)
+        response = await fetcher.post(search, {"limit": 20, "offset": 0}, accept="application/json")
+        await fetcher.post(search, {"limit": 20, "offset": 20})
+        self.assertEqual((response.status_code, response.json()), (200, {"total": 0}))
+        self.assertEqual(web.bodies, [None, {"limit": 20, "offset": 0}, {"limit": 20, "offset": 20}])     # robots.txt, then the two pages
+        self.assertEqual(web.calls[1][1]["Accept"], "application/json")
+        self.assertEqual(self.clock.slept, [1.5, 1.5])
+        with self.assertRaises(RobotsDisallowed):
+            await fetcher.post("https://site.example/private/search", {})
+        with self.assertRaises(HostBlocked):
+            await fetcher.post("https://slow.example/search", {}, check_robots=False)
+        with self.assertRaises(HostBlocked):
+            await fetcher.get("https://slow.example/other", check_robots=False)
+        self.assertEqual(len(web.calls), 4)
 
     async def test_user_agent_identifies_the_app(self):
         web = FakeWeb({"https://api.example/x": (200, "ok", {})})

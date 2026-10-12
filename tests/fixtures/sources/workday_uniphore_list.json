@@ -1,0 +1,37 @@
+{
+ "total": 33,
+ "jobPostings": [
+  {
+   "title": "Director, Security Engineering (Application & Cloud Security)",
+   "externalPath": "/job/India---Bangalore/Director--Security-Engineering--Application---Cloud-Security-_JR101213",
+   "timeType": "Full time",
+   "locationsText": "India - Bangalore",
+   "postedOn": "Posted 14 Days Ago",
+   "bulletFields": [
+    "JR101213"
+   ]
+  },
+  {
+   "title": "Director, AI Advisory",
+   "externalPath": "/job/USA---CA---Palo-Alto/Director--AI-Advisory_JR100900",
+   "timeType": "Full time",
+   "locationsText": "USA - CA - Palo Alto",
+   "postedOn": "Posted 2 Days Ago",
+   "bulletFields": [
+    "JR100900"
+   ]
+  },
+  {
+   "title": "Director, AI Advisory",
+   "externalPath": "/job/USA---CA---Palo-Alto/Director--AI-Advisory_JR101159",
+   "timeType": "Full time",
+   "locationsText": "USA - CA - Palo Alto",
+   "postedOn": "Posted 2 Days Ago",
+   "bulletFields": [
+    "JR101159"
+   ]
+  }
+ ],
+ "facets": [],
+ "userAuthenticated": false
+}

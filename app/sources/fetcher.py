@@ -5,7 +5,7 @@
 - Requests to one host are spaced by at least `delay` seconds.
 - A 429 stops every further request to that host for the rest of the run.
 - Conditional requests reuse a cached body on 304 Not Modified.
-- Every request goes through safe_http.safe_get (SSRF-safe, bounded) with a
+- Every request, GET or POST, goes through safe_http.safe_get (SSRF-safe, bounded) with a
   User-Agent that names the app.
 """
 import asyncio
@@ -129,7 +129,7 @@ class PoliteFetcher:
                  sleep: Callable[[float], Awaitable[None]] = asyncio.sleep, cache_dir: Path | None = None,
                  timeout: float | None = None, max_bytes: int = 5_000_000):
         self.delay = delay
-        self._get = get or safe_get
+        self._get: Getter = get or safe_get
         self._clock = clock
         self._sleep = sleep
         self._cache_dir = cache_dir or CACHE_DIR
@@ -141,7 +141,7 @@ class PoliteFetcher:
         self._robots_unavailable: dict[str, str] = {}   # origin -> why robots.txt could not be read
         self.requests = 0  # requests actually sent this run
 
-    async def _request(self, url: str, headers: dict[str, str]) -> httpx.Response:
+    async def _request(self, url: str, headers: dict[str, str], json_body: dict | None = None) -> httpx.Response:
         host = urlsplit(url).netloc.lower()
         if host in self._blocked:
             raise HostBlocked(f"{host} asked us to slow down (HTTP 429) earlier in this run.")
@@ -152,8 +152,9 @@ class PoliteFetcher:
                 await self._sleep(wait)
         self._last_request[host] = self._clock()
         self.requests += 1
+        body = {} if json_body is None else {"json_body": json_body}
         response = await self._get(url, timeout=self._timeout, headers={"User-Agent": USER_AGENT, **headers},
-                                   max_bytes=self._max_bytes)
+                                   max_bytes=self._max_bytes, **body)
         if response.status_code == 429:
             self._blocked.add(host)
             raise HostBlocked(f"{host} answered HTTP 429; skipping it for the rest of this run.")
@@ -184,12 +185,23 @@ class PoliteFetcher:
     def _cache_path(self, url: str) -> Path:
         return self._cache_dir / (hashlib.sha256(url.encode("utf-8")).hexdigest()[:32] + ".json")
 
-    async def get(self, url: str, *, check_robots: bool = True, conditional: bool = False, accept: str | None = None) -> Fetched:
-        if check_robots and not await self._allowed(url):
+    async def _require_allowed(self, url: str) -> None:
+        if not await self._allowed(url):
             origin = "{0.scheme}://{0.netloc}".format(urlsplit(url))
             if origin in self._robots_unavailable:
                 raise RobotsUnavailable(f"{self._robots_unavailable[origin]}; not fetching {url}")
             raise RobotsDisallowed(f"robots.txt disallows {url}")
+
+    async def post(self, url: str, body: dict, *, check_robots: bool = True, accept: str | None = None) -> Fetched:
+        """POST a JSON body, as a careers page's own search does; the same robots, delay and 429 rules as get()."""
+        if check_robots:
+            await self._require_allowed(url)
+        response = await self._request(url, {"Accept": accept} if accept else {}, json_body=body)
+        return Fetched(url, response.status_code, response.text, dict(response.headers))
+
+    async def get(self, url: str, *, check_robots: bool = True, conditional: bool = False, accept: str | None = None) -> Fetched:
+        if check_robots:
+            await self._require_allowed(url)
         headers = {"Accept": accept} if accept else {}
         cached = None
         if conditional:

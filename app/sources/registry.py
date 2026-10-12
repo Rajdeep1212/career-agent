@@ -41,6 +41,7 @@ class SourceSpec(BaseModel):
     tenant: str | None = None           # keka: <tenant>.keka.com
     host: str | None = None             # workday: <tenant>.wdN.myworkdayjobs.com
     sites: list[str] = Field(default_factory=list)
+    cxs: bool = False                   # workday: read the careers page's own JSON feed instead of the sitemap (opt-in)
     sitemap_capped: bool = False
     sitemaps: list[str] = Field(default_factory=list)
     job_url_pattern: str | None = None
@@ -58,6 +59,8 @@ class SourceSpec(BaseModel):
             raise ValueError("keka tenant must be the subdomain label of <tenant>.keka.com")
         if self.type == "workday" and not re.fullmatch(r"[a-z0-9-]+\.wd\d+\.myworkdayjobs\.com", self.host or ""):
             raise ValueError("workday host must look like <tenant>.wdN.myworkdayjobs.com")
+        if self.cxs and self.type != "workday":
+            raise ValueError("cxs is a workday option")
         return self
 
 
@@ -84,7 +87,7 @@ class CompanyEntry(BaseModel):
 
     @model_validator(mode="after")
     def _consistent(self):
-        if self.source.type == "undocumented_json" and not self.unofficial:
+        if (self.source.type == "undocumented_json" or self.source.cxs) and not self.unofficial:
             raise ValueError("undocumented sources must be marked unofficial")
         if self.source.type == "none" and self.enabled:
             raise ValueError("an entry without a source cannot be enabled")

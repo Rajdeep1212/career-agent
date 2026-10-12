@@ -1,0 +1,57 @@
+{
+ "total": 678,
+ "jobPostings": [
+  {
+   "title": "Senior Product Manager",
+   "externalPath": "/job/NSW-Sydney-Australia/Senior-Product-Manager_R121274",
+   "locationsText": "NSW Sydney, Australia",
+   "postedOn": "Posted Today",
+   "bulletFields": [
+    "R121274"
+   ]
+  },
+  {
+   "title": "Key Account Manager - Education",
+   "externalPath": "/job/NSW-Sydney-Australia/Key-Account-Manager---Education_R121260-1",
+   "locationsText": "NSW Sydney, Australia",
+   "postedOn": "Posted Today",
+   "bulletFields": [
+    "R121260"
+   ]
+  },
+  {
+   "title": "Director, Senior Legal Counsel - Mobile Commercial Contracts",
+   "externalPath": "/job/6625-Excellence-Way-Plano-TX-USA/Director--Senior-Legal-Counsel---Mobile-Commercial-Contracts_R119521",
+   "locationsText": "6625 Excellence Way, Plano, TX, USA",
+   "postedOn": "Posted Today",
+   "remoteType": "On-site",
+   "bulletFields": [
+    "R119521"
+   ]
+  }
+ ],
+ "facets": [
+  {
+   "facetParameter": "Location_Country",
+   "descriptor": "Country / Region",
+   "values": [
+    {
+     "descriptor": "India",
+     "id": "c4f78be1a8f14da0ab49ce1162348a5e",
+     "count": 31
+    },
+    {
+     "descriptor": "United States of America",
+     "id": "bc33aa3152ec42d4995f4791a106ed09",
+     "count": 468
+    },
+    {
+     "descriptor": "T\u00fcrkiye",
+     "id": "c2e3bac5bbbb47b29dfc6e8b56a1586e",
+     "count": 42
+    }
+   ]
+  }
+ ],
+ "userAuthenticated": false
+}

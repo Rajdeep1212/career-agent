@@ -62,6 +62,15 @@ class SchemaTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             registry.CompanyEntry.model_validate(_entry(source={"type": "workday", "host": "evil.example", "sites": ["x"]}))
 
+    def test_the_workday_json_feed_is_opt_in_and_marked_unofficial(self):
+        source = {"type": "workday", "host": "example.wd1.myworkdayjobs.com", "sites": ["External"]}
+        self.assertFalse(registry.CompanyEntry.model_validate(_entry(source=source)).source.cxs)       # the sitemap stays the default
+        self.assertTrue(registry.CompanyEntry.model_validate(_entry(source={**source, "cxs": True}, unofficial=True, enabled=False)).source.cxs)
+        with self.assertRaises(ValidationError):
+            registry.CompanyEntry.model_validate(_entry(source={**source, "cxs": True}))
+        with self.assertRaises(ValidationError):
+            registry.CompanyEntry.model_validate(_entry(source={"type": "greenhouse", "board": "example", "cxs": True}, unofficial=True))
+
     def test_undocumented_sources_are_marked_unofficial(self):
         with self.assertRaises(ValidationError):
             registry.CompanyEntry.model_validate(_entry(source={"type": "undocumented_json", "endpoint": "https://x.example/api"}))

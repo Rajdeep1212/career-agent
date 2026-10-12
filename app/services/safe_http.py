@@ -1,6 +1,7 @@
 """Bounded public-page HTTP fetches, with DNS validation and connection pinning."""
 import asyncio
 import ipaddress
+import json
 import socket
 from collections.abc import Callable
 from urllib.parse import urljoin, urlsplit
@@ -71,7 +72,7 @@ async def _destination(url: str) -> tuple[httpx.URL, str, str]:
 
 async def safe_get(url: str, *, timeout: float = 15.0, max_redirects: int = 4, max_bytes: int = 1_000_000,
                    headers: dict[str, str] | None = None,
-                   redirect_allowed: Callable[[str], bool] | None = None) -> httpx.Response:
+                   redirect_allowed: Callable[[str], bool] | None = None, json_body: dict | None = None) -> httpx.Response:
     """Fetch a public page; total deadline includes DNS, redirects and reading.
 
     No environment proxies, cookies shared across hops, TLS bypass, automatic
@@ -80,9 +81,14 @@ async def safe_get(url: str, *, timeout: float = 15.0, max_redirects: int = 4, m
     `headers` may set User-Agent, Accept and conditional-request headers; Host
     and Accept-Encoding stay fixed. `redirect_allowed` is asked about every
     redirect target before it is requested; a refused target raises
-    UnsafeURLError.
+    UnsafeURLError. `json_body` sends a POST with that JSON instead of a GET;
+    a POST is never redirected, so its body reaches one checked address only.
     """
     extra = {name: value for name, value in (headers or {}).items() if name.lower() not in ("host", "accept-encoding")}
+    method = "GET" if json_body is None else "POST"
+    content = None if json_body is None else json.dumps(json_body).encode("utf-8")
+    if content is not None:
+        extra["Content-Type"] = "application/json"
 
     async def fetch() -> httpx.Response:
         current = url
@@ -91,10 +97,10 @@ async def safe_get(url: str, *, timeout: float = 15.0, max_redirects: int = 4, m
             request_headers = {"Host": authority, "User-Agent": "JobAgent/0.3", "Accept": "text/html,application/xhtml+xml,text/plain",
                                "Accept-Encoding": "identity", **extra}
             async with httpx.AsyncClient(timeout=timeout, verify=True, trust_env=False, follow_redirects=False) as client:
-                async with client.stream("GET", pinned, headers=request_headers, extensions={"sni_hostname": tls_host}) as response:
+                async with client.stream(method, pinned, headers=request_headers, content=content, extensions={"sni_hostname": tls_host}) as response:
                     if response.status_code in {301, 302, 303, 307, 308}:
                         target = response.headers.get("location")
-                        if not target or hop == max_redirects:
+                        if not target or hop == max_redirects or content is not None:
                             raise UnsafeURLError("Redirect limit or invalid redirect.")
                         current = urljoin(current, target)
                         if redirect_allowed is not None and not redirect_allowed(current):
@@ -110,7 +116,7 @@ async def safe_get(url: str, *, timeout: float = 15.0, max_redirects: int = 4, m
                         if len(body) + len(chunk) > max_bytes:
                             raise UnsafeURLError("Response exceeds body limit.")
                         body.extend(chunk)
-                    return httpx.Response(response.status_code, headers=response.headers, content=bytes(body), request=httpx.Request("GET", current))
+                    return httpx.Response(response.status_code, headers=response.headers, content=bytes(body), request=httpx.Request(method, current))
         raise UnsafeURLError("Redirect limit exceeded.")
 
     return await asyncio.wait_for(fetch(), timeout=max(0.1, min(float(timeout), 30.0)))

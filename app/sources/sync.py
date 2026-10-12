@@ -21,7 +21,7 @@ from app.sources.alerts.daily import run_alerts
 from app.sources.alerts.daily import summary as alerts_summary
 from app.sources.daily_jsearch import run_daily_jsearch
 from app.sources.digest import build_digest, write_digest
-from app.sources.adapters import FetchResult, SourceError, ashby, greenhouse, keka, lever, sitemap, smartrecruiters
+from app.sources.adapters import FetchResult, SourceError, ashby, greenhouse, keka, lever, sitemap, smartrecruiters, workday
 from app.sources.fetcher import HostBlocked, PoliteFetcher, RobotsDisallowed
 from app.sources.registry import CompanyEntry, RadarConfig, RadarConfigError, load_config, syncable
 from app.storage import radar_store
@@ -79,6 +79,8 @@ async def _fetch(company: CompanyEntry, fetcher: PoliteFetcher, *, known: dict[s
         return await _smartrecruiters(company, fetcher, known)
     if kind == "keka":
         return await keka.fetch(company, fetcher, today=today), 0
+    if kind == "workday" and company.source.cxs:
+        return await workday.fetch(company, fetcher, known=known, skip=skip), 0
     if kind in ("workday", "sitemap_jsonld"):
         return await sitemap.fetch(company, fetcher, known=known, skip=skip, today=today), 0
     raise SourceError(f"No adapter for source type '{kind}' yet.")

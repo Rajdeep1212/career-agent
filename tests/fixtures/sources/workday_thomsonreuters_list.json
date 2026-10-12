@@ -1,0 +1,62 @@
+{
+ "total": 450,
+ "jobPostings": [
+  {
+   "title": "Transformation Consultant, Professional Services",
+   "externalPath": "/job/United-States-of-America-Eagan-Minnesota/Transformation-Consultant--Professional-Services_JREQ204372",
+   "postedOn": "Posted Today",
+   "remoteType": "Remote",
+   "bulletFields": [
+    "Ann Arbor; Frisco; Eagan; New York",
+    "Michigan; Texas; New York; Minnesota",
+    "JREQ204372"
+   ]
+  },
+  {
+   "title": "Gerente Sr. Onboarding",
+   "externalPath": "/job/Brazil-Campinas-So-Paulo/Gerente-Sr-Onboarding_JREQ202395",
+   "postedOn": "Posted Today",
+   "remoteType": "Hybrid",
+   "bulletFields": [
+    "Campinas",
+    "Sao Paulo",
+    "JREQ202395"
+   ]
+  },
+  {
+   "title": "Account Specialist, US",
+   "externalPath": "/job/United-States-of-America-Eagan-Minnesota/Account-Specialist--US_JREQ204373-1",
+   "postedOn": "Posted Today",
+   "remoteType": "Hybrid",
+   "bulletFields": [
+    "Frisco; Eagan; Ann Arbor",
+    "Texas; Michigan; Minnesota",
+    "JREQ204373"
+   ]
+  }
+ ],
+ "facets": [
+  {
+   "facetParameter": "Location_Country",
+   "descriptor": "Location Country",
+   "values": [
+    {
+     "descriptor": "India",
+     "id": "c4f78be1a8f14da0ab49ce1162348a5e",
+     "count": 42
+    },
+    {
+     "descriptor": "United States of America",
+     "id": "bc33aa3152ec42d4995f4791a106ed09",
+     "count": 210
+    },
+    {
+     "descriptor": "Canada",
+     "id": "a30a87ed25634629aa6c3958aa2b91ea",
+     "count": 69
+    }
+   ]
+  }
+ ],
+ "userAuthenticated": false
+}

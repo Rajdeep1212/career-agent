@@ -140,8 +140,8 @@ class DetectFetcher(PoliteFetcher):
     def final_url(self, url: str) -> str:
         return self._final.get(url, url)
 
-    async def _request(self, url: str, headers: dict[str, str]) -> httpx.Response:
-        response = await super()._request(url, headers)
+    async def _request(self, url: str, headers: dict[str, str], json_body: dict | None = None) -> httpx.Response:
+        response = await super()._request(url, headers, json_body)
         self._final[url] = str(response.request.url)
         return response
 

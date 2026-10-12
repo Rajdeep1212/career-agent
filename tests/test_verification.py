@@ -1,4 +1,5 @@
 """Deterministic verification and SSRF regression tests; never uses live DNS/HTTP."""
+import json
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
@@ -156,6 +157,26 @@ class SafeHTTPTests(unittest.IsolatedAsyncioTestCase):
         with self.transport(handler):
             await self.safe.safe_get("https://example.com/jobs/1", headers={
                 "User-Agent": "CareerAgent/test", "If-None-Match": '"v1"', "Host": "evil.example", "Accept-Encoding": "gzip"})
+
+    async def test_a_json_body_is_sent_as_a_post(self):
+        def handler(request):
+            self.assertEqual((request.method, request.headers["content-type"]), ("POST", "application/json"))
+            self.assertEqual(json.loads(request.content), {"limit": 20, "offset": 0})
+            self.assertEqual(request.url.host, "93.184.216.34")                      # the same pinned, checked address as a GET
+            return httpx.Response(200, text="{}")
+        with self.transport(handler):
+            response = await self.safe.safe_get("https://example.com/search", json_body={"limit": 20, "offset": 0})
+        self.assertEqual((response.status_code, response.request.method), (200, "POST"))
+
+    async def test_a_post_is_never_redirected_so_its_body_reaches_one_address_only(self):
+        requested = []
+
+        def handler(request):
+            requested.append(str(request.url))
+            return httpx.Response(307, headers={"location": "https://other.example/search"})
+        with self.transport(handler), self.assertRaises(self.safe.UnsafeURLError):
+            await self.safe.safe_get("https://example.com/search", json_body={"q": "x"})
+        self.assertEqual(len(requested), 1)
 
     async def test_redirect_to_private_host_is_blocked(self):
         with self.transport(lambda request: httpx.Response(302, headers={"location": "http://169.254.169.254/latest/meta-data"})), self.assertRaises(self.safe.UnsafeURLError):
