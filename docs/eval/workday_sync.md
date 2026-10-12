@@ -4,7 +4,8 @@ Claim level L0: counts are `len()` of the lists the feeds returned. Nothing was 
 
 ## Decisions (Rajdeep, 12 October 2026)
 
-1. **India discovery.** Use the tenant's country filter where the listing offers one, newest first; otherwise page
+1. **India discovery.** Use the tenant's country filter where the listing offers one ("newest first" was dropped on
+   12 October: no sort parameter is known, so each tenant's default order is kept); otherwise page
    through the listing and filter by location text. At most 40 detail requests per company per run, and a detail is
    requested only for a job not already in the index.
 2. **Nike: excluded entirely.** Its robots.txt refuses `/nke/` and `/nke2/`, and the JSON feed would read the same
@@ -101,3 +102,25 @@ America, Uniphore and BrowserStack. Each entry's evidence holds the two `len()` 
 India jobs read). On the next start a local `data/company_radar.json` made from an older seed gains these 11 entries
 once, after a backup; nothing in it is enabled or changed. No "pollable" verdict by the one rule was made: that
 needs the newest posting date of a whole board, which a 5-detail run does not give.
+
+## The one pollable rule, from the dry-run evidence (12 October 2026, no new requests)
+
+`board_rule.judge` with today = 12 October 2026. "Jobs" is the number of listings read, "in India" the details read
+and placed in India (so a floor, capped by the run), and the newest posting is the latest `startDate` among those
+details. The name is taken as matching because each tenant was found as a link or redirect on the company's own
+careers page (`ats_detection.md`); the feed's own organisation name was not compared. Samsung's tenant (`sec`) is
+all of Samsung Electronics, not only the India R&D institute.
+
+| Tenant | Jobs | In India | Newest posting read | Verdict |
+|---|---|---|---|---|
+| DXC Technology | 151 | 40 | 2026-10-09 (3 dates kept from the first check) | pollable |
+| Genpact | 200 | 5 | 2026-10-12 | pollable |
+| Fractal Analytics | 116 | 5 | 2026-10-06 | pollable |
+| Samsung R&D Institute India | 31 | 5 | 2026-09-24 | pollable |
+| Marvell Technology | 23 | 5 | 2026-10-10 | pollable |
+| Airbus | 200 | 5 | 2026-10-12 | pollable |
+| Stryker | 78 | 5 | 2026-10-12 | pollable |
+| Uniphore | 34 | 4 | 2026-09-24 | pollable |
+| BrowserStack | 34 | 5 | 2026-10-09 | pollable |
+| Red Hat | 20 | 2 by location text | none: no detail was read, and "Posted Today" is not a date | not pollable on this evidence (`stale_no_india`) |
+| Bank of America | 20 | 0 | none | not pollable (`stale_no_india`) |

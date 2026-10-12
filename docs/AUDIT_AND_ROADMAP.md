@@ -340,6 +340,19 @@ Built on branch `m1d-alerts` (decisions D3, D4):
 - Parser fixes found along the way: "now in Pune" no longer becomes a role called "now", and
   "using `<skill>`" after a city is not part of the location.
 
+### Workday JSON feed and NAT64 addresses (WD1, NET1; built 2026-10-12)
+
+- **WD1.** `app/sources/adapters/workday.py` reads a Workday tenant through the search its own careers page runs
+  (`cxs`), opt-in per company with `source.cxs` on a `workday` entry, which must be `unofficial` (decision G). The
+  sitemap reader stays the default. `seed_v3.json` adds 11 tenants, all disabled; Nike and NTT are excluded, and
+  Accenture, NXP, Target and Thomson Reuters stay on the sitemap. Decisions, limits (200 listings and 40 details per
+  company per run; no "newest first", each tenant's default order is kept) and dry-run counts:
+  `docs/eval/workday_sync.md`.
+- **NET1.** `safe_get` accepts a NAT64 address (`64:ff9b::/96`) when the IPv4 address inside it passes the same
+  public-address check, so the app works on an IPv6-only connection such as a phone hotspot. Private addresses
+  behind the prefix stay blocked and the connection is still pinned to the checked address.
+- **Rule from this item.** Ask the owner before any live run over several companies, even a dry run.
+
 ### Pre-M2 fixes (audited and decided 2026-09-28)
 
 A situation audit on 2026-09-28 found these defects. Each one was verified against the code and on

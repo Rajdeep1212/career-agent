@@ -59,8 +59,12 @@ official ATS APIs, and robots-allowed sitemaps with schema.org JobPosting data. 
 reads the index and cached results; aggregators (JSearch, Adzuna, Jooble) run only on a manual
 refresh. Seed files (`app/core/radar/seed_vN.json`) are versioned and never edited after release;
 only entries with `enabled` and `reviewed` true are synced, and undocumented endpoints stay opt-in.
+A `workday` entry reads the sitemap by default; `source.cxs: true` switches it to the careers page's
+own JSON feed (`app/sources/adapters/workday.py`), and such an entry must be `unofficial`.
 Evidence and run-log counts must come from parsed data (`len()` of the fetched list), never estimates.
 Tests use recorded fixtures; the sync never runs in DEMO_MODE.
+Ask the owner before any live run over several companies, even a dry run that saves nothing: name
+the companies and the requests each will get. A saving sync needs its own typed "go".
 
 Alert emails (`app/sources/alerts/`) are read over IMAP from a dedicated inbox only, or from `.eml`
 files; the only mailbox change allowed is flagging processed messages `\Seen`. Their jobs, and jobs
