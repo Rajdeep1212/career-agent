@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from app.core.config import settings
 
-SEED_VERSION = 2
+SEED_VERSION = 3
 SEED_DIR = Path(__file__).resolve().parents[1] / "core" / "radar"
 CONFIG_PATH = Path(settings.data_dir) / "company_radar.json"
 

@@ -20,8 +20,7 @@ def _entry(**overrides):
 
 class SeedTests(unittest.TestCase):
     def test_seed_v2_adds_the_twelve_keka_tenants_disabled_and_changes_nothing_else(self):
-        old, new = registry.load_seed(1).companies, registry.load_seed().companies
-        self.assertEqual(registry.SEED_VERSION, 2)
+        old, new = registry.load_seed(1).companies, registry.load_seed(2).companies
         self.assertEqual([c.model_dump() for c in new[:len(old)]], [c.model_dump() for c in old])
         keka = new[len(old):]
         self.assertEqual(len(keka), 12)
@@ -29,6 +28,19 @@ class SeedTests(unittest.TestCase):
         self.assertTrue(all(c.unofficial and c.reviewed and not c.enabled for c in keka))     # undocumented feed: opt-in (decision G)
         self.assertEqual(len({c.source.tenant for c in keka}), 12)
         self.assertEqual(sum((c.evidence.india or 0) > 0 for c in keka), 10)
+
+    def test_seed_v3_adds_eleven_workday_tenants_disabled_and_changes_nothing_else(self):
+        old, new = registry.load_seed(2).companies, registry.load_seed().companies
+        self.assertEqual(registry.SEED_VERSION, 3)
+        self.assertEqual([c.model_dump() for c in new[:len(old)]], [c.model_dump() for c in old])
+        added = new[len(old):]
+        self.assertEqual(len(added), 11)
+        self.assertTrue(all(c.source.type == "workday" and c.source.cxs for c in added))
+        self.assertTrue(all(c.unofficial and c.reviewed and not c.enabled for c in added))   # undocumented feed: opt-in (decision G)
+        self.assertEqual(len({c.source.host for c in added}), 11)
+        hosts = {c.source.host or "" for c in new}
+        self.assertFalse(any("nike" in host or "nttglobaldatacenters" in host for host in hosts))      # excluded, 12 Oct 2026
+        self.assertFalse(any(c.source.cxs for c in old))                                    # Accenture, NXP, Target, Thomson Reuters stay on the sitemap
 
     def test_seed_v1_is_valid_and_matches_the_approved_plan(self):
         seed = registry.load_seed(1)
@@ -92,7 +104,7 @@ class LocalConfigTests(unittest.TestCase):
     def test_bootstrap_copies_the_seed_once_and_never_overwrites(self):
         config = registry.load_config()
         self.assertTrue(self.path.exists())
-        self.assertEqual(len(config.companies), 101)
+        self.assertEqual(len(config.companies), 112)
         data = json.loads(self.path.read_text(encoding="utf-8"))
         data["companies"][0]["enabled"] = False
         self.path.write_text(json.dumps(data), encoding="utf-8")
@@ -118,14 +130,14 @@ class LocalConfigTests(unittest.TestCase):
     def test_a_newer_seed_adds_its_new_companies_and_keeps_everything_the_user_has(self):
         before = self._old_config()
         config = registry.load_config()
-        self.assertEqual(config.seed_version, 2)
-        self.assertEqual(len(config.companies), 90 + 12)
+        self.assertEqual(config.seed_version, 3)
+        self.assertEqual(len(config.companies), 90 + 12 + 11)
         kept = json.loads(config.model_dump_json())["companies"][:90]
         self.assertEqual([entry["id"] for entry in kept], [entry["id"] for entry in before["companies"]])
         self.assertFalse(config.companies[0].enabled)                                   # the edit is kept
         self.assertEqual(config.companies[89].id, "my-own-company")
         added = config.companies[90:]
-        self.assertEqual({entry.source.type for entry in added}, {"keka"})
+        self.assertEqual({entry.source.type for entry in added}, {"keka", "workday"})
         self.assertFalse(any(entry.enabled for entry in added))                         # shipped disabled: nothing new is polled unasked
 
     def test_the_upgrade_backs_the_file_up_first_and_runs_once(self):
@@ -146,7 +158,7 @@ class LocalConfigTests(unittest.TestCase):
         config = registry.load_config()
         mine = [entry for entry in config.companies if entry.id == "gokwik"]
         self.assertEqual([(entry.name, entry.source.type) for entry in mine], [("My GoKwik entry", "greenhouse")])
-        self.assertEqual(len(config.companies), 91 + 11)
+        self.assertEqual(len(config.companies), 91 + 11 + 11)
 
     def test_a_company_the_user_removed_is_not_brought_back(self):
         data = self._old_config()
@@ -157,7 +169,7 @@ class LocalConfigTests(unittest.TestCase):
     def test_reading_without_writing_never_upgrades_the_file(self):
         self._old_config()
         original = self.path.read_bytes()
-        self.assertEqual(len(registry.read_config().companies), 90 + 12)
+        self.assertEqual(len(registry.read_config().companies), 90 + 12 + 11)
         self.assertEqual(self.path.read_bytes(), original)
         self.assertFalse((self.path.parent / "backups").exists())
 
