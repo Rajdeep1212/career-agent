@@ -30,15 +30,15 @@ DETAIL_CAP = 40     # new job details opened per company per run
 _WORK_MODES = {"remote": "remote", "hybrid": "hybrid", "on-site": "onsite", "onsite": "onsite"}
 
 
-def india_filter(facets) -> dict | None:
-    """{facet name: [India's id]} from the filters a listing offers; tenants name and nest the country facet differently."""
+def india_filter(facets) -> tuple[dict, object] | None:
+    """({facet name: [India's id]}, the board's count of India jobs) from the filters a listing offers; tenants name and nest the country facet differently."""
     for facet in facets if isinstance(facets, list) else []:
         if not isinstance(facet, dict):
             continue
         values = facet.get("values") or []
         for value in values if isinstance(values, list) else []:
             if isinstance(value, dict) and value.get("descriptor") == "India" and value.get("id") and facet.get("facetParameter"):
-                return {str(facet["facetParameter"]): [str(value["id"])]}
+                return {str(facet["facetParameter"]): [str(value["id"])]}, value.get("count")
         nested = india_filter(values)
         if nested:
             return nested
@@ -48,6 +48,7 @@ def india_filter(facets) -> dict | None:
 async def _listing(fetcher: PoliteFetcher, url: str, what: str) -> tuple[list, bool, bool, int]:
     """(listed records, whether that is the whole board, whether Workday filtered it to India, HTTP status)."""
     applied: dict = {}
+    expected = None
     items: list = []
     total = None
     page = 0
@@ -60,9 +61,12 @@ async def _listing(fetcher: PoliteFetcher, url: str, what: str) -> tuple[list, b
             raise SourceError(f"{what} returned no job list.", response.status_code)
         if page == 0:
             if not applied:
-                applied = india_filter(payload.get("facets")) or {}
+                applied, expected = india_filter(payload.get("facets")) or ({}, None)
                 if applied:
                     continue        # the same first page again, India only
+            elif not postings and type(expected) is int and expected > 0:
+                # Read as a whole, empty board this answer would close every stored job.
+                raise SourceError(f"{what} listed no India job though its own filter counts {expected}.", response.status_code)
             total = payload.get("total")        # the first page's count is the one used
         items += postings
         page += 1

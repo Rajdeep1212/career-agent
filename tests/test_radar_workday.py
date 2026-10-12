@@ -90,6 +90,21 @@ class WorkdayTests(unittest.IsolatedAsyncioTestCase):
             await workday.fetch(entry(*PLAIN), fetcher)
             self.assertEqual(fetcher.bodies[1]["appliedFacets"], {parameter: [INDIA]}, name)
 
+    async def test_a_country_filter_nested_in_a_group_is_found(self):
+        country = {"facetParameter": "locationCountry", "descriptor": "Country", "values": [{"descriptor": "India", "id": INDIA, "count": 5}]}
+        listing = {"total": 0, "jobPostings": [], "facets": [{"facetParameter": "locationMainGroup", "values": [country]}]}
+        fetcher = FakeFetcher({list_url(*PLAIN): lambda body: pages(5)(body) if body["appliedFacets"] else listing})
+        result = await workday.fetch(entry(*PLAIN), fetcher, detail_cap=0)
+        self.assertEqual((result.fetched, result.complete), (5, True))
+        self.assertEqual(fetcher.bodies[1]["appliedFacets"], {"locationCountry": [INDIA]})
+
+    async def test_an_empty_india_listing_that_contradicts_the_boards_own_count_is_an_error_not_an_empty_board(self):
+        offered = recorded("dxctechnology_list")                            # its country filter counts 148 jobs in India
+        nothing = {"total": 0, "jobPostings": [], "facets": []}
+        fetcher = FakeFetcher({list_url(*PLAIN): lambda body: nothing if body["appliedFacets"] else offered})
+        with self.assertRaises(SourceError):                                 # a complete, empty listing would close every stored job
+            await workday.fetch(entry(*PLAIN), fetcher)
+
     async def test_without_a_country_filter_only_india_locations_are_opened_and_the_detail_decides(self):
         listing, detail = recorded("uniphore_list"), recorded("dxctechnology_detail")
         url = detail_url(*UNIPHORE, UNIPHORE_INDIA_JOB)
