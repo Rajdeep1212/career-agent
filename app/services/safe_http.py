@@ -18,6 +18,11 @@ async def _resolve_host(host: str, port: int) -> list[str]:
     return list(dict.fromkeys(str(answer[4][0]) for answer in answers))
 
 
+# RFC 6052 well-known prefix: on an IPv6-only network (a phone hotspot) DNS answers these for IPv4-only hosts, and
+# the network's gateway forwards to the IPv4 address in the last 32 bits. Public only when that address is.
+_NAT64 = ipaddress.ip_network("64:ff9b::/96")
+
+
 def _public_address(value: str) -> bool:
     try:
         address = ipaddress.ip_address(value)
@@ -26,6 +31,8 @@ def _public_address(value: str) -> bool:
     if isinstance(address, ipaddress.IPv6Address):
         if address.ipv4_mapped:
             return _public_address(str(address.ipv4_mapped))
+        if address in _NAT64:
+            return _public_address(str(ipaddress.IPv4Address(int(address) & 0xFFFFFFFF)))
         # 6to4 (2002::/16) and Teredo embed an IPv4 address. Older Pythons call
         # some of these global, so a private embedded address is checked here.
         embedded = ([address.sixtofour] if address.sixtofour else []) + list(address.teredo or ())

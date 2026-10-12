@@ -135,6 +135,31 @@ class SafeHTTPTests(unittest.IsolatedAsyncioTestCase):
         with self.transport(lambda request: self.fail("Private DNS answer reached HTTP")), self.assertRaises(self.safe.UnsafeURLError):
             await self.safe.safe_get("https://example.com/job")
 
+    async def test_a_nat64_address_is_judged_by_the_ipv4_address_inside_it(self):
+        # An IPv6-only network (a phone hotspot) answers 64:ff9b::/96 addresses for IPv4-only hosts (RFC 6052).
+        self.resolver.return_value = ["64:ff9b::4045:1835", "64.69.24.53"]
+
+        def handler(request):
+            self.assertEqual(request.url.host, "64:ff9b::4045:1835")                   # still pinned to the first checked answer
+            self.assertEqual(request.headers["host"], "example.com")
+            self.assertEqual(request.extensions["sni_hostname"], "example.com")
+            return httpx.Response(200, text="hello")
+        with self.transport(handler):
+            self.assertEqual((await self.safe.safe_get("https://example.com/jobs/1")).text, "hello")
+
+    async def test_a_nat64_address_never_reaches_a_private_ipv4_address(self):
+        inside = {"10.0.0.1": "64:ff9b::a00:1", "127.0.0.1": "64:ff9b::7f00:1", "169.254.169.254": "64:ff9b::a9fe:a9fe",
+                  "192.168.1.5": "64:ff9b::c0a8:105", "0.0.0.0": "64:ff9b::", "224.0.0.1": "64:ff9b::e000:1",
+                  "local-use prefix": "64:ff9b:1::4045:1835", "other reserved": "64:ff9a::4045:1835"}
+        with self.transport(lambda request: self.fail("Private address reached HTTP")):
+            for what, address in inside.items():
+                for answers in ([address], ["93.184.216.34", address]):
+                    self.resolver.return_value = answers
+                    with self.subTest(what=what, answers=answers), self.assertRaises(self.safe.UnsafeURLError):
+                        await self.safe.safe_get("https://example.com/job")
+                with self.subTest(what=what, literal=True), self.assertRaises(self.safe.UnsafeURLError):
+                    await self.safe.safe_get(f"http://[{address}]/job")
+
     async def test_validated_ip_is_used_for_connection_with_original_tls_name(self):
         def handler(request):
             self.assertEqual(request.url.host, "93.184.216.34")
