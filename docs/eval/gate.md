@@ -5,10 +5,10 @@ level L0: counts printed by the test runners. Every test is offline and uses rec
 
 | Check | Command | Result |
 |---|---|---|
-| Python tests | `python run_tests.py` | 1054 offline Python tests run, 0 failed, 2 skipped |
+| Python tests | `python run_tests.py` | 1075 offline Python tests run, 0 failed, 2 skipped |
 | Dashboard script | `node tests/test_frontend.cjs` | passed |
 | Lint | `python -m ruff check .` | no findings |
-| Types | `python -m mypy` | no issues in 122 source files |
+| Types | `python -m mypy` | no issues in 123 source files |
 | Web types | `npm run typecheck` (in `web/`) | no errors |
 | Web tests | `npm test` (in `web/`) | 57 web tests passed in 8 files |
 | Browser tests | `npm run smoke` (in `web/`) | 8 browser tests passed (Playwright), on a disposable tracker database; the screenshot spec is skipped |
