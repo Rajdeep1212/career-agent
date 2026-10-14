@@ -1,4 +1,6 @@
 """Sync engine: adapter dispatch, status transitions, run logs, same-day idempotence; the network is never used."""
+import contextlib
+import io
 import sqlite3
 import tempfile
 import unittest
@@ -56,6 +58,25 @@ class SyncTests(unittest.IsolatedAsyncioTestCase):
     async def _run(self, fetcher, today, *entries, **kwargs):
         return {outcome.company_id: outcome for outcome in
                 await sync.run_sync(config=config(*entries), fetcher=fetcher, today=today, **kwargs)}
+
+    async def test_each_company_is_reported_as_soon_as_it_finishes(self):
+        fetcher = FakeFetcher(routes())
+        seen = []                                    # (company, requests made when it was reported)
+        await sync.run_sync(config=config(GREENHOUSE, LEVER_CO), fetcher=fetcher, today=D1, company_ids=["gh", "lv", "nobody"],
+                            report=lambda outcome: seen.append((outcome.company_id, len(fetcher.calls))))
+        self.assertEqual([company for company, _ in seen], ["nobody", "gh", "lv"])
+        self.assertEqual(seen[1][1], 1)              # Greenhouse is reported before Lever's board is read
+
+    def test_the_command_line_prints_a_finished_company_before_the_run_ends(self):
+        async def stopped(**kwargs):                 # a run that dies after its first company, as a killed task does
+            kwargs["report"](sync.Outcome("gh", "ok", fetched=3, india=2, new=1, closed=0))
+            raise KeyboardInterrupt
+        output = io.StringIO()
+        with patch.object(sync, "run_sync", stopped), patch.object(sync, "load_config", lambda: config()),                 contextlib.redirect_stdout(output), self.assertRaises(KeyboardInterrupt):
+            sync.main(["--no-jsearch", "--no-alerts"])
+        lines = output.getvalue().splitlines()
+        self.assertTrue(lines[0].startswith("company"))
+        self.assertTrue(lines[1].startswith("gh ") and " ok " in lines[1], lines)
 
     async def test_every_adapter_fills_the_index_with_counts_from_parsed_data(self):
         outcomes = await self._run(FakeFetcher(routes()), D1, GREENHOUSE, LEVER_CO, SMART, WORKDAY)

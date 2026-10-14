@@ -10,6 +10,7 @@ import argparse
 import asyncio
 import sqlite3
 import sys
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import date
 
@@ -148,17 +149,27 @@ async def sync_company(company: CompanyEntry, fetcher: PoliteFetcher, *, today: 
 
 async def run_sync(*, company_ids: list[str] | None = None, dry_run: bool = False, force: bool = False,
                    today: date | None = None, fetcher: PoliteFetcher | None = None,
-                   config: RadarConfig | None = None) -> list[Outcome]:
-    """Sync every enabled, reviewed company (or the named ones); each at most once a day unless forced."""
+                   config: RadarConfig | None = None, report: Callable[[Outcome], None] | None = None) -> list[Outcome]:
+    """Sync every enabled, reviewed company (or the named ones); each at most once a day unless forced.
+
+    `report` is called with each company's outcome as soon as it is known, so a run that is stopped part way
+    has still shown every company it finished."""
     if settings.demo_mode:
         return []
     today = today or date.today()
     companies = syncable(config or load_config())
-    outcomes = []
+    outcomes: list[Outcome] = []
+
+    def add(outcome: Outcome) -> None:
+        outcomes.append(outcome)
+        if report is not None:
+            report(outcome)
+
     if company_ids:
         wanted = set(company_ids)
-        outcomes += [Outcome(company_id, "skipped", note="unknown, disabled or not reviewed")
-                     for company_id in company_ids if company_id not in {company.id for company in companies}]
+        for company_id in company_ids:
+            if company_id not in {company.id for company in companies}:
+                add(Outcome(company_id, "skipped", note="unknown, disabled or not reviewed"))
         companies = [company for company in companies if company.id in wanted]
     fetcher = fetcher or PoliteFetcher(max_bytes=MAX_BYTES)
     if not dry_run:
@@ -166,9 +177,9 @@ async def run_sync(*, company_ids: list[str] | None = None, dry_run: bool = Fals
     try:
         for company in companies:
             if not dry_run and not force and radar_store.ran_today(company.id, today=today):
-                outcomes.append(Outcome(company.id, "skipped", note="already synced today"))
+                add(Outcome(company.id, "skipped", note="already synced today"))
                 continue
-            outcomes.append(await sync_company(company, fetcher, today=today, dry_run=dry_run))
+            add(await sync_company(company, fetcher, today=today, dry_run=dry_run))
     finally:
         if not dry_run:
             radar_store.close_stale_runs()  # whatever stopped the loop, no run stays "running"
@@ -188,12 +199,16 @@ async def run_cycle(*, force: bool = False) -> dict:
             "jsearch": daily.status, "jsearch_jobs": daily.jobs, "alerts": alerts.status, "alert_jobs_new": alerts.new, "eligible": len(result.eligible), "uncertain": len(result.uncertain)}
 
 
-def _print(outcomes: list[Outcome], requests: int, dry_run: bool) -> None:
-    print(f"{'company':28} {'status':8} {'fetched':>7} {'india':>6} {'new':>5} {'closed':>6}  note")
-    for outcome in outcomes:
-        row = asdict(outcome)
-        cells = [str(row[key]) if row[key] is not None else "-" for key in ("fetched", "india", "new", "closed")]
-        print(f"{outcome.company_id:28} {outcome.status:8} {cells[0]:>7} {cells[1]:>6} {cells[2]:>5} {cells[3]:>6}  {outcome.note}")
+HEADER = f"{'company':28} {'status':8} {'fetched':>7} {'india':>6} {'new':>5} {'closed':>6}  note"
+
+
+def _row(outcome: Outcome) -> str:
+    row = asdict(outcome)
+    cells = [str(row[key]) if row[key] is not None else "-" for key in ("fetched", "india", "new", "closed")]
+    return f"{outcome.company_id:28} {outcome.status:8} {cells[0]:>7} {cells[1]:>6} {cells[2]:>5} {cells[3]:>6}  {outcome.note}"
+
+
+def _print_totals(outcomes: list[Outcome], requests: int, dry_run: bool) -> None:
     totals = {status: sum(1 for outcome in outcomes if outcome.status == status) for status in ("ok", "partial", "error", "skipped")}
     print(f"\n{len(outcomes)} companies: " + ", ".join(f"{count} {status}" for status, count in totals.items())
           + f"; {requests} requests" + (" (dry run: nothing saved)" if dry_run else ""))
@@ -216,9 +231,10 @@ def main(argv: list[str] | None = None) -> int:
         print(exc)
         return 2
     fetcher = PoliteFetcher(max_bytes=MAX_BYTES)
+    print(HEADER, flush=True)
     outcomes = asyncio.run(run_sync(company_ids=args.companies, dry_run=args.dry_run, force=args.force,
-                                    fetcher=fetcher, config=config))
-    _print(outcomes, fetcher.requests, args.dry_run)
+                                    fetcher=fetcher, config=config, report=lambda outcome: print(_row(outcome), flush=True)))
+    _print_totals(outcomes, fetcher.requests, args.dry_run)
     if not args.dry_run and not args.no_jsearch:
         daily = asyncio.run(run_daily_jsearch(force=args.force))
         detail = f"{daily.jobs} jobs ('{daily.query}')" if daily.status == "ok" else daily.note
