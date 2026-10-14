@@ -3,12 +3,16 @@ Made-up measurements only; the real machine is not asserted on."""
 import contextlib
 import importlib.util
 import io
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 GB = 1024 ** 3
+# The made-up measurements use Windows drive letters ("C:/..."). On Linux and macOS Path("C:/x").drive is "",
+# so drive matching cannot work there; the windows-latest CI job still runs these tests.
+windows_paths = unittest.skipUnless(sys.platform == "win32", "uses Windows drive letters")
 
 
 def load():
@@ -30,6 +34,7 @@ class CheckEnvTests(unittest.TestCase):
                     repo_drive="C", cache_path=Path("C:/Users/x/.cache/huggingface"), cache_size=0)
         return self.env.Measured(**{**base, **changes})
 
+    @windows_paths
     def test_every_requirement_passes_on_a_roomy_machine_and_states_its_number(self):
         lines = self.env.verdicts(self.measured())
         self.assertEqual([(line.name, line.verdict) for line in lines],
@@ -37,6 +42,7 @@ class CheckEnvTests(unittest.TestCase):
         self.assertIn("16.0 GB", lines[0].measured)
         self.assertIn("not required", lines[3].requirement)
 
+    @windows_paths
     def test_each_threshold_fails_just_below_it(self):
         cases = {"RAM total": dict(ram_total=int(7.4 * GB)),
                  "Cache drive free": dict(drives=[self.drive("C", 7.9)]), "Repo drive free": dict(drives=[self.drive("C", 1.9)])}
@@ -46,6 +52,7 @@ class CheckEnvTests(unittest.TestCase):
         exactly = self.env.verdicts(self.measured(ram_total=int(7.5 * GB), drives=[self.drive("C", 8)]))
         self.assertTrue(all(line.verdict == "PASS" for line in exactly))
 
+    @windows_paths
     def test_an_8_gb_machine_that_reports_7_7_passes_and_free_ram_is_not_a_gate(self):
         # Decided 2026-10-03: usable RAM on an 8 GB machine is about 7.7 GB, and free RAM is checked by the embedding
         # script when it runs (it needs about 1 GB), not by this preflight.
@@ -61,6 +68,7 @@ class CheckEnvTests(unittest.TestCase):
         for word in ("buy", "purchase", "upgrade your"):
             self.assertNotIn(word, source)
 
+    @windows_paths
     def test_the_cache_stays_where_it_is_when_its_drive_has_room(self):
         decision = self.env.decide_cache(self.measured())
         self.assertEqual((decision.action, decision.drive), ("keep", "C"))
@@ -86,6 +94,7 @@ class CheckEnvTests(unittest.TestCase):
         self.assertEqual(self.env.hf_cache_path({"HF_HOME": "F:/ai-cache/huggingface", "XDG_CACHE_HOME": "D:/xdg"}, home),
                          Path("F:/ai-cache/huggingface"))
 
+    @windows_paths
     def test_the_report_has_the_table_the_verdict_and_the_drive_decision(self):
         measured = self.measured(ram_total=6 * GB, ram_free=2 * GB, drives=[self.drive("C", 4), self.drive("F", 200)],
                                  cache_path=Path("F:/huggingface"))
